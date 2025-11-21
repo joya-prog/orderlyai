@@ -119,21 +119,22 @@ export default function Agents() {
   };
 
   return (
-    <div className="p-8">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold font-serif">Voice Agents</h1>
-          <p className="text-muted-foreground mt-2">
-            Manage your AI voice agents for reservations and customer service
-          </p>
+    <div className="flex flex-col h-full overflow-auto">
+      <div className="flex-1 p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Voice Agents</h1>
+            <p className="text-muted-foreground mt-1">
+              Manage your AI voice agents for reservations and customer service
+            </p>
+          </div>
+          <Button asChild data-testid="button-create-agent">
+            <Link href="/agents/new">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Agent
+            </Link>
+          </Button>
         </div>
-        <Button asChild data-testid="button-create-agent">
-          <Link href="/agents/new">
-            <Plus className="h-4 w-4 mr-2" />
-            Create Agent
-          </Link>
-        </Button>
-      </div>
 
       {!agents || agents.length === 0 ? (
         <Card className="border-dashed">
@@ -161,12 +162,12 @@ export default function Agents() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {agents.map((agent) => (
-            <Card key={agent.id} className="hover-elevate" data-testid={`card-agent-${agent.id}`}>
+            <Card key={agent.id} className="hover-elevate transition-shadow" data-testid={`card-agent-${agent.id}`}>
               <CardHeader>
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="truncate">{agent.name}</CardTitle>
-                    <CardDescription className="mt-1">
+                    <CardTitle className="truncate font-semibold">{agent.name}</CardTitle>
+                    <CardDescription className="mt-1 text-xs">
                       {getIndustryLabel(agent.industry)}
                     </CardDescription>
                   </div>
@@ -228,6 +229,7 @@ export default function Agents() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   );
 }

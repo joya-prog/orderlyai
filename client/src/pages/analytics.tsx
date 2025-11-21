@@ -114,8 +114,8 @@ export default function AnalyticsPage() {
           <Card data-testid="card-metric-success-rate" className="hover-elevate transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Orders</CardTitle>
-              <div className="p-2 rounded-lg" style={{backgroundColor: 'hsl(142 71% 45% / 0.1)'}}>
-                <TrendingUp className="h-5 w-5" style={{color: 'hsl(142 71% 45%)'}} />
+              <div className="p-2 rounded-lg bg-chart-3/10">
+                <TrendingUp className="h-5 w-5 text-chart-3" />
               </div>
             </CardHeader>
             <CardContent>
@@ -137,8 +137,8 @@ export default function AnalyticsPage() {
           <Card data-testid="card-metric-active-agents" className="hover-elevate transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Reservations</CardTitle>
-              <div className="p-2 rounded-lg" style={{backgroundColor: 'hsl(280 65% 60% / 0.1)'}}>
-                <Bot className="h-5 w-5" style={{color: 'hsl(280 65% 60%)'}} />
+              <div className="p-2 rounded-lg bg-chart-4/10">
+                <Bot className="h-5 w-5 text-chart-4" />
               </div>
             </CardHeader>
             <CardContent>
@@ -183,8 +183,8 @@ export default function AnalyticsPage() {
           <Card data-testid="card-metric-revenue" className="hover-elevate transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Estimated Revenue</CardTitle>
-              <div className="p-2 rounded-lg" style={{backgroundColor: 'hsl(142 71% 45% / 0.1)'}}>
-                <DollarSign className="h-5 w-5" style={{color: 'hsl(142 71% 45%)'}} />
+              <div className="p-2 rounded-lg bg-chart-3/10">
+                <DollarSign className="h-5 w-5 text-chart-3" />
               </div>
             </CardHeader>
             <CardContent>
@@ -358,8 +358,8 @@ export default function AnalyticsPage() {
                       <LineChart data={revenueData}>
                         <defs>
                           <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/>
+                            <stop offset="5%" stopColor="hsl(var(--chart-3))" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="hsl(var(--chart-3))" stopOpacity={0}/>
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -376,10 +376,10 @@ export default function AnalyticsPage() {
                         <Line 
                           type="monotone" 
                           dataKey="revenue" 
-                          stroke="hsl(142 71% 45%)" 
+                          stroke="hsl(var(--chart-3))" 
                           strokeWidth={3}
                           fill="url(#colorRevenue)"
-                          dot={{ fill: 'hsl(142 71% 45%)', strokeWidth: 2, r: 4 }}
+                          dot={{ fill: 'hsl(var(--chart-3))', strokeWidth: 2, r: 4 }}
                           activeDot={{ r: 6 }}
                         />
                       </LineChart>

@@ -2,15 +2,22 @@
 
 ## Design Approach
 
-**Selected Approach:** Design System - Material Design 3 with SaaS Dashboard Adaptations
+**Selected Approach:** Modern Material Design 3 with Purple/Indigo Color Scheme
 
-**Justification:** This is a utility-focused, enterprise-grade dashboard application requiring clarity, consistency, and efficiency. Material Design 3 provides robust patterns for complex interfaces, data-heavy views, and interactive tools while maintaining professional aesthetics suitable for restaurant business owners.
+**Justification:** This is a utility-focused, enterprise-grade dashboard application requiring clarity, consistency, and efficiency with a contemporary aesthetic. The purple/indigo color palette with coral accents creates a modern, professional look suitable for restaurant business owners.
 
 **Key Principles:**
+- Modern, clean aesthetic with gradient-filled charts and subtle shadows
 - Clarity over decoration - prioritize information hierarchy and workflow efficiency
 - Consistent, predictable interactions for rapid learning
 - Professional hospitality industry aesthetic - trustworthy and capable
 - Spatial organization using elevation and containment rather than heavy visual effects
+
+**Color Philosophy:**
+- Primary: Purple/Indigo (#6366F1) - modern, professional, tech-forward
+- Accent: Coral/Orange (#F97316) - warm, inviting, attention-grabbing
+- Success: Green (#10B981) - revenue, growth, positive outcomes
+- Supporting colors: Purple (#A855F7), Pink (#EC4899) for data visualization
 
 ---
 

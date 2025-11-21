@@ -71,6 +71,8 @@ Preferred communication style: Simple, everyday language.
 - `testConversations` - Conversation history for testing agents
 - `contacts` - CRM contacts with name, email, phone, tags, and notes (searchable)
 - `phoneNumbers` - Twilio phone numbers with nullable agentId for assignment/unassignment workflows
+- `integrationConfigs` - POS integration credentials and configuration (Squarespace, Toast)
+- `analyticsEvents` - Event tracking for calls, orders, reservations with metadata
 
 **Migration Strategy**: Drizzle Kit for schema migrations (push-based approach)
 
@@ -78,8 +80,11 @@ Preferred communication style: Simple, everyday language.
 - Users have many agents (cascade delete)
 - Users have many contacts (cascade delete)
 - Users have many phone numbers (cascade delete)
+- Users have many integrations (cascade delete)
+- Users have many analytics events (cascade delete)
 - Agents have many knowledge base items (cascade delete)
 - Agents have many test conversations (cascade delete)
+- Agents optionally referenced by analytics events (nullable, set null on agent delete)
 - Phone numbers optionally reference agents (nullable, set null on agent delete)
 - Templates can be cloned to create new agents
 
@@ -137,3 +142,24 @@ Preferred communication style: Simple, everyday language.
 - Tag-based organization
 - Notes and relationship tracking
 - End-to-end tested with playwright verification
+
+**POS Integrations** (Production Ready)
+- Integration configuration management for Squarespace Commerce and Toast POS
+- Secure credential storage in JSONB encrypted fields
+- Enable/disable integration status toggles
+- Connect/disconnect flows with validation
+- Integration-specific configuration options
+- End-to-end tested with Playwright verification
+
+**Analytics Dashboard** (Production Ready)
+- Real-time analytics tracking for calls, orders, reservations
+- Overview API endpoint with aggregated statistics
+- Event types: call_started, call_ended, order_placed, reservation_made
+- KPI cards: Total Calls, Average Duration, Orders, Reservations, Revenue, Total Events
+- Recharts visualizations: Call Volume, Event Distribution, Agent Activity, Revenue Trends
+- Date range filtering (last 30 days default)
+- Edge case handling: nullable agentId, invalid metadata amounts, string parsing
+- Chronological sorting of time-series data
+- Nullish coalescing to preserve zero values
+- Loading states and empty states
+- End-to-end tested with comprehensive edge cases

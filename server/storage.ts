@@ -115,6 +115,7 @@ export interface IStorage {
   // Analytics operations
   createAnalyticsEvent(event: InsertAnalyticsEvent): Promise<AnalyticsEvent>;
   getAnalyticsEvents(userId: string, filters?: { agentId?: string; eventType?: string; startDate?: Date; endDate?: Date }): Promise<AnalyticsEvent[]>;
+  getAnalyticsOverview(userId: string, filters?: { startDate?: Date; endDate?: Date }): Promise<{ totalCalls: number; totalOrders: number; totalReservations: number; avgDuration: number; events: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -555,6 +556,27 @@ export class DatabaseStorage implements IStorage {
     }
 
     return await db.select().from(analyticsEvents).where(and(...conditions));
+  }
+
+  async getAnalyticsOverview(userId: string, filters?: { startDate?: Date; endDate?: Date }): Promise<{ totalCalls: number; totalOrders: number; totalReservations: number; avgDuration: number; events: number }> {
+    const events = await this.getAnalyticsEvents(userId, filters);
+
+    const totalCalls = events.filter(e => e.eventType === 'call_started').length;
+    const totalOrders = events.filter(e => e.eventType === 'order_placed').length;
+    const totalReservations = events.filter(e => e.eventType === 'reservation_made').length;
+    
+    const callEndedEvents = events.filter(e => e.eventType === 'call_ended' && e.duration);
+    const avgDuration = callEndedEvents.length > 0
+      ? callEndedEvents.reduce((sum, e) => sum + parseInt(e.duration || '0', 10), 0) / callEndedEvents.length
+      : 0;
+
+    return {
+      totalCalls,
+      totalOrders,
+      totalReservations,
+      avgDuration: Math.round(avgDuration),
+      events: events.length,
+    };
   }
 }
 

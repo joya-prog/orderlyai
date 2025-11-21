@@ -1,49 +1,11 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Phone, Clock, CheckCircle2, Bot, DollarSign, TrendingUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Phone, Clock, CheckCircle2, Bot, DollarSign, TrendingUp, Calendar } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-
-// Mock data for demonstration - will be replaced with real API data when call logging is implemented
-const keyMetrics = {
-  totalCalls: 1247,
-  avgDuration: 342, // seconds
-  successRate: 94.2,
-  activeAgents: 8,
-  ordersPlaced: 156,
-  revenue: 12847.50
-};
-
-const callVolumeData = [
-  { date: "Mon", calls: 145, successful: 138 },
-  { date: "Tue", calls: 178, successful: 165 },
-  { date: "Wed", calls: 192, successful: 184 },
-  { date: "Thu", calls: 156, successful: 148 },
-  { date: "Fri", calls: 201, successful: 189 },
-  { date: "Sat", calls: 188, successful: 175 },
-  { date: "Sun", calls: 187, successful: 178 }
-];
-
-const agentPerformanceData = [
-  { name: "Restaurant Agent", calls: 342, orders: 45, revenue: 3245 },
-  { name: "Reservation Agent", calls: 289, orders: 0, revenue: 0 },
-  { name: "Support Agent", calls: 256, orders: 12, revenue: 890 },
-  { name: "Catering Agent", calls: 178, orders: 67, revenue: 5678 },
-  { name: "Delivery Agent", calls: 182, orders: 32, revenue: 3034 }
-];
-
-const callOutcomeData = [
-  { name: "Successful", value: 1174, color: "#10b981" },
-  { name: "Voicemail", value: 43, color: "#f59e0b" },
-  { name: "Busy", value: 18, color: "#ef4444" },
-  { name: "No Answer", value: 12, color: "#6b7280" }
-];
-
-const revenueOverTimeData = [
-  { month: "Jan", revenue: 8450 },
-  { month: "Feb", revenue: 9230 },
-  { month: "Mar", revenue: 10150 },
-  { month: "Apr", revenue: 11340 },
-  { month: "May", revenue: 12847 }
-];
+import { Skeleton } from "@/components/ui/skeleton";
+import type { AnalyticsEvent } from "@shared/schema";
 
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -55,16 +17,50 @@ function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 }
 
+interface AnalyticsOverview {
+  totalCalls: number;
+  totalOrders: number;
+  totalReservations: number;
+  avgDuration: number;
+  events: number;
+}
+
 export default function AnalyticsPage() {
+  const [dateRange] = useState({
+    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+    endDate: new Date().toISOString(),
+  });
+
+  const { data: overview, isLoading: overviewLoading } = useQuery<AnalyticsOverview>({
+    queryKey: [`/api/analytics/overview?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`],
+  });
+
+  const { data: events, isLoading: eventsLoading } = useQuery<AnalyticsEvent[]>({
+    queryKey: [`/api/analytics/events?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`],
+  });
+
+  const callVolumeData = events && events.length > 0 ? processCallVolumeData(events) : [];
+  const callOutcomeData = events && events.length > 0 ? processCallOutcomeData(events) : [];
+  const agentPerformanceData = events && events.length > 0 ? processAgentPerformanceData(events) : [];
+  const revenueData = events && events.length > 0 ? processRevenueData(events) : [];
+
+  const isLoading = overviewLoading || eventsLoading;
+  const hasData = events && events.length > 0;
+
   return (
     <div className="flex flex-col h-full overflow-auto" data-testid="page-analytics">
       <div className="flex-1 p-6 space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold" data-testid="text-page-title">Analytics</h1>
-          <p className="text-muted-foreground mt-1">
-            Track agent performance, call metrics, and revenue analytics
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold" data-testid="text-page-title">Analytics</h1>
+            <p className="text-muted-foreground mt-1">
+              Track agent performance, call metrics, and revenue analytics
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Last 30 days</span>
+          </div>
         </div>
 
         {/* Key Metrics Cards */}
@@ -75,10 +71,18 @@ export default function AnalyticsPage() {
               <Phone className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-total-calls">{keyMetrics.totalCalls.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                <span className="text-green-600 dark:text-green-400">+12%</span> from last month
-              </p>
+              {isLoading ? (
+                <Skeleton className="h-8 w-24" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold" data-testid="text-total-calls">
+                    {(overview?.totalCalls ?? 0).toLocaleString()}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {hasData ? "Active tracking" : "No data yet"}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -88,162 +92,321 @@ export default function AnalyticsPage() {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-avg-duration">{formatDuration(keyMetrics.avgDuration)}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                <span className="text-green-600 dark:text-green-400">-8%</span> from last month
-              </p>
+              {isLoading ? (
+                <Skeleton className="h-8 w-24" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold" data-testid="text-avg-duration">
+                    {formatDuration(overview?.avgDuration ?? 0)}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {hasData ? "Average conversation length" : "No calls recorded"}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
           <Card data-testid="card-metric-success-rate">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-success-rate">{keyMetrics.successRate}%</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                <span className="text-green-600 dark:text-green-400">+2.1%</span> from last month
-              </p>
+              {isLoading ? (
+                <Skeleton className="h-8 w-24" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold" data-testid="text-success-rate">
+                    {overview?.totalOrders ?? 0}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {hasData ? "Orders placed via AI" : "No orders yet"}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
           <Card data-testid="card-metric-active-agents">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Agents</CardTitle>
+              <CardTitle className="text-sm font-medium">Reservations</CardTitle>
               <Bot className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-active-agents">{keyMetrics.activeAgents}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Currently deployed
-              </p>
+              {isLoading ? (
+                <Skeleton className="h-8 w-24" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold" data-testid="text-active-agents">
+                    {overview?.totalReservations ?? 0}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {hasData ? "Bookings made" : "No reservations"}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
           <Card data-testid="card-metric-orders-placed">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Orders Placed</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Total Events</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-orders-placed">{keyMetrics.ordersPlaced}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                <span className="text-green-600 dark:text-green-400">+18%</span> from last month
-              </p>
+              {isLoading ? (
+                <Skeleton className="h-8 w-24" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold" data-testid="text-orders-placed">
+                    {overview?.events ?? 0}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {hasData ? "Analytics events tracked" : "Start testing to see data"}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
           <Card data-testid="card-metric-revenue">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+              <CardTitle className="text-sm font-medium">Estimated Revenue</CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-revenue">{formatCurrency(keyMetrics.revenue)}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                <span className="text-green-600 dark:text-green-400">+23%</span> from last month
-              </p>
+              {isLoading ? (
+                <Skeleton className="h-8 w-24" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold" data-testid="text-revenue">
+                    {formatCurrency(calculateRevenue(events ?? []))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {hasData ? "From tracked orders" : "No revenue data"}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Charts Row 1 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Call Volume Over Time */}
-          <Card data-testid="card-chart-call-volume">
-            <CardHeader>
-              <CardTitle>Call Volume</CardTitle>
-              <p className="text-sm text-muted-foreground">Daily call volume and success rate</p>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={callVolumeData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="calls" stroke="hsl(var(--primary))" name="Total Calls" strokeWidth={2} />
-                  <Line type="monotone" dataKey="successful" stroke="#10b981" name="Successful" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
+        {/* Charts */}
+        {!hasData && !isLoading && (
+          <Card>
+            <CardContent className="pt-12 pb-12">
+              <div className="text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mx-auto mb-4">
+                  <TrendingUp className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No Analytics Data</h3>
+                <p className="text-muted-foreground mb-4">
+                  Start testing your agents to see analytics and insights
+                </p>
+                <Button>Test an Agent</Button>
+              </div>
             </CardContent>
           </Card>
+        )}
 
-          {/* Call Outcomes */}
-          <Card data-testid="card-chart-call-outcomes">
-            <CardHeader>
-              <CardTitle>Call Outcomes</CardTitle>
-              <p className="text-sm text-muted-foreground">Distribution of call results</p>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={callOutcomeData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {callOutcomeData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
+        {hasData && (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <Card data-testid="card-chart-call-volume">
+                <CardHeader>
+                  <CardTitle>Call Volume</CardTitle>
+                  <p className="text-sm text-muted-foreground">Daily activity over time</p>
+                </CardHeader>
+                <CardContent>
+                  {callVolumeData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={callVolumeData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Line type="monotone" dataKey="calls" stroke="hsl(var(--primary))" name="Calls" strokeWidth={2} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                      No call volume data
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-        {/* Charts Row 2 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Agent Performance */}
-          <Card data-testid="card-chart-agent-performance">
-            <CardHeader>
-              <CardTitle>Agent Performance</CardTitle>
-              <p className="text-sm text-muted-foreground">Total calls handled by each agent</p>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={agentPerformanceData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" angle={-15} textAnchor="end" height={80} />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="calls" fill="hsl(var(--primary))" name="Calls" />
-                  <Bar dataKey="orders" fill="#10b981" name="Orders" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+              <Card data-testid="card-chart-call-outcomes">
+                <CardHeader>
+                  <CardTitle>Event Types</CardTitle>
+                  <p className="text-sm text-muted-foreground">Distribution of event types</p>
+                </CardHeader>
+                <CardContent>
+                  {callOutcomeData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={callOutcomeData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {callOutcomeData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                      No event distribution data
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
 
-          {/* Revenue Over Time */}
-          <Card data-testid="card-chart-revenue">
-            <CardHeader>
-              <CardTitle>Revenue Trend</CardTitle>
-              <p className="text-sm text-muted-foreground">Monthly revenue from POS orders</p>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={revenueOverTimeData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                  <Line type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} name="Revenue" />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <Card data-testid="card-chart-agent-performance">
+                <CardHeader>
+                  <CardTitle>Agent Activity</CardTitle>
+                  <p className="text-sm text-muted-foreground">Events by agent</p>
+                </CardHeader>
+                <CardContent>
+                  {agentPerformanceData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={agentPerformanceData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" angle={-15} textAnchor="end" height={80} />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="events" fill="hsl(var(--primary))" name="Events" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                      No agent performance data
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card data-testid="card-chart-revenue">
+                <CardHeader>
+                  <CardTitle>Revenue Trend</CardTitle>
+                  <p className="text-sm text-muted-foreground">Order revenue over time</p>
+                </CardHeader>
+                <CardContent>
+                  {revenueData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={revenueData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" />
+                        <YAxis />
+                        <Tooltip formatter={(value) => formatCurrency(value as number)} />
+                        <Line type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} name="Revenue" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                      No revenue trend data
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
+}
+
+function processCallVolumeData(events: AnalyticsEvent[]) {
+  const dailyMap = new Map<string, { calls: number; timestamp: number }>();
+  
+  events.forEach((event) => {
+    if (event.createdAt) {
+      const dateObj = new Date(event.createdAt);
+      const date = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+      const existing = dailyMap.get(date) || { calls: 0, timestamp: dateObj.getTime() };
+      dailyMap.set(date, { calls: existing.calls + 1, timestamp: existing.timestamp });
+    }
+  });
+
+  return Array.from(dailyMap.entries())
+    .map(([date, data]) => ({ date, calls: data.calls, timestamp: data.timestamp }))
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .map(({ date, calls }) => ({ date, calls }));
+}
+
+function processCallOutcomeData(events: AnalyticsEvent[]) {
+  const typeMap = new Map<string, number>();
+  const colors = ['#10b981', '#f59e0b', '#ef4444', '#6b7280', '#8b5cf6', '#ec4899'];
+  
+  events.forEach((event) => {
+    typeMap.set(event.eventType, (typeMap.get(event.eventType) || 0) + 1);
+  });
+
+  return Array.from(typeMap.entries()).map(([name, value], index) => ({
+    name,
+    value,
+    color: colors[index % colors.length],
+  }));
+}
+
+function processAgentPerformanceData(events: AnalyticsEvent[]) {
+  const agentMap = new Map<string, { name: string; events: number }>();
+  
+  events.forEach((event) => {
+    const agentKey = event.agentId || 'unknown';
+    const existing = agentMap.get(agentKey) || {
+      name: event.agentId ? `Agent ${event.agentId.slice(0, 8)}` : 'General Events',
+      events: 0
+    };
+    existing.events += 1;
+    agentMap.set(agentKey, existing);
+  });
+
+  return Array.from(agentMap.values())
+    .sort((a, b) => b.events - a.events)
+    .slice(0, 5);
+}
+
+function processRevenueData(events: AnalyticsEvent[]) {
+  const dailyRevenue = new Map<string, { revenue: number; timestamp: number }>();
+  
+  events
+    .filter((e) => e.eventType === 'order_placed' && e.metadata && typeof e.metadata === 'object' && e.createdAt)
+    .forEach((event) => {
+      const dateObj = new Date(event.createdAt!);
+      const date = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const rawAmount = (event.metadata as any).amount;
+      const amount = typeof rawAmount === 'number' ? rawAmount : parseFloat(rawAmount) || 0;
+      const existing = dailyRevenue.get(date) || { revenue: 0, timestamp: dateObj.getTime() };
+      dailyRevenue.set(date, { revenue: existing.revenue + amount, timestamp: existing.timestamp });
+    });
+
+  return Array.from(dailyRevenue.entries())
+    .map(([date, data]) => ({ date, revenue: data.revenue, timestamp: data.timestamp }))
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .map(({ date, revenue }) => ({ date, revenue }));
+}
+
+function calculateRevenue(events: AnalyticsEvent[]): number {
+  return events
+    .filter((e) => e.eventType === 'order_placed' && e.metadata && typeof e.metadata === 'object')
+    .reduce((sum, event) => {
+      const rawAmount = (event.metadata as any).amount;
+      const amount = typeof rawAmount === 'number' ? rawAmount : parseFloat(rawAmount) || 0;
+      return sum + amount;
+    }, 0);
 }

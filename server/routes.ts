@@ -912,25 +912,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (startDate) filters.startDate = new Date(startDate as string);
       if (endDate) filters.endDate = new Date(endDate as string);
 
-      const events = await storage.getAnalyticsEvents(userId, filters);
-
-      // Calculate summary statistics
-      const totalCalls = events.filter(e => e.eventType === 'call_started').length;
-      const totalOrders = events.filter(e => e.eventType === 'order_placed').length;
-      const totalReservations = events.filter(e => e.eventType === 'reservation_made').length;
-      
-      const callEndedEvents = events.filter(e => e.eventType === 'call_ended' && e.duration);
-      const avgDuration = callEndedEvents.length > 0
-        ? callEndedEvents.reduce((sum, e) => sum + parseInt(e.duration || '0'), 0) / callEndedEvents.length
-        : 0;
-
-      res.json({
-        totalCalls,
-        totalOrders,
-        totalReservations,
-        avgDuration: Math.round(avgDuration),
-        events: events.length,
-      });
+      const overview = await storage.getAnalyticsOverview(userId, filters);
+      res.json(overview);
     } catch (error) {
       console.error("Error fetching analytics overview:", error);
       res.status(500).json({ message: "Failed to fetch analytics overview" });

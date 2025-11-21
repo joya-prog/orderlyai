@@ -565,9 +565,17 @@ export class DatabaseStorage implements IStorage {
     const totalOrders = events.filter(e => e.eventType === 'order_placed').length;
     const totalReservations = events.filter(e => e.eventType === 'reservation_made').length;
     
-    const callEndedEvents = events.filter(e => e.eventType === 'call_ended' && e.duration);
-    const avgDuration = callEndedEvents.length > 0
-      ? callEndedEvents.reduce((sum, e) => sum + parseInt(e.duration || '0', 10), 0) / callEndedEvents.length
+    // Filter call_ended events and validate duration is a valid number
+    const callEndedWithValidDuration = events
+      .filter(e => e.eventType === 'call_ended' && e.duration != null)
+      .map(e => {
+        const parsed = parseInt(e.duration!, 10);
+        return isNaN(parsed) ? null : parsed;
+      })
+      .filter((d): d is number => d !== null && d >= 0);
+
+    const avgDuration = callEndedWithValidDuration.length > 0
+      ? callEndedWithValidDuration.reduce((sum, duration) => sum + duration, 0) / callEndedWithValidDuration.length
       : 0;
 
     return {

@@ -64,18 +64,20 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Key Metrics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Card data-testid="card-metric-total-calls">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Card data-testid="card-metric-total-calls" className="hover-elevate transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Calls</CardTitle>
-              <Phone className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Calls</CardTitle>
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Phone className="h-5 w-5 text-primary" />
+              </div>
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <Skeleton className="h-8 w-24" />
               ) : (
                 <>
-                  <div className="text-2xl font-bold" data-testid="text-total-calls">
+                  <div className="text-3xl font-bold" data-testid="text-total-calls">
                     {(overview?.totalCalls ?? 0).toLocaleString()}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -86,17 +88,19 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          <Card data-testid="card-metric-avg-duration">
+          <Card data-testid="card-metric-avg-duration" className="hover-elevate transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Call Duration</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">Avg Call Duration</CardTitle>
+              <div className="p-2 rounded-lg bg-accent/10">
+                <Clock className="h-5 w-5 text-accent" />
+              </div>
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <Skeleton className="h-8 w-24" />
               ) : (
                 <>
-                  <div className="text-2xl font-bold" data-testid="text-avg-duration">
+                  <div className="text-3xl font-bold" data-testid="text-avg-duration">
                     {formatDuration(overview?.avgDuration ?? 0)}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -107,17 +111,19 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          <Card data-testid="card-metric-success-rate">
+          <Card data-testid="card-metric-success-rate" className="hover-elevate transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Orders</CardTitle>
+              <div className="p-2 rounded-lg" style={{backgroundColor: 'hsl(142 71% 45% / 0.1)'}}>
+                <TrendingUp className="h-5 w-5" style={{color: 'hsl(142 71% 45%)'}} />
+              </div>
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <Skeleton className="h-8 w-24" />
               ) : (
                 <>
-                  <div className="text-2xl font-bold" data-testid="text-success-rate">
+                  <div className="text-3xl font-bold" data-testid="text-success-rate">
                     {overview?.totalOrders ?? 0}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -128,17 +134,19 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          <Card data-testid="card-metric-active-agents">
+          <Card data-testid="card-metric-active-agents" className="hover-elevate transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Reservations</CardTitle>
-              <Bot className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">Reservations</CardTitle>
+              <div className="p-2 rounded-lg" style={{backgroundColor: 'hsl(280 65% 60% / 0.1)'}}>
+                <Bot className="h-5 w-5" style={{color: 'hsl(280 65% 60%)'}} />
+              </div>
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <Skeleton className="h-8 w-24" />
               ) : (
                 <>
-                  <div className="text-2xl font-bold" data-testid="text-active-agents">
+                  <div className="text-3xl font-bold" data-testid="text-active-agents">
                     {overview?.totalReservations ?? 0}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -149,17 +157,19 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          <Card data-testid="card-metric-orders-placed">
+          <Card data-testid="card-metric-orders-placed" className="hover-elevate transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Events</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Events</CardTitle>
+              <div className="p-2 rounded-lg bg-primary/10">
+                <CheckCircle2 className="h-5 w-5 text-primary" />
+              </div>
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <Skeleton className="h-8 w-24" />
               ) : (
                 <>
-                  <div className="text-2xl font-bold" data-testid="text-orders-placed">
+                  <div className="text-3xl font-bold" data-testid="text-orders-placed">
                     {overview?.events ?? 0}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -170,17 +180,19 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          <Card data-testid="card-metric-revenue">
+          <Card data-testid="card-metric-revenue" className="hover-elevate transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Estimated Revenue</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">Estimated Revenue</CardTitle>
+              <div className="p-2 rounded-lg" style={{backgroundColor: 'hsl(142 71% 45% / 0.1)'}}>
+                <DollarSign className="h-5 w-5" style={{color: 'hsl(142 71% 45%)'}} />
+              </div>
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <Skeleton className="h-8 w-24" />
               ) : (
                 <>
-                  <div className="text-2xl font-bold" data-testid="text-revenue">
+                  <div className="text-3xl font-bold" data-testid="text-revenue">
                     {formatCurrency(calculateRevenue(events ?? []))}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -212,8 +224,8 @@ export default function AnalyticsPage() {
 
         {hasData && (
           <>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <Card data-testid="card-chart-call-volume">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card data-testid="card-chart-call-volume" className="hover-elevate transition-shadow">
                 <CardHeader>
                   <CardTitle>Call Volume</CardTitle>
                   <p className="text-sm text-muted-foreground">Daily activity over time</p>
@@ -222,12 +234,31 @@ export default function AnalyticsPage() {
                   {callVolumeData.length > 0 ? (
                     <ResponsiveContainer width="100%" height={300}>
                       <LineChart data={callVolumeData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Line type="monotone" dataKey="calls" stroke="hsl(var(--primary))" name="Calls" strokeWidth={2} />
+                        <defs>
+                          <linearGradient id="colorCalls" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <Tooltip 
+                          contentStyle={{
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px'
+                          }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="calls" 
+                          stroke="hsl(var(--primary))" 
+                          strokeWidth={3}
+                          fill="url(#colorCalls)"
+                          dot={{ fill: 'hsl(var(--primary))', strokeWidth: 2, r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
                       </LineChart>
                     </ResponsiveContainer>
                   ) : (
@@ -238,7 +269,7 @@ export default function AnalyticsPage() {
                 </CardContent>
               </Card>
 
-              <Card data-testid="card-chart-call-outcomes">
+              <Card data-testid="card-chart-call-outcomes" className="hover-elevate transition-shadow">
                 <CardHeader>
                   <CardTitle>Event Types</CardTitle>
                   <p className="text-sm text-muted-foreground">Distribution of event types</p>
@@ -253,7 +284,7 @@ export default function AnalyticsPage() {
                           cy="50%"
                           labelLine={false}
                           label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                          outerRadius={80}
+                          outerRadius={90}
                           fill="#8884d8"
                           dataKey="value"
                         >
@@ -261,7 +292,13 @@ export default function AnalyticsPage() {
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
-                        <Tooltip />
+                        <Tooltip 
+                          contentStyle={{
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px'
+                          }}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   ) : (
@@ -273,8 +310,8 @@ export default function AnalyticsPage() {
               </Card>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <Card data-testid="card-chart-agent-performance">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card data-testid="card-chart-agent-performance" className="hover-elevate transition-shadow">
                 <CardHeader>
                   <CardTitle>Agent Activity</CardTitle>
                   <p className="text-sm text-muted-foreground">Events by agent</p>
@@ -283,12 +320,23 @@ export default function AnalyticsPage() {
                   {agentPerformanceData.length > 0 ? (
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart data={agentPerformanceData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" angle={-15} textAnchor="end" height={80} />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="events" fill="hsl(var(--primary))" name="Events" />
+                        <defs>
+                          <linearGradient id="colorBar" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="hsl(var(--accent))" stopOpacity={0.9}/>
+                            <stop offset="95%" stopColor="hsl(var(--accent))" stopOpacity={0.6}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="name" angle={-15} textAnchor="end" height={80} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <Tooltip 
+                          contentStyle={{
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px'
+                          }}
+                        />
+                        <Bar dataKey="events" fill="url(#colorBar)" radius={[8, 8, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
@@ -299,7 +347,7 @@ export default function AnalyticsPage() {
                 </CardContent>
               </Card>
 
-              <Card data-testid="card-chart-revenue">
+              <Card data-testid="card-chart-revenue" className="hover-elevate transition-shadow">
                 <CardHeader>
                   <CardTitle>Revenue Trend</CardTitle>
                   <p className="text-sm text-muted-foreground">Order revenue over time</p>
@@ -308,11 +356,32 @@ export default function AnalyticsPage() {
                   {revenueData.length > 0 ? (
                     <ResponsiveContainer width="100%" height={300}>
                       <LineChart data={revenueData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" />
-                        <YAxis />
-                        <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                        <Line type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} name="Revenue" />
+                        <defs>
+                          <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <Tooltip 
+                          formatter={(value) => formatCurrency(value as number)}
+                          contentStyle={{
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px'
+                          }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="revenue" 
+                          stroke="hsl(142 71% 45%)" 
+                          strokeWidth={3}
+                          fill="url(#colorRevenue)"
+                          dot={{ fill: 'hsl(142 71% 45%)', strokeWidth: 2, r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
                       </LineChart>
                     </ResponsiveContainer>
                   ) : (

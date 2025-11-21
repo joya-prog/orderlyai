@@ -7,7 +7,6 @@ import {
   LogOut,
   BarChart3,
   Zap,
-  Workflow,
   Users,
   Phone,
   Plug2,
@@ -49,11 +48,6 @@ const mainItems = [
     title: "Actions",
     url: "/actions",
     icon: Zap,
-  },
-  {
-    title: "Workflows",
-    url: "/workflows",
-    icon: Workflow,
   },
   {
     title: "Test Center",

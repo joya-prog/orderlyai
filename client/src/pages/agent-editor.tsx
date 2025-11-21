@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -6,18 +6,21 @@ import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Agent, InsertAgent } from "@shared/schema";
+import type { Node, Edge } from '@xyflow/react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Save } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Save, Settings, Workflow } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { insertAgentSchema } from "@shared/schema";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { z } from "zod";
+import { FlowBuilder } from "@/components/flow-builder";
 
 export default function AgentEditor() {
   const { id } = useParams<{ id: string }>();
@@ -25,11 +28,46 @@ export default function AgentEditor() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const isNew = id === "new";
+  const [activeTab, setActiveTab] = useState("settings");
 
   const { data: agent, isLoading } = useQuery<Agent>({
     queryKey: ["/api/agents", id],
     enabled: isAuthenticated && !isNew,
   });
+
+  const { data: flowNodesData = [] } = useQuery<any[]>({
+    queryKey: ["/api/agents", id, "flow-nodes"],
+    enabled: isAuthenticated && !isNew,
+  });
+
+  const { data: flowConnectionsData = [] } = useQuery<any[]>({
+    queryKey: ["/api/agents", id, "flow-connections"],
+    enabled: isAuthenticated && !isNew,
+  });
+
+  const initialNodes = useMemo(() => {
+    return flowNodesData.map((node) => ({
+      id: node.id,
+      type: 'custom',
+      position: node.position || { x: 0, y: 0 },
+      data: {
+        type: node.type,
+        label: node.label,
+        content: node.content,
+        config: node.config,
+        agentId: node.agentId,
+      },
+    }));
+  }, [flowNodesData]);
+
+  const initialEdges = useMemo(() => {
+    return flowConnectionsData.map((conn) => ({
+      id: conn.id,
+      source: conn.sourceNodeId,
+      target: conn.targetNodeId,
+      label: conn.label,
+    }));
+  }, [flowConnectionsData]);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -112,6 +150,49 @@ export default function AgentEditor() {
     },
   });
 
+  const saveFlowMutation = useMutation({
+    mutationFn: async ({ nodes, edges }: { nodes: Node[]; edges: Edge[] }) => {
+      const dbNodes = nodes.map((node) => ({
+        id: node.id,
+        agentId: id,
+        type: node.data.type,
+        label: node.data.label,
+        content: node.data.content || '',
+        position: node.position,
+        config: node.data.config || {},
+      }));
+
+      const dbEdges = edges.map((edge) => ({
+        agentId: id,
+        sourceNodeId: edge.source,
+        targetNodeId: edge.target,
+        label: edge.label || '',
+      }));
+
+      await apiRequest("POST", `/api/agents/${id}/flow-nodes/bulk`, { nodes: dbNodes });
+      await apiRequest("POST", `/api/agents/${id}/flow-connections/bulk`, { connections: dbEdges });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agents", id, "flow-nodes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agents", id, "flow-connections"] });
+      toast({
+        title: "Success",
+        description: "Workflow saved successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: "Failed to save workflow",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSaveFlow = useCallback((nodes: Node[], edges: Edge[]) => {
+    saveFlowMutation.mutate({ nodes, edges });
+  }, [saveFlowMutation]);
+
   if (!isNew && (authLoading || isLoading)) {
     return (
       <div className="p-8">
@@ -138,28 +219,48 @@ export default function AgentEditor() {
               {isNew ? "Create Agent" : agent?.name || "Edit Agent"}
             </h1>
             <p className="text-muted-foreground mt-1">
-              Configure your AI voice agent settings
+              {activeTab === "settings" ? "Configure your AI voice agent settings" : "Design conversation flows for your agent"}
             </p>
           </div>
         </div>
-        <Button
-          onClick={form.handleSubmit((data) => saveMutation.mutate(data))}
-          disabled={saveMutation.isPending}
-          data-testid="button-save-agent"
-        >
-          <Save className="h-4 w-4 mr-2" />
-          {saveMutation.isPending ? "Saving..." : "Save Agent"}
-        </Button>
+        {activeTab === "settings" && (
+          <Button
+            onClick={form.handleSubmit((data) => saveMutation.mutate(data))}
+            disabled={saveMutation.isPending}
+            data-testid="button-save-agent"
+          >
+            <Save className="h-4 w-4 mr-2" />
+            {saveMutation.isPending ? "Saving..." : "Save Agent"}
+          </Button>
+        )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Agent Configuration</CardTitle>
-          <CardDescription>
-            Define your agent's identity, personality, and behavior
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="settings" className="gap-2" data-testid="tab-settings">
+            <Settings className="h-4 w-4" />
+            Settings
+          </TabsTrigger>
+          <TabsTrigger 
+            value="workflow" 
+            className="gap-2" 
+            disabled={isNew}
+            data-testid="tab-workflow"
+          >
+            <Workflow className="h-4 w-4" />
+            Workflow
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="settings">
+          <Card>
+            <CardHeader>
+              <CardTitle>Agent Configuration</CardTitle>
+              <CardDescription>
+                Define your agent's identity, personality, and behavior
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
           <Form {...form}>
             <form className="space-y-6">
               <FormField
@@ -190,6 +291,7 @@ export default function AgentEditor() {
                       <Input
                         placeholder="Brief description of this agent's purpose"
                         {...field}
+                        value={field.value || ""}
                         data-testid="input-agent-description"
                       />
                     </FormControl>
@@ -315,8 +417,21 @@ export default function AgentEditor() {
               />
             </form>
           </Form>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="workflow">
+          {!isNew && id && (
+            <FlowBuilder 
+              agentId={id} 
+              initialNodes={initialNodes}
+              initialEdges={initialEdges}
+              onSave={handleSaveFlow}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

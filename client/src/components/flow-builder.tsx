@@ -165,7 +165,7 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
       });
 
       const newNode: Node = {
-        id: `${type}-${Date.now()}`,
+        id: crypto.randomUUID(),
         type: 'custom',
         position,
         data: { 

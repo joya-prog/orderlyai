@@ -136,7 +136,7 @@ export default function TestCenterPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="border rounded-md p-4 min-h-[400px] max-h-[500px] overflow-y-auto bg-muted/30">
+            <div className="border rounded-2xl p-4 min-h-[400px] max-h-[500px] overflow-y-auto bg-muted/30">
               {messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   <div className="text-center">
@@ -155,7 +155,7 @@ export default function TestCenterPage() {
                       className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                     >
                       <div
-                        className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                        className={`max-w-[80%] rounded-2xl px-4 py-2 ${
                           msg.role === "user"
                             ? "bg-primary text-primary-foreground"
                             : "bg-card border"
@@ -168,7 +168,7 @@ export default function TestCenterPage() {
                   ))}
                   {testMutation.isPending && (
                     <div className="flex justify-start">
-                      <div className="bg-card border rounded-lg px-4 py-2">
+                      <div className="bg-card border rounded-2xl px-4 py-2">
                         <p className="text-sm text-muted-foreground">Thinking...</p>
                       </div>
                     </div>

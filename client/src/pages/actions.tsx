@@ -669,7 +669,7 @@ export default function ActionsPage() {
                     {testResult.headers && Object.keys(testResult.headers).length > 0 && (
                       <div>
                         <p className="text-sm font-medium mb-2">Response Headers:</p>
-                        <div className="bg-muted p-4 rounded-md text-sm space-y-1">
+                        <div className="bg-muted p-4 rounded-2xl text-sm space-y-1">
                           {Object.entries(testResult.headers).map(([key, value]) => (
                             <div key={key} className="flex gap-2">
                               <span className="font-semibold">{key}:</span>
@@ -684,18 +684,18 @@ export default function ActionsPage() {
                         Response Body {testResult.contentType && `(${testResult.contentType})`}:
                       </p>
                       {testResult.contentType?.includes('application/json') ? (
-                        <pre className="bg-muted p-4 rounded-md overflow-auto max-h-96 text-sm" data-testid="text-response-body">
+                        <pre className="bg-muted p-4 rounded-2xl overflow-auto max-h-96 text-sm" data-testid="text-response-body">
                           {JSON.stringify(testResult.body, null, 2)}
                         </pre>
                       ) : (
-                        <pre className="bg-muted p-4 rounded-md overflow-auto max-h-96 text-sm whitespace-pre-wrap" data-testid="text-response-body">
+                        <pre className="bg-muted p-4 rounded-2xl overflow-auto max-h-96 text-sm whitespace-pre-wrap" data-testid="text-response-body">
                           {typeof testResult.body === 'string' ? testResult.body : JSON.stringify(testResult.body, null, 2)}
                         </pre>
                       )}
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-destructive/10 text-destructive p-4 rounded-md">
+                  <div className="bg-destructive/10 text-destructive p-4 rounded-2xl">
                     <p className="font-semibold">Error:</p>
                     <p>{testResult.error}</p>
                   </div>

@@ -104,7 +104,7 @@ export default function IntegrationsPage() {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary/10">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
                   <ShoppingCart className="h-6 w-6 text-primary" />
                 </div>
                 <div>
@@ -173,7 +173,7 @@ export default function IntegrationsPage() {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-md bg-accent/10">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/10">
                   <Coffee className="h-6 w-6 text-accent-foreground" />
                 </div>
                 <div>
@@ -238,7 +238,7 @@ export default function IntegrationsPage() {
         </Card>
       </div>
 
-      <div className="mt-8 p-4 bg-muted/50 rounded-lg">
+      <div className="mt-8 p-4 bg-muted/50 rounded-3xl">
         <h3 className="font-medium mb-2">How OAuth Integration Works</h3>
         <ul className="text-sm text-muted-foreground space-y-1">
           <li>• Click "Connect" to securely authenticate with your POS provider</li>

@@ -68,7 +68,7 @@ export default function AnalyticsPage() {
           <Card data-testid="card-metric-total-calls" className="hover-elevate transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Calls</CardTitle>
-              <div className="p-2 rounded-lg bg-primary/10">
+              <div className="p-2 rounded-2xl bg-primary/10">
                 <Phone className="h-5 w-5 text-primary" />
               </div>
             </CardHeader>
@@ -91,7 +91,7 @@ export default function AnalyticsPage() {
           <Card data-testid="card-metric-avg-duration" className="hover-elevate transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Avg Call Duration</CardTitle>
-              <div className="p-2 rounded-lg bg-accent/10">
+              <div className="p-2 rounded-2xl bg-accent/10">
                 <Clock className="h-5 w-5 text-accent" />
               </div>
             </CardHeader>
@@ -114,7 +114,7 @@ export default function AnalyticsPage() {
           <Card data-testid="card-metric-success-rate" className="hover-elevate transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Orders</CardTitle>
-              <div className="p-2 rounded-lg bg-chart-3/10">
+              <div className="p-2 rounded-2xl bg-chart-3/10">
                 <TrendingUp className="h-5 w-5 text-chart-3" />
               </div>
             </CardHeader>
@@ -137,7 +137,7 @@ export default function AnalyticsPage() {
           <Card data-testid="card-metric-active-agents" className="hover-elevate transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Reservations</CardTitle>
-              <div className="p-2 rounded-lg bg-chart-4/10">
+              <div className="p-2 rounded-2xl bg-chart-4/10">
                 <Bot className="h-5 w-5 text-chart-4" />
               </div>
             </CardHeader>
@@ -183,7 +183,7 @@ export default function AnalyticsPage() {
           <Card data-testid="card-metric-revenue" className="hover-elevate transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Estimated Revenue</CardTitle>
-              <div className="p-2 rounded-lg bg-chart-3/10">
+              <div className="p-2 rounded-2xl bg-chart-3/10">
                 <DollarSign className="h-5 w-5 text-chart-3" />
               </div>
             </CardHeader>

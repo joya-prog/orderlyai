@@ -218,7 +218,7 @@ export default function PhoneNumbersPage() {
           <p className="text-muted-foreground">Loading phone numbers...</p>
         </div>
       ) : phoneNumbers.length === 0 ? (
-        <div className="border-2 border-dashed rounded-lg p-12 text-center">
+        <div className="border-2 border-dashed rounded-3xl p-12 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mx-auto mb-4">
             <Phone className="h-8 w-8 text-muted-foreground" />
           </div>

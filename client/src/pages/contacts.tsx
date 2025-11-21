@@ -204,7 +204,7 @@ export default function ContactsPage() {
       {contactsLoading ? (
         <div className="text-center py-12 text-muted-foreground">Loading contacts...</div>
       ) : contacts.length === 0 ? (
-        <div className="text-center py-12 border-2 border-dashed rounded-lg">
+        <div className="text-center py-12 border-2 border-dashed rounded-3xl">
           <p className="text-lg font-medium">No contacts found</p>
           <p className="text-muted-foreground mb-4">
             {searchQuery ? "Try adjusting your search" : "Get started by creating your first contact"}
@@ -217,7 +217,7 @@ export default function ContactsPage() {
           )}
         </div>
       ) : (
-        <div className="border rounded-lg">
+        <div className="border rounded-3xl">
           <Table>
             <TableHeader>
               <TableRow>

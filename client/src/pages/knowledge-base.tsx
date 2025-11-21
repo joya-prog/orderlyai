@@ -503,7 +503,7 @@ export default function KnowledgePage() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs font-medium px-2 py-1 rounded-md bg-muted">
+                        <span className="text-xs font-medium px-2 py-1 rounded-xl bg-muted">
                           {getCategoryLabel(item.category)}
                         </span>
                         <span className="text-xs text-muted-foreground">

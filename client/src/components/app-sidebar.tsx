@@ -1,5 +1,4 @@
 import { 
-  Bot, 
   BookOpen, 
   TestTube, 
   LayoutTemplate, 
@@ -10,7 +9,8 @@ import {
   Users,
   Phone,
   Plug2,
-  FileText
+  FileText,
+  MessageSquare
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -27,6 +27,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import orderlyLogo from "@assets/WXdQJT24YKxTTzIwCPlW3AJf4Y_1763761787840.avif";
 
 const mainItems = [
   {
@@ -37,7 +38,7 @@ const mainItems = [
   {
     title: "Agents",
     url: "/agents",
-    icon: Bot,
+    icon: MessageSquare,
   },
   {
     title: "Knowledge Base",
@@ -100,9 +101,12 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <div className="flex items-center gap-2 px-4 py-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary">
-              <Bot className="h-6 w-6 text-primary-foreground" />
-            </div>
+            <img 
+              src={orderlyLogo} 
+              alt="Orderly AI" 
+              className="h-10 w-10 rounded-md object-cover"
+              data-testid="img-logo-sidebar"
+            />
             <div className="flex flex-col">
               <span className="text-lg font-semibold font-serif">Orderly AI</span>
               <span className="text-xs text-muted-foreground">Voice Agent Platform</span>

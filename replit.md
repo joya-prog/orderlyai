@@ -13,6 +13,7 @@ Preferred communication style: Simple, everyday language.
 - Soft cream/parchment backgrounds, forest green primary, golden yellow accents
 - Pill-shaped buttons, very rounded cards (24px corners), soft warm shadows
 - Premium but comfortable, not sterile tech dashboard
+- Authentic Orderly AI logo displayed in sidebar and landing page (AVIF format, 40px square)
 
 ## System Architecture
 

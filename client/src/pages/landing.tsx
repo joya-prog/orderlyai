@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bot, Phone, Zap, Users, CheckCircle } from "lucide-react";
+import { Phone, Zap, Users, CheckCircle } from "lucide-react";
+import orderlyLogo from "@assets/WXdQJT24YKxTTzIwCPlW3AJf4Y_1763761787840.avif";
 
 export default function Landing() {
   return (
@@ -8,9 +9,12 @@ export default function Landing() {
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between px-6">
           <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary">
-              <Bot className="h-6 w-6 text-primary-foreground" />
-            </div>
+            <img 
+              src={orderlyLogo} 
+              alt="Orderly AI" 
+              className="h-10 w-10 rounded-md object-cover"
+              data-testid="img-logo-landing"
+            />
             <span className="text-xl font-semibold font-serif">Orderly AI</span>
           </div>
           <Button asChild data-testid="button-login">

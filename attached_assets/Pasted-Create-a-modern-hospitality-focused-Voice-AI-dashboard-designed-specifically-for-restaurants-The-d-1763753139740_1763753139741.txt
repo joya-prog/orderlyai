@@ -1,0 +1,120 @@
+Create a modern, hospitality-focused Voice-AI dashboard designed specifically for restaurants. The design should feel warm, approachable, and service-oriented, while still maintaining a professional, tech-driven aesthetic.
+
+Overall Look & Feel
+
+Light, warm, friendly interface inspired by restaurant ambiance (soft lighting, warm tones).
+
+Background is a gentle cream or parchment-like beige, giving a hospitality vibe rather than a fintech/enterprise feel.
+
+All main panels appear as floating cards with rounded corners and soft shadows, resembling menus or tabletop placards.
+
+Visual tone should feel premium but comfortable, not sterile or overly corporate.
+
+Purpose & Identity
+
+This dashboard is for:
+
+Managing restaurant Voice-AI agents (reservation handling, phone answering, order intake, table management).
+
+Reviewing call transcripts, agent performance, customer sentiment, and booking outcomes.
+
+Providing accessible insights for busy restaurant operators.
+
+The aesthetic should feel like:
+“Modern AI meets upscale restaurant UI.”
+
+Layout
+
+Top navigation bar with logo, menu items (Home, Agents, Reservations, Settings), and a search field for calls or customers.
+
+Main dashboard (left):
+Analytics cards showing call volume, reservation conversions, missed call prevention, customer sentiment, average response time, etc.
+
+Right sidebar:
+Restaurant manager profile, restaurant location details, and high-level status indicators (AI online/offline, reservation load, peak hours).
+
+Modular card grid, arranged in 2–3 rows:
+
+Call volume timeline
+
+AI-handled vs. staff-handled calls
+
+Reservation summary
+
+Customer sentiment chart
+
+Popular call intents (e.g., Waitlist, Hours, Menu Requests, Catering)
+
+Voice-agent performance metrics
+
+Color Palette
+
+Shift away from fintech colors and adopt warm, restaurant-friendly tones:
+
+Background: Soft cream, parchment, warm beige (#FFF6E8 style).
+
+Primary accent: Deep green / forest green (#0E4F4F), reminiscent of upscale restaurant branding.
+
+Secondary accent: Warm golden yellow (#FFC857), evoking hospitality and warmth.
+
+Card backgrounds: Clean off-white.
+
+Text: Charcoal for headers, soft gray for secondary labels.
+
+Optional accent: A muted terracotta or wine red for small highlights (e.g., peak times, busy warnings).
+
+Typography
+
+Use a soft, modern sans-serif with hospitality friendliness:
+
+Fonts like Poppins, Nunito, or Inter.
+
+Headers: Medium–bold, warm, slightly larger.
+
+Labels / secondary text: Friendly, small and readable.
+
+Big numbers (KPIs): Bold, clean, slightly rounded.
+
+Component Style
+
+Cards:
+
+Rounded corners (18–24px)
+
+Subtle shadows
+
+Balanced padding, airy spacing
+
+Profile section:
+Humanizing—photo, restaurant name, manager name.
+
+Buttons & toggles:
+Rounded, pill-shaped, using green or yellow accents.
+
+Tags / badges:
+Small rounded pills for statuses like Peak Hours, AI Live, After-Hours Calls, New Reservation.
+
+Icons:
+Minimal line icons: headset, phone, table, reservation book, microphone, bell, chef hat.
+
+Charts
+
+Charts should be simple and welcoming:
+
+Call volume line graph in warm golden yellow.
+
+Reservation conversions with green highlights.
+
+Sentiment charts using soft greens (positive), neutrals (neutral), and warm terracotta (negative).
+
+Popular call topics as rounded bar charts or pill clusters.
+
+Avoid harsh gridlines; keep visuals airy and friendly.
+
+Interaction Feel
+
+Hover states gently raise cards with a slightly stronger shadow.
+
+Buttons deepen in color on hover.
+
+Interface should feel smooth, intuitive, and easy for a restaurant manager to use quickly during rush hours.

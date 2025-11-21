@@ -8,6 +8,12 @@ Orderly AI is a voice AI agent platform designed for restaurants and hospitality
 
 Preferred communication style: Simple, everyday language.
 
+**Design Aesthetic:** Warm, hospitality-focused design for restaurant operators
+- "Modern AI meets upscale restaurant UI"
+- Soft cream/parchment backgrounds, forest green primary, golden yellow accents
+- Pill-shaped buttons, very rounded cards (24px corners), soft warm shadows
+- Premium but comfortable, not sterile tech dashboard
+
 ## System Architecture
 
 ### Frontend Architecture

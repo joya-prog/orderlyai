@@ -2,22 +2,23 @@
 
 ## Design Approach
 
-**Selected Approach:** Modern Material Design 3 with Purple/Indigo Color Scheme
+**Selected Approach:** Warm Hospitality-Focused Design for Restaurant Voice AI
 
-**Justification:** This is a utility-focused, enterprise-grade dashboard application requiring clarity, consistency, and efficiency with a contemporary aesthetic. The purple/indigo color palette with coral accents creates a modern, professional look suitable for restaurant business owners.
+**Justification:** This is a restaurant management dashboard requiring a welcoming, approachable aesthetic that feels premium yet comfortable - like stepping into an upscale restaurant. The warm cream backgrounds, forest green accents, and golden yellow highlights create a hospitality-driven experience that resonates with restaurant operators.
 
 **Key Principles:**
-- Modern, clean aesthetic with gradient-filled charts and subtle shadows
-- Clarity over decoration - prioritize information hierarchy and workflow efficiency
-- Consistent, predictable interactions for rapid learning
-- Professional hospitality industry aesthetic - trustworthy and capable
-- Spatial organization using elevation and containment rather than heavy visual effects
+- Warm, inviting aesthetic with soft shadows and rounded corners (18-24px)
+- Modern AI meets upscale restaurant UI - professional yet approachable
+- Cards feel like floating menus or tabletop placards
+- Prioritize ease of use for busy restaurant managers during rush hours
+- Service-oriented feel - friendly, helpful, human-centered
 
 **Color Philosophy:**
-- Primary: Purple/Indigo (#6366F1) - modern, professional, tech-forward
-- Accent: Coral/Orange (#F97316) - warm, inviting, attention-grabbing
-- Success: Green (#10B981) - revenue, growth, positive outcomes
-- Supporting colors: Purple (#A855F7), Pink (#EC4899) for data visualization
+- Background: Soft cream/parchment (#FFF6E8) - warm hospitality ambiance
+- Primary: Deep forest green (#0E4F4F) - upscale restaurant branding, natural, trustworthy
+- Accent: Golden yellow (#FFC857) - warmth, hospitality, welcoming energy
+- Success: Emerald green (#10B981) - growth, positive outcomes
+- Alert: Terracotta/wine red (#D86B4D) - peak hours, busy warnings, attention states
 
 ---
 
@@ -78,11 +79,12 @@
 ### Dashboard Components
 
 **Agent Cards:**
-- Rounded corners (rounded-xl), shadow-md elevation
+- Very rounded corners (rounded-3xl / 24px), soft warm shadows
 - Header: agent name + status badge + menu (3-dot)
 - Body: key stats (calls handled, success rate, uptime)
-- Footer: quick actions (edit, test, deploy)
-- Hover state lifts card with shadow-lg
+- Footer: quick actions with pill-shaped buttons
+- Hover state gently lifts card with slightly stronger warm shadow
+- Feel: Floating menu or tabletop placard
 
 **Flow Builder Canvas:**
 - Infinite canvas with subtle dot grid background

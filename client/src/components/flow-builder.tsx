@@ -7,12 +7,14 @@ import {
   useNodesState,
   useEdgesState,
   addEdge,
+  applyNodeChanges,
   Handle,
   Position,
   type Node,
   type Edge,
   type Connection,
   type NodeTypes,
+  type NodeChange,
   BackgroundVariant,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -102,7 +104,10 @@ interface FlowBuilderProps {
 export function FlowBuilder({ agentId, initialNodes = [], initialEdges = [], onSave }: FlowBuilderProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  
+  // Derive selected node from canonical nodes array (single source of truth)
+  const selectedNode = selectedNodeId ? nodes.find(n => n.id === selectedNodeId) || null : null;
 
   // Sync with incoming props only when data from server changes (not on every render)
   // Using JSON.stringify for deep comparison to detect actual data changes
@@ -131,18 +136,8 @@ export function FlowBuilder({ agentId, initialNodes = [], initialEdges = [], onS
   );
 
   const onNodeClick = useCallback((_event: any, node: Node) => {
-    setSelectedNode(node);
+    setSelectedNodeId(node.id);
   }, []);
-
-  // Keep selectedNode in sync with nodes array after updates
-  useEffect(() => {
-    if (selectedNode) {
-      const updated = nodes.find(n => n.id === selectedNode.id);
-      if (updated && JSON.stringify(updated.data) !== JSON.stringify(selectedNode.data)) {
-        setSelectedNode(updated);
-      }
-    }
-  }, [nodes, selectedNode]);
 
   const addNode = useCallback((type: string) => {
     const nodeConfig = restaurantNodeTypes.find(t => t.type === type);
@@ -161,10 +156,12 @@ export function FlowBuilder({ agentId, initialNodes = [], initialEdges = [], onS
     };
 
     setNodes((nds) => [...nds, newNode]);
-    setSelectedNode(newNode);
+    setSelectedNodeId(newNode.id);
   }, [agentId, setNodes]);
 
   const updateNodeData = useCallback((nodeId: string, newData: any) => {
+    // Update node data - ReactFlow's setNodes properly handles data-only updates
+    // Position/selection changes go through onNodesChange, data changes go directly through setNodes
     setNodes((nds) =>
       nds.map((node) =>
         node.id === nodeId
@@ -175,9 +172,6 @@ export function FlowBuilder({ agentId, initialNodes = [], initialEdges = [], onS
   }, [setNodes]);
 
   const handleSave = useCallback(() => {
-    console.log("FlowBuilder handleSave called with nodes:", nodes.length, "edges:", edges.length);
-    console.log("Nodes:", nodes);
-    console.log("Edges:", edges);
     if (onSave) {
       onSave(nodes, edges);
     }
@@ -211,7 +205,7 @@ export function FlowBuilder({ agentId, initialNodes = [], initialEdges = [], onS
       </Card>
 
       {/* Flow Canvas */}
-      <div className="flex-1 relative rounded-lg border bg-background">
+      <div className="flex-1 relative rounded-lg border bg-background h-full w-full">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -221,7 +215,6 @@ export function FlowBuilder({ agentId, initialNodes = [], initialEdges = [], onS
           onNodeClick={onNodeClick}
           nodeTypes={nodeTypes}
           fitView
-          connectionMode="loose"
           defaultEdgeOptions={{ type: 'smoothstep', animated: true }}
           data-testid="flow-canvas"
         >
@@ -250,7 +243,8 @@ export function FlowBuilder({ agentId, initialNodes = [], initialEdges = [], onS
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setSelectedNode(null)}
+                onClick={() => setSelectedNodeId(null)}
+                data-testid="button-close-properties"
               >
                 Close
               </Button>

@@ -175,3 +175,14 @@ Preferred communication style: Simple, everyday language.
 - Nullish coalescing to preserve zero values
 - Loading states and empty states
 - End-to-end tested with comprehensive edge cases
+
+**Workflow Builder Integration** (Production Ready)
+- Workflow builder integrated into agent editor as a tab (Settings and Workflow tabs)
+- Standalone Workflows navigation item removed from sidebar
+- Workflows accessed through: Agents → Select Agent → Workflow Tab
+- Drag-and-drop interface with restaurant-focused node types (greeting, menu, reservation, order, faq)
+- Node palette on right, large canvas on left
+- Save/load functionality within agent editor context
+- Frontend-generated UUIDs for new nodes using crypto.randomUUID()
+- Bulk save API with automatic upsert and deletion logic
+- Preserves existing workflow data when switching between agents

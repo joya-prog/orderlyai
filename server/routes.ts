@@ -871,6 +871,213 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Square OAuth routes
+  app.get("/api/integrations/square/oauth/init", isAuthenticated, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const clientId = process.env.SQUARE_CLIENT_ID;
+    const redirectUri = process.env.SQUARE_OAUTH_REDIRECT_URI;
+    
+    if (!clientId || !redirectUri) {
+      return res.status(500).json({ message: "Square OAuth not configured. Please set SQUARE_CLIENT_ID and SQUARE_OAUTH_REDIRECT_URI." });
+    }
+
+    // Generate cryptographically secure state nonce and store in database
+    const nonce = require('crypto').randomBytes(32).toString('hex');
+    await storage.createOAuthState({
+      nonce,
+      userId,
+      service: 'square',
+    });
+
+    const scopes = ['MERCHANT_PROFILE_READ', 'ITEMS_READ', 'ORDERS_READ', 'ORDERS_WRITE'].join(' ');
+    const authUrl = `https://connect.squareup.com/oauth2/authorize?client_id=${clientId}&scope=${encodeURIComponent(scopes)}&state=${nonce}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    
+    res.redirect(authUrl);
+  });
+
+  app.get("/api/integrations/square/oauth/callback", async (req: any, res) => {
+    try {
+      const { code, state } = req.query;
+      
+      if (!code || !state) {
+        return res.redirect('/integrations?error=missing_code');
+      }
+
+      // Verify state against database-stored nonce
+      const oauthState = await storage.getOAuthState(state as string);
+      if (!oauthState || oauthState.service !== 'square') {
+        console.error('OAuth state mismatch or not found in database');
+        return res.redirect('/integrations?error=invalid_state');
+      }
+
+      // Check if state is stale (older than 10 minutes)
+      const stateAge = Date.now() - new Date(oauthState.createdAt).getTime();
+      if (stateAge > 600000) {
+        await storage.deleteOAuthState(state as string);
+        return res.redirect('/integrations?error=expired_state');
+      }
+
+      // Use userId from database state, not from query params
+      const userId = oauthState.userId;
+      await storage.deleteOAuthState(state as string); // Clean up used nonce
+
+      const clientId = process.env.SQUARE_CLIENT_ID;
+      const clientSecret = process.env.SQUARE_CLIENT_SECRET;
+      const redirectUri = process.env.SQUARE_OAUTH_REDIRECT_URI;
+
+      if (!clientId || !clientSecret || !redirectUri) {
+        return res.redirect('/integrations?error=oauth_not_configured');
+      }
+
+      const tokenResponse = await fetch('https://connect.squareup.com/oauth2/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: clientId,
+          client_secret: clientSecret,
+          code,
+          grant_type: 'authorization_code',
+          redirect_uri: redirectUri,
+        }),
+      });
+
+      if (!tokenResponse.ok) {
+        console.error('Square OAuth error:', await tokenResponse.text());
+        return res.redirect('/integrations?error=token_exchange_failed');
+      }
+
+      const tokenData = await tokenResponse.json();
+      const { access_token, refresh_token, expires_at, merchant_id } = tokenData;
+
+      const existingIntegrations = await storage.getIntegrations(userId);
+      const existingSquare = existingIntegrations.find(i => i.service === 'square');
+
+      if (existingSquare) {
+        await storage.updateIntegration(existingSquare.id, userId, {
+          status: 'active',
+          credentials: { access_token, refresh_token, expires_at, merchant_id },
+        });
+      } else {
+        await storage.createIntegration({
+          userId,
+          service: 'square',
+          name: 'Square POS',
+          status: 'active',
+          credentials: { access_token, refresh_token, expires_at, merchant_id },
+        });
+      }
+
+      res.redirect('/integrations?success=square_connected');
+    } catch (error) {
+      console.error('Square OAuth callback error:', error);
+      res.redirect('/integrations?error=callback_failed');
+    }
+  });
+
+  // Toast OAuth routes
+  app.get("/api/integrations/toast/oauth/init", isAuthenticated, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const clientId = process.env.TOAST_CLIENT_ID;
+    const redirectUri = process.env.TOAST_OAUTH_REDIRECT_URI;
+    
+    if (!clientId || !redirectUri) {
+      return res.status(500).json({ message: "Toast OAuth not configured. Please set TOAST_CLIENT_ID and TOAST_OAUTH_REDIRECT_URI." });
+    }
+
+    // Generate cryptographically secure state nonce and store in database
+    const nonce = require('crypto').randomBytes(32).toString('hex');
+    await storage.createOAuthState({
+      nonce,
+      userId,
+      service: 'toast',
+    });
+
+    const authUrl = `https://ws-api.toasttab.com/authentication/v1/oauth/authorize?client_id=${clientId}&response_type=code&state=${nonce}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    
+    res.redirect(authUrl);
+  });
+
+  app.get("/api/integrations/toast/oauth/callback", async (req: any, res) => {
+    try {
+      const { code, state } = req.query;
+      
+      if (!code || !state) {
+        return res.redirect('/integrations?error=missing_code');
+      }
+
+      // Verify state against database-stored nonce
+      const oauthState = await storage.getOAuthState(state as string);
+      if (!oauthState || oauthState.service !== 'toast') {
+        console.error('OAuth state mismatch or not found in database');
+        return res.redirect('/integrations?error=invalid_state');
+      }
+
+      // Check if state is stale (older than 10 minutes)
+      const stateAge = Date.now() - new Date(oauthState.createdAt).getTime();
+      if (stateAge > 600000) {
+        await storage.deleteOAuthState(state as string);
+        return res.redirect('/integrations?error=expired_state');
+      }
+
+      // Use userId from database state, not from query params
+      const userId = oauthState.userId;
+      await storage.deleteOAuthState(state as string); // Clean up used nonce
+
+      const clientId = process.env.TOAST_CLIENT_ID;
+      const clientSecret = process.env.TOAST_CLIENT_SECRET;
+      const redirectUri = process.env.TOAST_OAUTH_REDIRECT_URI;
+
+      if (!clientId || !clientSecret || !redirectUri) {
+        return res.redirect('/integrations?error=oauth_not_configured');
+      }
+
+      const tokenResponse = await fetch('https://ws-api.toasttab.com/authentication/v1/oauth/token', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+        },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code: code as string,
+          redirect_uri: redirectUri,
+        }).toString(),
+      });
+
+      if (!tokenResponse.ok) {
+        console.error('Toast OAuth error:', await tokenResponse.text());
+        return res.redirect('/integrations?error=token_exchange_failed');
+      }
+
+      const tokenData = await tokenResponse.json();
+      const { access_token, refresh_token, expires_in } = tokenData;
+      const expires_at = new Date(Date.now() + (expires_in * 1000)).toISOString();
+
+      const existingIntegrations = await storage.getIntegrations(userId);
+      const existingToast = existingIntegrations.find(i => i.service === 'toast');
+
+      if (existingToast) {
+        await storage.updateIntegration(existingToast.id, userId, {
+          status: 'active',
+          credentials: { access_token, refresh_token, expires_at },
+        });
+      } else {
+        await storage.createIntegration({
+          userId,
+          service: 'toast',
+          name: 'Toast POS',
+          status: 'active',
+          credentials: { access_token, refresh_token, expires_at },
+        });
+      }
+
+      res.redirect('/integrations?success=toast_connected');
+    } catch (error) {
+      console.error('Toast OAuth callback error:', error);
+      res.redirect('/integrations?error=callback_failed');
+    }
+  });
+
   // Analytics routes
   app.get("/api/analytics/events", isAuthenticated, async (req: any, res) => {
     try {

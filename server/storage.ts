@@ -12,6 +12,7 @@ import {
   phoneNumbers,
   integrationConfigs,
   analyticsEvents,
+  oauthStates,
   type User,
   type UpsertUser,
   type Agent,
@@ -37,6 +38,8 @@ import {
   type InsertIntegrationConfig,
   type AnalyticsEvent,
   type InsertAnalyticsEvent,
+  type OAuthState,
+  type InsertOAuthState,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, like, or, sql } from "drizzle-orm";
@@ -116,6 +119,12 @@ export interface IStorage {
   createAnalyticsEvent(event: InsertAnalyticsEvent): Promise<AnalyticsEvent>;
   getAnalyticsEvents(userId: string, filters?: { agentId?: string; eventType?: string; startDate?: Date; endDate?: Date }): Promise<AnalyticsEvent[]>;
   getAnalyticsOverview(userId: string, filters?: { startDate?: Date; endDate?: Date }): Promise<{ totalCalls: number; totalOrders: number; totalReservations: number; avgDuration: number; events: number }>;
+
+  // OAuth state operations
+  createOAuthState(state: InsertOAuthState): Promise<OAuthState>;
+  getOAuthState(nonce: string): Promise<OAuthState | undefined>;
+  deleteOAuthState(nonce: string): Promise<boolean>;
+  cleanupExpiredOAuthStates(): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -585,6 +594,29 @@ export class DatabaseStorage implements IStorage {
       avgDuration: Math.round(avgDuration),
       events: events.length,
     };
+  }
+
+  // OAuth state operations
+  async createOAuthState(state: InsertOAuthState): Promise<OAuthState> {
+    const [created] = await db.insert(oauthStates).values(state).returning();
+    return created;
+  }
+
+  async getOAuthState(nonce: string): Promise<OAuthState | undefined> {
+    const [state] = await db.select().from(oauthStates).where(eq(oauthStates.nonce, nonce));
+    return state;
+  }
+
+  async deleteOAuthState(nonce: string): Promise<boolean> {
+    const result = await db.delete(oauthStates).where(eq(oauthStates.nonce, nonce));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async cleanupExpiredOAuthStates(): Promise<number> {
+    // Delete OAuth states older than 10 minutes
+    const tenMinutesAgo = new Date(Date.now() - 600000);
+    const result = await db.delete(oauthStates).where(sql`${oauthStates.createdAt} < ${tenMinutesAgo}`);
+    return result.rowCount || 0;
   }
 }
 

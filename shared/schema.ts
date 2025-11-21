@@ -252,10 +252,10 @@ export type Action = typeof actions.$inferSelect;
 export const integrationConfigs = pgTable("integration_configs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  service: text("service").notNull(), // 'twilio', 'squarespace', 'toast', 'stripe', 'calendly'
+  service: text("service").notNull(), // 'square', 'toast' (OAuth), 'twilio', 'stripe', 'calendly'
   name: text("name").notNull(),
   status: text("status").notNull().default('inactive'), // 'active', 'inactive', 'error'
-  credentials: jsonb("credentials").notNull(), // Encrypted API keys/tokens
+  credentials: jsonb("credentials").notNull(), // OAuth tokens: {access_token, refresh_token, expires_at, merchant_id} or API keys
   config: jsonb("config"), // Service-specific configuration
   lastSyncAt: timestamp("last_sync_at"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -371,3 +371,18 @@ export const insertAnalyticsEventSchema = createInsertSchema(analyticsEvents).om
 
 export type InsertAnalyticsEvent = z.infer<typeof insertAnalyticsEventSchema>;
 export type AnalyticsEvent = typeof analyticsEvents.$inferSelect;
+
+// OAuth state storage for secure OAuth flows
+export const oauthStates = pgTable("oauth_states", {
+  nonce: varchar("nonce").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  service: text("service").notNull(), // 'square', 'toast'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertOAuthStateSchema = createInsertSchema(oauthStates).omit({
+  createdAt: true,
+});
+
+export type InsertOAuthState = z.infer<typeof insertOAuthStateSchema>;
+export type OAuthState = typeof oauthStates.$inferSelect;

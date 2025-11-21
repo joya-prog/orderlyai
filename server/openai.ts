@@ -48,8 +48,21 @@ You are a helpful restaurant AI assistant. Use the knowledge base to answer ques
     });
 
     return response.choices[0].message.content || "I apologize, I couldn't generate a response.";
-  } catch (error) {
+  } catch (error: any) {
     console.error("OpenAI API error:", error);
-    throw new Error("Failed to generate agent response");
+    
+    if (error?.status === 429 || error?.code === 'insufficient_quota') {
+      throw new Error("OpenAI API quota exceeded. Please check your API key billing status or try again later.");
+    }
+    
+    if (error?.status === 401 || error?.code === 'invalid_api_key') {
+      throw new Error("Invalid OpenAI API key. Please check your configuration.");
+    }
+    
+    if (error?.status === 503 || error?.code === 'overloaded_error') {
+      throw new Error("OpenAI service is temporarily overloaded. Please try again in a moment.");
+    }
+    
+    throw new Error("Failed to generate agent response. Please try again.");
   }
 }

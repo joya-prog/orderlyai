@@ -1,0 +1,105 @@
+# Orderly AI Platform
+
+## Overview
+
+Orderly AI is a voice AI agent platform designed for restaurants and hospitality businesses. The application enables users to build, customize, and deploy intelligent phone agents that handle reservations, orders, and customer inquiries. The platform provides a web-based dashboard for managing AI agents, configuring their behavior through knowledge bases, and testing conversations before deployment.
+
+## User Preferences
+
+Preferred communication style: Simple, everyday language.
+
+## System Architecture
+
+### Frontend Architecture
+
+**Framework**: React 18+ with TypeScript, using Vite as the build tool and development server.
+
+**UI Component System**: The application uses shadcn/ui (New York style) built on Radix UI primitives. This provides a comprehensive set of accessible, customizable components following Material Design 3 principles adapted for SaaS dashboards.
+
+**Styling Approach**: 
+- Tailwind CSS with custom design tokens defined in CSS variables
+- Design system emphasizes clarity over decoration with professional hospitality aesthetics
+- Custom typography using Inter (UI elements) and Space Grotesk (headings)
+- Spacing system based on Tailwind units (2, 4, 6, 8, 12, 16, 24)
+- Theme support (light/dark) with CSS custom properties
+
+**State Management**: 
+- TanStack Query (React Query) for server state management
+- React Hook Form with Zod validation for form state
+- React Context for theme and sidebar state
+
+**Routing**: Wouter for client-side routing (lightweight alternative to React Router)
+
+**Layout Structure**: 
+- Fixed left sidebar (280px width) for main navigation
+- Main content area with max-width containers
+- Responsive design with mobile breakpoints
+
+### Backend Architecture
+
+**Runtime**: Node.js with Express.js framework
+
+**Language**: TypeScript with ES modules
+
+**Development vs Production**:
+- Development: Uses Vite middleware for HMR and hot reloading
+- Production: Serves pre-built static assets from dist/public
+
+**API Design**: RESTful API with the following patterns:
+- Authentication middleware protecting all `/api` routes
+- Route handlers organized in `server/routes.ts`
+- Storage abstraction layer (`server/storage.ts`) for database operations
+- Separate development and production entry points
+
+**Session Management**: Express sessions with PostgreSQL storage using connect-pg-simple
+
+**Authentication**: OpenID Connect (OIDC) integration with Replit Auth using Passport.js strategy
+
+### Data Storage
+
+**Database**: PostgreSQL (via Neon serverless)
+
+**ORM**: Drizzle ORM with type-safe schema definitions
+
+**Schema Structure**:
+- `users` - User accounts from Replit Auth
+- `sessions` - Express session storage
+- `agents` - AI agent configurations with status workflow (draft → testing → active → paused)
+- `flowNodes` and `flowConnections` - Visual flow builder data (currently unused but schema exists)
+- `knowledgeBase` - Q&A pairs organized by category for agent training
+- `templates` - Pre-built agent templates for different industries
+- `testConversations` - Conversation history for testing agents
+
+**Migration Strategy**: Drizzle Kit for schema migrations (push-based approach)
+
+**Data Relationships**:
+- Users have many agents (cascade delete)
+- Agents have many knowledge base items (cascade delete)
+- Agents have many test conversations (cascade delete)
+- Templates can be cloned to create new agents
+
+### External Dependencies
+
+**Authentication Service**: Replit OIDC provider for user authentication and session management
+
+**AI Service**: OpenAI API (GPT-5 model) for generating conversational responses
+- System prompts combine agent personality, greeting, and knowledge base
+- Conversation history maintained for context
+- Used in agent testing interface
+
+**Database Service**: Neon Serverless PostgreSQL
+- WebSocket-based connection pooling
+- Configured via DATABASE_URL environment variable
+
+**Development Tools**:
+- Replit-specific plugins for development experience (cartographer, dev banner, runtime error overlay)
+- These are conditionally loaded only in Replit development environment
+
+**Fonts**: Google Fonts CDN for Inter, Space Grotesk, and Fira Code typefaces
+
+**Environment Variables Required**:
+- `DATABASE_URL` - PostgreSQL connection string
+- `OPENAI_API_KEY` - OpenAI API key for agent responses
+- `SESSION_SECRET` - Express session encryption key
+- `REPL_ID` - Replit environment identifier
+- `ISSUER_URL` - OIDC issuer URL (defaults to replit.com/oidc)

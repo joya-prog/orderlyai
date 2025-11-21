@@ -186,3 +186,12 @@ Preferred communication style: Simple, everyday language.
 - Frontend-generated UUIDs for new nodes using crypto.randomUUID()
 - Bulk save API with automatic upsert and deletion logic
 - Preserves existing workflow data when switching between agents
+
+**Integrations Page** (Production Ready)
+- OAuth-enabled integrations: Square POS, Toast POS
+- Upcoming integrations (Coming Soon): Twilio, Resy, Tock, Yelp Reservations
+- Company logos using react-icons/si (Square, Twilio, Yelp) and custom branded icons (Toast, Resy, Tock)
+- Brand-accurate colors with dark mode support
+- 3-column responsive grid layout (stacks to 2 columns on medium screens)
+- All interactive elements properly instrumented with data-testid attributes
+- Opacity applied only to icon containers to preserve text contrast for accessibility

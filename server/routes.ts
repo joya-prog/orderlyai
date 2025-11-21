@@ -236,6 +236,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Flow nodes routes
+  app.get("/api/agents/:id/flow-nodes", isAuthenticated, async (req: any, res) => {
+    try {
+      const agent = await storage.getAgent(req.params.id);
+      if (!agent) {
+        return res.status(404).json({ message: "Agent not found" });
+      }
+      if (agent.userId !== req.user.claims.sub) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const nodes = await storage.getFlowNodes(req.params.id);
+      res.json(nodes);
+    } catch (error) {
+      console.error("Error fetching flow nodes:", error);
+      res.status(500).json({ message: "Failed to fetch flow nodes" });
+    }
+  });
+
+  app.post("/api/agents/:id/flow-nodes/bulk", isAuthenticated, async (req: any, res) => {
+    try {
+      const agent = await storage.getAgent(req.params.id);
+      if (!agent) {
+        return res.status(404).json({ message: "Agent not found" });
+      }
+      if (agent.userId !== req.user.claims.sub) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      
+      const { nodes } = req.body;
+      const existingNodes = await storage.getFlowNodes(req.params.id);
+      const savedNodeIds = new Set(nodes.map((n: any) => n.id));
+      
+      // Delete nodes that are no longer in the flow
+      for (const node of existingNodes) {
+        if (!savedNodeIds.has(node.id)) {
+          await storage.deleteFlowNode(node.id);
+        }
+      }
+
+      // Upsert nodes (update if exists, create if new) to preserve IDs
+      const resultNodes = [];
+      for (const node of nodes) {
+        const exists = existingNodes.find(n => n.id === node.id);
+        if (exists) {
+          const updated = await storage.updateFlowNode(node.id, node);
+          resultNodes.push(updated);
+        } else {
+          const created = await storage.createFlowNode(node);
+          resultNodes.push(created);
+        }
+      }
+
+      res.json(resultNodes);
+    } catch (error) {
+      console.error("Error saving flow nodes:", error);
+      res.status(500).json({ message: "Failed to save flow nodes" });
+    }
+  });
+
+  // Flow connections routes
+  app.get("/api/agents/:id/flow-connections", isAuthenticated, async (req: any, res) => {
+    try {
+      const agent = await storage.getAgent(req.params.id);
+      if (!agent) {
+        return res.status(404).json({ message: "Agent not found" });
+      }
+      if (agent.userId !== req.user.claims.sub) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const connections = await storage.getFlowConnections(req.params.id);
+      res.json(connections);
+    } catch (error) {
+      console.error("Error fetching flow connections:", error);
+      res.status(500).json({ message: "Failed to fetch flow connections" });
+    }
+  });
+
+  app.post("/api/agents/:id/flow-connections/bulk", isAuthenticated, async (req: any, res) => {
+    try {
+      const agent = await storage.getAgent(req.params.id);
+      if (!agent) {
+        return res.status(404).json({ message: "Agent not found" });
+      }
+      if (agent.userId !== req.user.claims.sub) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const { connections } = req.body;
+      const existingConnections = await storage.getFlowConnections(req.params.id);
+      
+      // Delete all existing connections and recreate (edges are simpler - no need to preserve IDs)
+      for (const conn of existingConnections) {
+        await storage.deleteFlowConnection(conn.id);
+      }
+
+      // Create new connections
+      const createdConnections = [];
+      for (const conn of connections) {
+        const created = await storage.createFlowConnection(conn);
+        createdConnections.push(created);
+      }
+
+      res.json(createdConnections);
+    } catch (error) {
+      console.error("Error saving flow connections:", error);
+      res.status(500).json({ message: "Failed to save flow connections" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -14,12 +14,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Save, Plus, Trash2, MessageSquare } from "lucide-react";
+import { ArrowLeft, Save, Plus, Trash2, MessageSquare, Workflow } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { insertAgentSchema, insertKnowledgeBaseSchema } from "@shared/schema";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { z } from "zod";
+import { FlowBuilder } from "@/components/flow-builder";
+import type { Node, Edge } from '@xyflow/react';
 
 export default function AgentEditor() {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +38,16 @@ export default function AgentEditor() {
 
   const { data: knowledgeItems = [] } = useQuery<KnowledgeBase[]>({
     queryKey: ["/api/agents", id, "knowledge"],
+    enabled: isAuthenticated && !isNew,
+  });
+
+  const { data: flowNodesData = [] } = useQuery<any[]>({
+    queryKey: ["/api/agents", id, "flow-nodes"],
+    enabled: isAuthenticated && !isNew,
+  });
+
+  const { data: flowConnectionsData = [] } = useQuery<any[]>({
+    queryKey: ["/api/agents", id, "flow-connections"],
     enabled: isAuthenticated && !isNew,
   });
 
@@ -163,6 +175,10 @@ export default function AgentEditor() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6">
           <TabsTrigger value="config" data-testid="tab-config">Configuration</TabsTrigger>
+          <TabsTrigger value="flow" disabled={isNew} data-testid="tab-flow">
+            <Workflow className="h-4 w-4 mr-2" />
+            Flow Builder
+          </TabsTrigger>
           <TabsTrigger value="knowledge" disabled={isNew} data-testid="tab-knowledge">
             Knowledge Base
           </TabsTrigger>
@@ -337,6 +353,14 @@ export default function AgentEditor() {
               </Form>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="flow">
+          <FlowBuilderTab 
+            agentId={id!} 
+            flowNodes={flowNodesData} 
+            flowConnections={flowConnectionsData} 
+          />
         </TabsContent>
 
         <TabsContent value="knowledge">
@@ -737,5 +761,101 @@ function TestAgentTab({ agentId, agent }: { agentId: string; agent?: Agent }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function FlowBuilderTab({
+  agentId,
+  flowNodes,
+  flowConnections,
+}: {
+  agentId: string;
+  flowNodes: any[];
+  flowConnections: any[];
+}) {
+  const { toast } = useToast();
+
+  // Memoize converted data to prevent unnecessary re-renders and preserve in-progress edits
+  const initialNodes = useMemo(() => {
+    return flowNodes.map((node) => ({
+      id: node.id,
+      type: 'custom',
+      position: node.position || { x: 0, y: 0 },
+      data: {
+        type: node.type,
+        label: node.label,
+        content: node.content,
+        config: node.config,
+        agentId: node.agentId,
+      },
+    }));
+  }, [flowNodes]);
+
+  const initialEdges = useMemo(() => {
+    return flowConnections.map((conn) => ({
+      id: conn.id,
+      source: conn.sourceNodeId,
+      target: conn.targetNodeId,
+      label: conn.label,
+    }));
+  }, [flowConnections]);
+
+  const saveFlowMutation = useMutation({
+    mutationFn: async ({ nodes, edges }: { nodes: Node[]; edges: Edge[] }) => {
+      // Convert ReactFlow format back to database format
+      // CRITICAL: Preserve node IDs to maintain edge connections
+      const dbNodes = nodes.map((node) => ({
+        id: node.id, // Preserve ID for edge references
+        agentId,
+        type: node.data.type,
+        label: node.data.label,
+        content: node.data.content || '',
+        position: node.position,
+        config: node.data.config || {},
+      }));
+
+      const dbEdges = edges.map((edge) => ({
+        agentId,
+        sourceNodeId: edge.source,
+        targetNodeId: edge.target,
+        label: edge.label || '',
+      }));
+
+      // Save nodes
+      await apiRequest("POST", `/api/agents/${agentId}/flow-nodes/bulk`, { nodes: dbNodes });
+      
+      // Save connections
+      await apiRequest("POST", `/api/agents/${agentId}/flow-connections/bulk`, { connections: dbEdges });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agents", agentId, "flow-nodes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agents", agentId, "flow-connections"] });
+      toast({
+        title: "Success",
+        description: "Flow saved successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: "Failed to save flow",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSave = (nodes: Node[], edges: Edge[]) => {
+    saveFlowMutation.mutate({ nodes, edges });
+  };
+
+  return (
+    <div data-testid="flow-builder-tab">
+      <FlowBuilder 
+        agentId={agentId} 
+        initialNodes={initialNodes}
+        initialEdges={initialEdges}
+        onSave={handleSave}
+      />
+    </div>
   );
 }

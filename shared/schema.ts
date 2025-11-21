@@ -73,8 +73,9 @@ export const flowNodes = pgTable("flow_nodes", {
 });
 
 export const insertFlowNodeSchema = createInsertSchema(flowNodes).omit({
-  id: true,
   createdAt: true,
+}).extend({
+  id: z.string().optional(), // Allow client to provide ID to preserve edge connections
 });
 
 export type InsertFlowNode = z.infer<typeof insertFlowNodeSchema>;
@@ -91,8 +92,9 @@ export const flowConnections = pgTable("flow_connections", {
 });
 
 export const insertFlowConnectionSchema = createInsertSchema(flowConnections).omit({
-  id: true,
   createdAt: true,
+}).extend({
+  id: z.string().optional(), // Allow client to provide ID if needed
 });
 
 export type InsertFlowConnection = z.infer<typeof insertFlowConnectionSchema>;

@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef, DragEvent } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -16,6 +16,8 @@ import {
   type NodeTypes,
   type NodeChange,
   BackgroundVariant,
+  useReactFlow,
+  ReactFlowProvider,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,7 +35,8 @@ import {
   CheckCircle, 
   XCircle,
   Plus,
-  Settings
+  Settings,
+  GripVertical
 } from 'lucide-react';
 
 // Restaurant-specific node types
@@ -101,10 +104,12 @@ interface FlowBuilderProps {
   onSave?: (nodes: Node[], edges: Edge[]) => void;
 }
 
-export function FlowBuilder({ agentId, initialNodes = [], initialEdges = [], onSave }: FlowBuilderProps) {
+function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSave }: FlowBuilderProps) {
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const { screenToFlowPosition } = useReactFlow();
   
   // Derive selected node from canonical nodes array (single source of truth)
   const selectedNode = selectedNodeId ? nodes.find(n => n.id === selectedNodeId) || null : null;
@@ -139,25 +144,43 @@ export function FlowBuilder({ agentId, initialNodes = [], initialEdges = [], onS
     setSelectedNodeId(node.id);
   }, []);
 
-  const addNode = useCallback((type: string) => {
-    const nodeConfig = restaurantNodeTypes.find(t => t.type === type);
-    if (!nodeConfig) return;
+  const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
 
-    const newNode: Node = {
-      id: `${type}-${Date.now()}`,
-      type: 'custom',
-      position: { x: Math.random() * 500, y: Math.random() * 500 },
-      data: { 
-        type, 
-        label: nodeConfig.label,
-        content: '',
-        agentId 
-      },
-    };
+  const onDrop = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
 
-    setNodes((nds) => [...nds, newNode]);
-    setSelectedNodeId(newNode.id);
-  }, [agentId, setNodes]);
+      const type = event.dataTransfer.getData('application/reactflow');
+      if (!type) return;
+
+      const nodeConfig = restaurantNodeTypes.find(t => t.type === type);
+      if (!nodeConfig) return;
+
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      const newNode: Node = {
+        id: `${type}-${Date.now()}`,
+        type: 'custom',
+        position,
+        data: { 
+          type, 
+          label: nodeConfig.label,
+          content: '',
+          agentId 
+        },
+      };
+
+      setNodes((nds) => [...nds, newNode]);
+      setSelectedNodeId(newNode.id);
+    },
+    [agentId, screenToFlowPosition, setNodes],
+  );
 
   const updateNodeData = useCallback((nodeId: string, newData: any) => {
     // Update node data - ReactFlow's setNodes properly handles data-only updates
@@ -177,35 +200,15 @@ export function FlowBuilder({ agentId, initialNodes = [], initialEdges = [], onS
     }
   }, [nodes, edges, onSave]);
 
+  const onDragStart = (event: DragEvent<HTMLDivElement>, nodeType: string) => {
+    event.dataTransfer.setData('application/reactflow', nodeType);
+    event.dataTransfer.effectAllowed = 'move';
+  };
+
   return (
     <div className="flex h-[calc(100vh-12rem)] gap-4" data-testid="flow-builder">
-      {/* Node Palette */}
-      <Card className="w-64 flex-shrink-0 overflow-auto">
-        <CardHeader>
-          <CardTitle className="text-base">Node Palette</CardTitle>
-          <CardDescription>Click to add nodes</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {restaurantNodeTypes.map((nodeType) => {
-            const Icon = nodeType.icon;
-            return (
-              <Button
-                key={nodeType.type}
-                variant="outline"
-                className="w-full justify-start gap-2 hover-elevate"
-                onClick={() => addNode(nodeType.type)}
-                data-testid={`button-add-${nodeType.type}`}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="text-sm">{nodeType.label}</span>
-              </Button>
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      {/* Flow Canvas */}
-      <div className="flex-1 relative rounded-lg border bg-background h-full w-full">
+      {/* Flow Canvas - Takes up most of the screen */}
+      <div ref={reactFlowWrapper} className="flex-1 relative rounded-3xl border bg-background h-full overflow-hidden">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -213,6 +216,8 @@ export function FlowBuilder({ agentId, initialNodes = [], initialEdges = [], onS
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeClick={onNodeClick}
+          onDrop={onDrop}
+          onDragOver={onDragOver}
           nodeTypes={nodeTypes}
           fitView
           defaultEdgeOptions={{ type: 'smoothstep', animated: true }}
@@ -224,53 +229,89 @@ export function FlowBuilder({ agentId, initialNodes = [], initialEdges = [], onS
         </ReactFlow>
 
         {/* Save Button */}
-        <div className="absolute top-4 right-4 z-10">
+        <div className="absolute top-4 left-4 z-10">
           <Button onClick={handleSave} data-testid="button-save-flow">
             Save Flow
           </Button>
         </div>
       </div>
 
-      {/* Node Property Editor */}
-      {selectedNode && (
-        <Card className="w-80 flex-shrink-0 overflow-auto" data-testid="node-properties-panel">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Settings className="h-4 w-4" />
-                Node Properties
-              </CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedNodeId(null)}
-                data-testid="button-close-properties"
-              >
-                Close
-              </Button>
-            </div>
+      {/* Compact Node Palette on Right */}
+      <div className="flex flex-col gap-4 w-56 flex-shrink-0">
+        <Card className="overflow-auto">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Nodes</CardTitle>
+            <CardDescription className="text-xs">Drag to canvas</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Node Type</Label>
-              <p className="text-sm font-medium">{String(selectedNode.data.label)}</p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="node-content">Content</Label>
-              <Textarea
-                id="node-content"
-                placeholder="Enter node content or instructions..."
-                value={String(selectedNode.data.content || '')}
-                onChange={(e) =>
-                  updateNodeData(selectedNode.id, { content: e.target.value })
-                }
-                className="min-h-32"
-                data-testid="input-node-content"
-              />
-            </div>
+          <CardContent className="space-y-1 pb-3">
+            {restaurantNodeTypes.map((nodeType) => {
+              const Icon = nodeType.icon;
+              return (
+                <div
+                  key={nodeType.type}
+                  draggable
+                  onDragStart={(event) => onDragStart(event, nodeType.type)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-full border bg-card hover-elevate active-elevate-2 cursor-grab active:cursor-grabbing transition-colors"
+                  data-testid={`draggable-node-${nodeType.type}`}
+                >
+                  <GripVertical className="h-3 w-3 text-muted-foreground" />
+                  <Icon className="h-3.5 w-3.5" />
+                  <span className="text-xs font-medium truncate">{nodeType.label}</span>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
-      )}
+
+        {/* Node Property Editor - Shows when node selected */}
+        {selectedNode && (
+          <Card className="overflow-auto flex-1" data-testid="node-properties-panel">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  Properties
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedNodeId(null)}
+                  data-testid="button-close-properties"
+                >
+                  Close
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4 pb-3">
+              <div className="space-y-2">
+                <Label className="text-xs">Node Type</Label>
+                <p className="text-sm font-medium">{String(selectedNode.data.label)}</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="node-content" className="text-xs">Content</Label>
+                <Textarea
+                  id="node-content"
+                  placeholder="Enter node content or instructions..."
+                  value={String(selectedNode.data.content || '')}
+                  onChange={(e) =>
+                    updateNodeData(selectedNode.id, { content: e.target.value })
+                  }
+                  className="min-h-32 text-xs"
+                  data-testid="input-node-content"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
+  );
+}
+
+export function FlowBuilder(props: FlowBuilderProps) {
+  return (
+    <ReactFlowProvider>
+      <FlowBuilderInner {...props} />
+    </ReactFlowProvider>
   );
 }

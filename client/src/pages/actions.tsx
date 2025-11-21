@@ -66,7 +66,15 @@ export default function ActionsPage() {
   const [editingAction, setEditingAction] = useState<Action | null>(null);
   const [deletingAction, setDeletingAction] = useState<Action | null>(null);
   const [testingAction, setTestingAction] = useState<Action | null>(null);
-  const [testResult, setTestResult] = useState<{ success: boolean; status?: number; statusText?: string; data?: any; error?: string } | null>(null);
+  const [testResult, setTestResult] = useState<{ 
+    success: boolean; 
+    status?: number; 
+    statusText?: string; 
+    headers?: Record<string, string>;
+    body?: unknown; 
+    contentType?: string;
+    error?: string;
+  } | null>(null);
   const [headerFields, setHeaderFields] = useState<Array<{ key: string; value: string }>>([{ key: "", value: "" }]);
   const { toast } = useToast();
 
@@ -163,7 +171,9 @@ export default function ActionsPage() {
         success: true, 
         status: response.status,
         statusText: response.statusText,
-        data: response.data 
+        headers: response.headers,
+        body: response.body,
+        contentType: response.contentType
       });
       toast({
         title: "Action executed successfully",
@@ -655,11 +665,34 @@ export default function ActionsPage() {
                   )}
                 </div>
                 {testResult.success ? (
-                  <div>
-                    <p className="text-sm font-medium mb-2">Response Data:</p>
-                    <pre className="bg-muted p-4 rounded-md overflow-auto max-h-96 text-sm">
-                      {JSON.stringify(testResult.data, null, 2)}
-                    </pre>
+                  <div className="space-y-4">
+                    {testResult.headers && Object.keys(testResult.headers).length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium mb-2">Response Headers:</p>
+                        <div className="bg-muted p-4 rounded-md text-sm space-y-1">
+                          {Object.entries(testResult.headers).map(([key, value]) => (
+                            <div key={key} className="flex gap-2">
+                              <span className="font-semibold">{key}:</span>
+                              <span className="text-muted-foreground">{value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm font-medium mb-2">
+                        Response Body {testResult.contentType && `(${testResult.contentType})`}:
+                      </p>
+                      {testResult.contentType?.includes('application/json') ? (
+                        <pre className="bg-muted p-4 rounded-md overflow-auto max-h-96 text-sm" data-testid="text-response-body">
+                          {JSON.stringify(testResult.body, null, 2)}
+                        </pre>
+                      ) : (
+                        <pre className="bg-muted p-4 rounded-md overflow-auto max-h-96 text-sm whitespace-pre-wrap" data-testid="text-response-body">
+                          {typeof testResult.body === 'string' ? testResult.body : JSON.stringify(testResult.body, null, 2)}
+                        </pre>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className="bg-destructive/10 text-destructive p-4 rounded-md">

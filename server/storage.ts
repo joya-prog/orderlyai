@@ -25,9 +25,12 @@ import {
   type InsertTestConversation,
   type Action,
   type InsertAction,
+  contacts,
+  type Contact,
+  type InsertContact,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, like, or } from "drizzle-orm";
 
 export interface IStorage {
   // User operations - required for Replit Auth
@@ -77,6 +80,13 @@ export interface IStorage {
   createAction(action: InsertAction): Promise<Action>;
   updateAction(id: string, userId: string, action: Partial<InsertAction>): Promise<Action | null>;
   deleteAction(id: string, userId: string): Promise<boolean>;
+
+  // Contact operations
+  getContacts(userId: string, searchQuery?: string): Promise<Contact[]>;
+  getContact(id: string): Promise<Contact | undefined>;
+  createContact(contact: InsertContact): Promise<Contact>;
+  updateContact(id: string, userId: string, contact: Partial<InsertContact>): Promise<Contact | null>;
+  deleteContact(id: string, userId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -341,6 +351,65 @@ export class DatabaseStorage implements IStorage {
     }
 
     await db.delete(actions).where(eq(actions.id, id));
+    return true;
+  }
+
+  // Contact operations
+  async getContacts(userId: string, searchQuery?: string): Promise<Contact[]> {
+    if (!searchQuery) {
+      return await db.select().from(contacts).where(eq(contacts.userId, userId));
+    }
+
+    // Search by name, email, phone, or notes
+    return await db
+      .select()
+      .from(contacts)
+      .where(
+        and(
+          eq(contacts.userId, userId),
+          or(
+            like(contacts.name, `%${searchQuery}%`),
+            like(contacts.email, `%${searchQuery}%`),
+            like(contacts.phone, `%${searchQuery}%`),
+            like(contacts.notes, `%${searchQuery}%`)
+          )
+        )
+      );
+  }
+
+  async getContact(id: string): Promise<Contact | undefined> {
+    const [contact] = await db.select().from(contacts).where(eq(contacts.id, id));
+    return contact;
+  }
+
+  async createContact(contact: InsertContact): Promise<Contact> {
+    const [created] = await db.insert(contacts).values(contact).returning();
+    return created;
+  }
+
+  async updateContact(id: string, userId: string, contact: Partial<InsertContact>): Promise<Contact | null> {
+    // Verify ownership
+    const existing = await this.getContact(id);
+    if (!existing || existing.userId !== userId) {
+      return null;
+    }
+
+    const [updated] = await db
+      .update(contacts)
+      .set({ ...contact, updatedAt: new Date() })
+      .where(eq(contacts.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteContact(id: string, userId: string): Promise<boolean> {
+    // Verify ownership
+    const existing = await this.getContact(id);
+    if (!existing || existing.userId !== userId) {
+      return false;
+    }
+
+    await db.delete(contacts).where(eq(contacts.id, id));
     return true;
   }
 }

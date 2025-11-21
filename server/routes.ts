@@ -4,7 +4,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { generateAgentResponse } from "./openai";
-import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertActionSchema } from "@shared/schema";
+import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertActionSchema, insertContactSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -503,12 +503,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (action.headers) {
         try {
           const parsedHeaders = JSON.parse(JSON.stringify(action.headers));
-          if (Array.isArray(parsedHeaders)) {
-            parsedHeaders.forEach((h: { key: string; value: string }) => {
-              if (h.key && h.value) {
-                headers[h.key] = h.value;
-              }
-            });
+          if (!Array.isArray(parsedHeaders)) {
+            return res.status(400).json({ message: "Headers must be an array" });
+          }
+          
+          // Limit to 20 headers to prevent abuse
+          if (parsedHeaders.length > 20) {
+            return res.status(400).json({ message: "Maximum 20 headers allowed" });
+          }
+          
+          for (const h of parsedHeaders) {
+            // Coerce to string and trim
+            let key = '';
+            let value = '';
+            
+            if (h.key !== null && h.key !== undefined) {
+              key = String(h.key).trim();
+            }
+            
+            if (h.value !== null && h.value !== undefined) {
+              value = String(h.value).trim();
+            }
+            
+            if (!key || !value) {
+              return res.status(400).json({ message: "Header keys and values cannot be empty or whitespace" });
+            }
+            
+            headers[key] = value;
           }
         } catch (error) {
           return res.status(400).json({ message: "Invalid headers format" });
@@ -543,24 +564,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Execute the action with timeout
       const response = await fetch(action.endpoint, requestOptions);
       
-      // Parse response data
-      let responseData;
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
+      // Extract response headers
+      const responseHeaders: Record<string, string> = {};
+      response.headers.forEach((value, key) => {
+        responseHeaders[key] = value;
+      });
+      
+      // Parse response body based on content-type
+      const contentType = response.headers.get('content-type') || 'text/plain';
+      let responseBody: unknown;
+      
+      if (contentType.includes('application/json')) {
         try {
-          responseData = await response.json();
+          responseBody = await response.json();
         } catch (error) {
-          responseData = { message: "Response is not valid JSON" };
+          responseBody = await response.text();
         }
+      } else if (contentType.includes('text/')) {
+        responseBody = await response.text();
       } else {
-        const text = await response.text();
-        responseData = { text, contentType };
+        // Binary or unknown content type
+        responseBody = `Binary content (${contentType}). ${await response.text().catch(() => 'Unable to read body')}`;
       }
 
       res.json({
         status: response.status,
         statusText: response.statusText,
-        data: responseData,
+        headers: responseHeaders,
+        body: responseBody,
+        contentType,
       });
     } catch (error: any) {
       console.error("Error testing action:", error);
@@ -568,6 +600,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(408).json({ message: "Request timeout after 30 seconds" });
       }
       res.status(500).json({ message: error.message || "Failed to test action" });
+    }
+  });
+
+  // Contact routes
+  app.get("/api/contacts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const searchQuery = req.query.search as string | undefined;
+      const contacts = await storage.getContacts(userId, searchQuery);
+      res.json(contacts);
+    } catch (error) {
+      console.error("Error fetching contacts:", error);
+      res.status(500).json({ message: "Failed to fetch contacts" });
+    }
+  });
+
+  app.get("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const contact = await storage.getContact(req.params.id);
+      if (!contact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+      // Verify ownership
+      if (contact.userId !== req.user.claims.sub) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      res.json(contact);
+    } catch (error) {
+      console.error("Error fetching contact:", error);
+      res.status(500).json({ message: "Failed to fetch contact" });
+    }
+  });
+
+  app.post("/api/contacts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const validated = insertContactSchema.omit({ userId: true }).parse(req.body);
+      const contact = await storage.createContact({ ...validated, userId });
+      res.json(contact);
+    } catch (error) {
+      console.error("Error creating contact:", error);
+      res.status(500).json({ message: "Failed to create contact" });
+    }
+  });
+
+  app.patch("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const contact = await storage.updateContact(req.params.id, userId, req.body);
+      if (!contact) {
+        return res.status(404).json({ message: "Contact not found or access denied" });
+      }
+      res.json(contact);
+    } catch (error) {
+      console.error("Error updating contact:", error);
+      res.status(500).json({ message: "Failed to update contact" });
+    }
+  });
+
+  app.delete("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const success = await storage.deleteContact(req.params.id, userId);
+      if (!success) {
+        return res.status(404).json({ message: "Contact not found or access denied" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting contact:", error);
+      res.status(500).json({ message: "Failed to delete contact" });
     }
   });
 

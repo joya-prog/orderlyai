@@ -69,11 +69,13 @@ Preferred communication style: Simple, everyday language.
 - `knowledgeBase` - Q&A pairs organized by category for agent training
 - `templates` - Pre-built agent templates for different industries
 - `testConversations` - Conversation history for testing agents
+- `contacts` - CRM contacts with name, email, phone, tags, and notes (searchable)
 
 **Migration Strategy**: Drizzle Kit for schema migrations (push-based approach)
 
 **Data Relationships**:
 - Users have many agents (cascade delete)
+- Users have many contacts (cascade delete)
 - Agents have many knowledge base items (cascade delete)
 - Agents have many test conversations (cascade delete)
 - Templates can be cloned to create new agents

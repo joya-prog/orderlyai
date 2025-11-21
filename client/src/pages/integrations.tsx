@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
-import { ShoppingCart, Coffee, Check, Link2, Loader2, ExternalLink } from "lucide-react";
+import { Check, Link2, Loader2, ExternalLink } from "lucide-react";
+import { SiSquare, SiTwilio, SiYelp } from "react-icons/si";
 import type { IntegrationConfig } from "@shared/schema";
 import { useLocation } from "wouter";
 
@@ -98,14 +99,14 @@ export default function IntegrationsPage() {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Square POS Integration */}
         <Card>
           <CardHeader>
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
-                  <ShoppingCart className="h-6 w-6 text-primary" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#000000]/10 dark:bg-[#000000]/20">
+                  <SiSquare className="h-7 w-7 text-[#000000] dark:text-white" />
                 </div>
                 <div>
                   <CardTitle>Square POS</CardTitle>
@@ -173,8 +174,10 @@ export default function IntegrationsPage() {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/10">
-                  <Coffee className="h-6 w-6 text-accent-foreground" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E8511B]/10 dark:bg-[#E8511B]/20">
+                  <div className="h-7 w-7 flex items-center justify-center font-bold text-[#E8511B] text-xl">
+                    T
+                  </div>
                 </div>
                 <div>
                   <CardTitle>Toast POS</CardTitle>
@@ -234,6 +237,122 @@ export default function IntegrationsPage() {
                 Connect with Toast
               </Button>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Twilio Integration */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F22F46]/10 dark:bg-[#F22F46]/20 opacity-75">
+                  <SiTwilio className="h-7 w-7 text-[#F22F46]" />
+                </div>
+                <div>
+                  <CardTitle>Twilio</CardTitle>
+                  <CardDescription className="mt-1">
+                    Phone and SMS integration
+                  </CardDescription>
+                </div>
+              </div>
+              <Badge variant="secondary" data-testid="badge-twilio-status">Coming Soon</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Integrate Twilio for advanced voice calling, SMS messaging, and phone number management capabilities.
+            </p>
+            <Button className="w-full" disabled data-testid="button-twilio-connect">
+              Coming Soon
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Resy Integration */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#D72420]/10 dark:bg-[#D72420]/20 opacity-75">
+                  <div className="h-7 w-7 flex items-center justify-center font-bold text-[#D72420] text-xl">
+                    R
+                  </div>
+                </div>
+                <div>
+                  <CardTitle>Resy</CardTitle>
+                  <CardDescription className="mt-1">
+                    Restaurant reservations platform
+                  </CardDescription>
+                </div>
+              </div>
+              <Badge variant="secondary" data-testid="badge-resy-status">Coming Soon</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Connect Resy to manage reservations, waitlists, and table availability through your AI agents.
+            </p>
+            <Button className="w-full" disabled data-testid="button-resy-connect">
+              Coming Soon
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Tock Integration */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF6B35]/10 dark:bg-[#FF6B35]/20 opacity-75">
+                  <div className="h-7 w-7 flex items-center justify-center font-bold text-[#FF6B35] text-xl">
+                    T
+                  </div>
+                </div>
+                <div>
+                  <CardTitle>Tock</CardTitle>
+                  <CardDescription className="mt-1">
+                    Reservation and event ticketing
+                  </CardDescription>
+                </div>
+              </div>
+              <Badge variant="secondary" data-testid="badge-tock-status">Coming Soon</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Integrate Tock for advanced reservations, pre-paid experiences, and event management capabilities.
+            </p>
+            <Button className="w-full" disabled data-testid="button-tock-connect">
+              Coming Soon
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Yelp Reservations Integration */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF1A1A]/10 dark:bg-[#FF1A1A]/20 opacity-75">
+                  <SiYelp className="h-7 w-7 text-[#FF1A1A]" />
+                </div>
+                <div>
+                  <CardTitle>Yelp Reservations</CardTitle>
+                  <CardDescription className="mt-1">
+                    Yelp-powered table bookings
+                  </CardDescription>
+                </div>
+              </div>
+              <Badge variant="secondary" data-testid="badge-yelp-status">Coming Soon</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Connect Yelp Reservations to manage bookings and customer reviews through your voice agents.
+            </p>
+            <Button className="w-full" disabled data-testid="button-yelp-connect">
+              Coming Soon
+            </Button>
           </CardContent>
         </Card>
       </div>

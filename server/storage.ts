@@ -10,6 +10,8 @@ import {
   actions,
   contacts,
   phoneNumbers,
+  integrationConfigs,
+  analyticsEvents,
   type User,
   type UpsertUser,
   type Agent,
@@ -31,9 +33,13 @@ import {
   type InsertContact,
   type PhoneNumber,
   type InsertPhoneNumber,
+  type IntegrationConfig,
+  type InsertIntegrationConfig,
+  type AnalyticsEvent,
+  type InsertAnalyticsEvent,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, like, or } from "drizzle-orm";
+import { eq, and, like, or, sql } from "drizzle-orm";
 
 export interface IStorage {
   // User operations - required for Replit Auth
@@ -97,6 +103,18 @@ export interface IStorage {
   createPhoneNumber(phoneNumber: InsertPhoneNumber): Promise<PhoneNumber>;
   updatePhoneNumber(id: string, userId: string, phoneNumber: Partial<InsertPhoneNumber>): Promise<PhoneNumber | null>;
   deletePhoneNumber(id: string, userId: string): Promise<boolean>;
+
+  // Integration operations
+  getIntegrations(userId: string): Promise<IntegrationConfig[]>;
+  getIntegration(id: string, userId: string): Promise<IntegrationConfig | null>;
+  getIntegrationByService(service: string, userId: string): Promise<IntegrationConfig | null>;
+  createIntegration(integration: InsertIntegrationConfig): Promise<IntegrationConfig>;
+  updateIntegration(id: string, userId: string, integration: Partial<InsertIntegrationConfig>): Promise<IntegrationConfig | null>;
+  deleteIntegration(id: string, userId: string): Promise<boolean>;
+
+  // Analytics operations
+  createAnalyticsEvent(event: InsertAnalyticsEvent): Promise<AnalyticsEvent>;
+  getAnalyticsEvents(userId: string, filters?: { agentId?: string; eventType?: string; startDate?: Date; endDate?: Date }): Promise<AnalyticsEvent[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -462,6 +480,81 @@ export class DatabaseStorage implements IStorage {
 
     await db.delete(phoneNumbers).where(eq(phoneNumbers.id, id));
     return true;
+  }
+
+  // Integration operations
+  async getIntegrations(userId: string): Promise<IntegrationConfig[]> {
+    return await db.select().from(integrationConfigs).where(eq(integrationConfigs.userId, userId));
+  }
+
+  async getIntegration(id: string, userId: string): Promise<IntegrationConfig | null> {
+    const [integration] = await db.select().from(integrationConfigs).where(
+      and(eq(integrationConfigs.id, id), eq(integrationConfigs.userId, userId))
+    );
+    return integration || null;
+  }
+
+  async getIntegrationByService(service: string, userId: string): Promise<IntegrationConfig | null> {
+    const [integration] = await db.select().from(integrationConfigs).where(
+      and(eq(integrationConfigs.service, service), eq(integrationConfigs.userId, userId))
+    );
+    return integration || null;
+  }
+
+  async createIntegration(integration: InsertIntegrationConfig): Promise<IntegrationConfig> {
+    const [created] = await db.insert(integrationConfigs).values(integration).returning();
+    return created;
+  }
+
+  async updateIntegration(id: string, userId: string, integration: Partial<InsertIntegrationConfig>): Promise<IntegrationConfig | null> {
+    // Verify ownership
+    const existing = await this.getIntegration(id, userId);
+    if (!existing) {
+      return null;
+    }
+
+    const [updated] = await db
+      .update(integrationConfigs)
+      .set({ ...integration, updatedAt: new Date() })
+      .where(eq(integrationConfigs.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteIntegration(id: string, userId: string): Promise<boolean> {
+    // Verify ownership
+    const existing = await this.getIntegration(id, userId);
+    if (!existing) {
+      return false;
+    }
+
+    await db.delete(integrationConfigs).where(eq(integrationConfigs.id, id));
+    return true;
+  }
+
+  // Analytics operations
+  async createAnalyticsEvent(event: InsertAnalyticsEvent): Promise<AnalyticsEvent> {
+    const [created] = await db.insert(analyticsEvents).values(event).returning();
+    return created;
+  }
+
+  async getAnalyticsEvents(userId: string, filters?: { agentId?: string; eventType?: string; startDate?: Date; endDate?: Date }): Promise<AnalyticsEvent[]> {
+    const conditions = [eq(analyticsEvents.userId, userId)];
+
+    if (filters?.agentId) {
+      conditions.push(eq(analyticsEvents.agentId, filters.agentId));
+    }
+    if (filters?.eventType) {
+      conditions.push(eq(analyticsEvents.eventType, filters.eventType));
+    }
+    if (filters?.startDate) {
+      conditions.push(sql`${analyticsEvents.createdAt} >= ${filters.startDate}`);
+    }
+    if (filters?.endDate) {
+      conditions.push(sql`${analyticsEvents.createdAt} <= ${filters.endDate}`);
+    }
+
+    return await db.select().from(analyticsEvents).where(and(...conditions));
   }
 }
 

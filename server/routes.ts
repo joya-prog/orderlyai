@@ -4,7 +4,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { generateAgentResponse } from "./openai";
-import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertActionSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema } from "@shared/schema";
+import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertActionSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema, insertIntegrationConfigSchema, insertAnalyticsEventSchema } from "@shared/schema";
 import twilio from "twilio";
 
 // Initialize Twilio client
@@ -816,6 +816,124 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting phone number:", error);
       res.status(500).json({ message: "Failed to delete phone number" });
+    }
+  });
+
+  // Integration routes
+  app.get("/api/integrations", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const integrations = await storage.getIntegrations(userId);
+      res.json(integrations);
+    } catch (error) {
+      console.error("Error fetching integrations:", error);
+      res.status(500).json({ message: "Failed to fetch integrations" });
+    }
+  });
+
+  app.post("/api/integrations", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const data = insertIntegrationConfigSchema.parse({ ...req.body, userId });
+      const integration = await storage.createIntegration(data);
+      res.json(integration);
+    } catch (error: any) {
+      console.error("Error creating integration:", error);
+      res.status(400).json({ message: error.message || "Failed to create integration" });
+    }
+  });
+
+  app.patch("/api/integrations/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const integration = await storage.updateIntegration(req.params.id, userId, req.body);
+      if (!integration) {
+        return res.status(404).json({ message: "Integration not found or access denied" });
+      }
+      res.json(integration);
+    } catch (error) {
+      console.error("Error updating integration:", error);
+      res.status(500).json({ message: "Failed to update integration" });
+    }
+  });
+
+  app.delete("/api/integrations/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const success = await storage.deleteIntegration(req.params.id, userId);
+      if (!success) {
+        return res.status(404).json({ message: "Integration not found or access denied" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting integration:", error);
+      res.status(500).json({ message: "Failed to delete integration" });
+    }
+  });
+
+  // Analytics routes
+  app.get("/api/analytics/events", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { agentId, eventType, startDate, endDate } = req.query;
+      
+      const filters: any = {};
+      if (agentId) filters.agentId = agentId;
+      if (eventType) filters.eventType = eventType;
+      if (startDate) filters.startDate = new Date(startDate);
+      if (endDate) filters.endDate = new Date(endDate);
+
+      const events = await storage.getAnalyticsEvents(userId, filters);
+      res.json(events);
+    } catch (error) {
+      console.error("Error fetching analytics events:", error);
+      res.status(500).json({ message: "Failed to fetch analytics events" });
+    }
+  });
+
+  app.post("/api/analytics/events", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const data = insertAnalyticsEventSchema.parse({ ...req.body, userId });
+      const event = await storage.createAnalyticsEvent(data);
+      res.json(event);
+    } catch (error: any) {
+      console.error("Error creating analytics event:", error);
+      res.status(400).json({ message: error.message || "Failed to create analytics event" });
+    }
+  });
+
+  app.get("/api/analytics/overview", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { startDate, endDate } = req.query;
+
+      const filters: any = {};
+      if (startDate) filters.startDate = new Date(startDate as string);
+      if (endDate) filters.endDate = new Date(endDate as string);
+
+      const events = await storage.getAnalyticsEvents(userId, filters);
+
+      // Calculate summary statistics
+      const totalCalls = events.filter(e => e.eventType === 'call_started').length;
+      const totalOrders = events.filter(e => e.eventType === 'order_placed').length;
+      const totalReservations = events.filter(e => e.eventType === 'reservation_made').length;
+      
+      const callEndedEvents = events.filter(e => e.eventType === 'call_ended' && e.duration);
+      const avgDuration = callEndedEvents.length > 0
+        ? callEndedEvents.reduce((sum, e) => sum + parseInt(e.duration || '0'), 0) / callEndedEvents.length
+        : 0;
+
+      res.json({
+        totalCalls,
+        totalOrders,
+        totalReservations,
+        avgDuration: Math.round(avgDuration),
+        events: events.length,
+      });
+    } catch (error) {
+      console.error("Error fetching analytics overview:", error);
+      res.status(500).json({ message: "Failed to fetch analytics overview" });
     }
   });
 

@@ -351,3 +351,23 @@ export const insertCallLogSchema = createInsertSchema(callLogs).omit({
 
 export type InsertCallLog = z.infer<typeof insertCallLogSchema>;
 export type CallLog = typeof callLogs.$inferSelect;
+
+// Analytics events for tracking agent performance and usage
+export const analyticsEvents = pgTable("analytics_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  agentId: varchar("agent_id").references(() => agents.id, { onDelete: 'set null' }),
+  eventType: text("event_type").notNull(), // 'call_started', 'call_ended', 'intent_detected', 'order_placed', 'reservation_made', 'transfer', 'error'
+  eventData: jsonb("event_data"), // Additional event-specific data
+  duration: text("duration"), // For call_ended events (in seconds)
+  metadata: jsonb("metadata"), // Extra context
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAnalyticsEventSchema = createInsertSchema(analyticsEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertAnalyticsEvent = z.infer<typeof insertAnalyticsEventSchema>;
+export type AnalyticsEvent = typeof analyticsEvents.$inferSelect;

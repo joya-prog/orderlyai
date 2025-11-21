@@ -113,14 +113,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get knowledge items for a specific agent
   app.get("/api/agents/:id/knowledge", isAuthenticated, async (req: any, res) => {
     try {
-      const agent = await storage.getAgent(req.params.id);
-      if (!agent) {
-        return res.status(404).json({ message: "Agent not found" });
-      }
-      if (agent.userId !== req.user.claims.sub) {
-        return res.status(403).json({ message: "Forbidden" });
-      }
-      const items = await storage.getKnowledgeBase(req.params.id);
+      const userId = req.user.claims.sub;
+      // Storage layer enforces ownership check internally
+      const items = await storage.getKnowledgeBase(req.params.id, userId);
       res.json(items);
     } catch (error) {
       console.error("Error fetching knowledge base:", error);
@@ -131,15 +126,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create knowledge item (can specify agentId in body)
   app.post("/api/knowledge", isAuthenticated, async (req: any, res) => {
     try {
-      const agent = await storage.getAgent(req.body.agentId);
-      if (!agent) {
-        return res.status(404).json({ message: "Agent not found" });
-      }
-      if (agent.userId !== req.user.claims.sub) {
-        return res.status(403).json({ message: "Forbidden" });
-      }
+      const userId = req.user.claims.sub;
       const data = insertKnowledgeBaseSchema.parse(req.body);
-      const item = await storage.createKnowledgeBase(data);
+      // Storage layer enforces ownership check internally
+      const item = await storage.createKnowledgeBase(data, userId);
+      if (!item) {
+        return res.status(403).json({ message: "Forbidden: Agent not found or not owned by user" });
+      }
       res.json(item);
     } catch (error: any) {
       console.error("Error creating knowledge item:", error);
@@ -157,25 +150,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid import data" });
       }
 
-      // Validate all items first
-      const validatedItems = [];
-      for (const item of items) {
-        // Validate schema
-        const data = insertKnowledgeBaseSchema.parse(item);
-        
-        // Verify agent ownership
-        const agent = await storage.getAgent(data.agentId);
-        if (!agent || agent.userId !== userId) {
-          return res.status(403).json({ 
-            message: `Forbidden: Agent ${data.agentId} not found or not owned by user` 
-          });
-        }
-        
-        validatedItems.push(data);
-      }
+      // Validate all items
+      const validatedItems = items.map(item => insertKnowledgeBaseSchema.parse(item));
 
-      // Import all items in transaction
-      const imported = await storage.bulkCreateKnowledgeBase(validatedItems);
+      // Storage layer enforces ownership check internally for all agents
+      const imported = await storage.bulkCreateKnowledgeBase(validatedItems, userId);
+      if (!imported) {
+        return res.status(403).json({ message: "Forbidden: One or more agents not found or not owned by user" });
+      }
       res.json({ success: true, count: imported.length });
     } catch (error: any) {
       console.error("Error bulk importing knowledge items:", error);
@@ -185,15 +167,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/agents/:id/knowledge", isAuthenticated, async (req: any, res) => {
     try {
-      const agent = await storage.getAgent(req.params.id);
-      if (!agent) {
-        return res.status(404).json({ message: "Agent not found" });
-      }
-      if (agent.userId !== req.user.claims.sub) {
-        return res.status(403).json({ message: "Forbidden" });
-      }
+      const userId = req.user.claims.sub;
       const data = insertKnowledgeBaseSchema.parse({ ...req.body, agentId: req.params.id });
-      const item = await storage.createKnowledgeBase(data);
+      // Storage layer enforces ownership check internally
+      const item = await storage.createKnowledgeBase(data, userId);
+      if (!item) {
+        return res.status(403).json({ message: "Forbidden: Agent not found or not owned by user" });
+      }
       res.json(item);
     } catch (error: any) {
       console.error("Error creating knowledge item:", error);
@@ -250,8 +230,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { message, history = [] } = req.body;
 
-      // Get knowledge base for context
-      const knowledgeItems = await storage.getKnowledgeBase(req.params.id);
+      // Get knowledge base for context - storage layer enforces ownership
+      const userId = req.user.claims.sub;
+      const knowledgeItems = await storage.getKnowledgeBase(req.params.id, userId);
       const knowledgeContext = knowledgeItems
         .map((item) => `Q: ${item.question}\nA: ${item.answer}`)
         .join("\n\n");
@@ -319,7 +300,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             category: item.category || "faq",
             question: item.question,
             answer: item.answer,
-          });
+          }, userId);
         }
       }
 

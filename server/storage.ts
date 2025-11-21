@@ -34,6 +34,7 @@ export interface IStorage {
   // Agent operations
   getAgents(userId: string): Promise<Agent[]>;
   getAgent(id: string): Promise<Agent | undefined>;
+  getAgentForUser(id: string, userId: string): Promise<Agent | null>;
   createAgent(agent: InsertAgent): Promise<Agent>;
   updateAgent(id: string, agent: Partial<InsertAgent>): Promise<Agent>;
   deleteAgent(id: string): Promise<void>;
@@ -51,11 +52,11 @@ export interface IStorage {
 
   // Knowledge base operations
   getAllKnowledgeBase(userId: string): Promise<KnowledgeBase[]>;
-  getKnowledgeBase(agentId: string): Promise<KnowledgeBase[]>;
+  getKnowledgeBase(agentId: string, userId: string): Promise<KnowledgeBase[]>;
   getKnowledgeBaseItem(id: string): Promise<KnowledgeBase | undefined>;
   getOwnedKnowledgeItem(id: string, userId: string): Promise<KnowledgeBase | null>;
-  createKnowledgeBase(item: InsertKnowledgeBase): Promise<KnowledgeBase>;
-  bulkCreateKnowledgeBase(items: InsertKnowledgeBase[]): Promise<KnowledgeBase[]>;
+  createKnowledgeBase(item: InsertKnowledgeBase, userId: string): Promise<KnowledgeBase | null>;
+  bulkCreateKnowledgeBase(items: InsertKnowledgeBase[], userId: string): Promise<KnowledgeBase[] | null>;
   updateKnowledgeBase(id: string, userId: string, item: UpdateKnowledgeBase): Promise<KnowledgeBase | null>;
   deleteKnowledgeBase(id: string, userId: string): Promise<boolean>;
 
@@ -98,6 +99,16 @@ export class DatabaseStorage implements IStorage {
   async getAgent(id: string): Promise<Agent | undefined> {
     const [agent] = await db.select().from(agents).where(eq(agents.id, id));
     return agent;
+  }
+
+  async getAgentForUser(id: string, userId: string): Promise<Agent | null> {
+    // Tenant-scoped agent lookup - single source of truth for agent ownership
+    // Returns agent only if it exists AND belongs to the user
+    const [agent] = await db
+      .select()
+      .from(agents)
+      .where(and(eq(agents.id, id), eq(agents.userId, userId)));
+    return agent || null;
   }
 
   async createAgent(agent: InsertAgent): Promise<Agent> {
@@ -173,7 +184,12 @@ export class DatabaseStorage implements IStorage {
       .where(eq(agents.userId, userId));
   }
 
-  async getKnowledgeBase(agentId: string): Promise<KnowledgeBase[]> {
+  async getKnowledgeBase(agentId: string, userId: string): Promise<KnowledgeBase[]> {
+    // Enforce ownership at storage layer using tenant-scoped helper
+    const agent = await this.getAgentForUser(agentId, userId);
+    if (!agent) {
+      return []; // Agent doesn't exist or user doesn't own it
+    }
     return await db.select().from(knowledgeBase).where(eq(knowledgeBase.agentId, agentId));
   }
 
@@ -202,13 +218,27 @@ export class DatabaseStorage implements IStorage {
     return result || null;
   }
 
-  async createKnowledgeBase(item: InsertKnowledgeBase): Promise<KnowledgeBase> {
+  async createKnowledgeBase(item: InsertKnowledgeBase, userId: string): Promise<KnowledgeBase | null> {
+    // Enforce ownership at storage layer using tenant-scoped helper
+    const agent = await this.getAgentForUser(item.agentId, userId);
+    if (!agent) {
+      return null; // Agent doesn't exist or user doesn't own it
+    }
     const [created] = await db.insert(knowledgeBase).values(item).returning();
     return created;
   }
 
-  async bulkCreateKnowledgeBase(items: InsertKnowledgeBase[]): Promise<KnowledgeBase[]> {
-    // Insert all items in a single transaction
+  async bulkCreateKnowledgeBase(items: InsertKnowledgeBase[], userId: string): Promise<KnowledgeBase[] | null> {
+    // Enforce ownership at storage layer using tenant-scoped helper
+    // All items must belong to agents owned by the same user
+    const agentIds = [...new Set(items.map(item => item.agentId))];
+    for (const agentId of agentIds) {
+      const agent = await this.getAgentForUser(agentId, userId);
+      if (!agent) {
+        return null; // At least one agent doesn't exist or user doesn't own it
+      }
+    }
+    // All agents verified - safe to insert
     const created = await db.insert(knowledgeBase).values(items).returning();
     return created;
   }

@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Phone, Clock, CheckCircle2, Bot, DollarSign, TrendingUp, Calendar } from "lucide-react";
+import { Phone, Clock, CheckCircle2, Bot, DollarSign, TrendingUp, Calendar, CalendarDays } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { AnalyticsEvent } from "@shared/schema";
 
 function formatDuration(seconds: number): string {
@@ -25,11 +26,50 @@ interface AnalyticsOverview {
   events: number;
 }
 
+type DateRangePreset = "7days" | "30days" | "90days" | "12months" | "alltime";
+
+function getDateRangeFromPreset(preset: DateRangePreset): { startDate: string; endDate: string } {
+  const endDate = new Date();
+  let startDate: Date;
+
+  switch (preset) {
+    case "7days":
+      startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      break;
+    case "30days":
+      startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      break;
+    case "90days":
+      startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+      break;
+    case "12months":
+      startDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+      break;
+    case "alltime":
+      startDate = new Date("2020-01-01");
+      break;
+  }
+
+  return {
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+  };
+}
+
+function getPresetLabel(preset: DateRangePreset): string {
+  switch (preset) {
+    case "7days": return "Last 7 days";
+    case "30days": return "Last 30 days";
+    case "90days": return "Last 90 days";
+    case "12months": return "Last 12 months";
+    case "alltime": return "All time";
+  }
+}
+
 export default function AnalyticsPage() {
-  const [dateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-    endDate: new Date().toISOString(),
-  });
+  const [datePreset, setDatePreset] = useState<DateRangePreset>("30days");
+  
+  const dateRange = useMemo(() => getDateRangeFromPreset(datePreset), [datePreset]);
 
   const { data: overview, isLoading: overviewLoading } = useQuery<AnalyticsOverview>({
     queryKey: [`/api/analytics/overview?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`],
@@ -57,10 +97,21 @@ export default function AnalyticsPage() {
               Track agent performance, call metrics, and revenue analytics
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Last 30 days</span>
-          </div>
+          <Select value={datePreset} onValueChange={(value: DateRangePreset) => setDatePreset(value)}>
+            <SelectTrigger className="w-[200px]" data-testid="select-date-range">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-4 w-4" />
+                <SelectValue />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7days" data-testid="option-7days">Last 7 days</SelectItem>
+              <SelectItem value="30days" data-testid="option-30days">Last 30 days</SelectItem>
+              <SelectItem value="90days" data-testid="option-90days">Last 90 days</SelectItem>
+              <SelectItem value="12months" data-testid="option-12months">Last 12 months</SelectItem>
+              <SelectItem value="alltime" data-testid="option-alltime">All time</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Key Metrics Cards */}

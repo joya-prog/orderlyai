@@ -6,6 +6,7 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import { generateAgentResponse } from "./openai";
 import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertActionSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema, insertIntegrationConfigSchema, insertAnalyticsEventSchema } from "@shared/schema";
 import twilio from "twilio";
+import crypto from "crypto";
 
 // Initialize Twilio client
 const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -882,7 +883,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     // Generate cryptographically secure state nonce and store in database
-    const nonce = require('crypto').randomBytes(32).toString('hex');
+    const nonce = crypto.randomBytes(32).toString('hex');
     await storage.createOAuthState({
       nonce,
       userId,
@@ -985,7 +986,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     // Generate cryptographically secure state nonce and store in database
-    const nonce = require('crypto').randomBytes(32).toString('hex');
+    const nonce = crypto.randomBytes(32).toString('hex');
     await storage.createOAuthState({
       nonce,
       userId,

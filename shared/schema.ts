@@ -120,6 +120,14 @@ export const insertKnowledgeBaseSchema = createInsertSchema(knowledgeBase).omit(
 export type InsertKnowledgeBase = z.infer<typeof insertKnowledgeBaseSchema>;
 export type KnowledgeBase = typeof knowledgeBase.$inferSelect;
 
+// Update schema: only allows updating content fields, never agentId
+export const updateKnowledgeBaseSchema = z.object({
+  category: z.enum(["menu", "hours", "policies", "faq", "custom"]).optional(),
+  question: z.string().min(1).optional(),
+  answer: z.string().min(1).optional(),
+});
+export type UpdateKnowledgeBase = z.infer<typeof updateKnowledgeBaseSchema>;
+
 // Agent templates
 export const templates = pgTable("templates", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -158,3 +166,178 @@ export const insertTestConversationSchema = createInsertSchema(testConversations
 
 export type InsertTestConversation = z.infer<typeof insertTestConversationSchema>;
 export type TestConversation = typeof testConversations.$inferSelect;
+
+// Contacts table for CRM
+export const contacts = pgTable("contacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text("name").notNull(),
+  email: varchar("email"),
+  phone: varchar("phone"),
+  tags: text("tags").array(), // Array of tags for filtering
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertContactSchema = createInsertSchema(contacts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertContact = z.infer<typeof insertContactSchema>;
+export type Contact = typeof contacts.$inferSelect;
+
+// Phone numbers (Twilio integration)
+export const phoneNumbers = pgTable("phone_numbers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  agentId: varchar("agent_id").references(() => agents.id, { onDelete: 'set null' }), // Can be unassigned
+  number: varchar("number").notNull().unique(),
+  provider: text("provider").notNull().default('twilio'), // 'twilio', 'vonage', etc.
+  providerId: varchar("provider_id"), // Provider's ID for this number
+  status: text("status").notNull().default('active'), // 'active', 'inactive', 'pending'
+  capabilities: jsonb("capabilities"), // {voice: true, sms: true}
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPhoneNumberSchema = createInsertSchema(phoneNumbers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertPhoneNumber = z.infer<typeof insertPhoneNumberSchema>;
+export type PhoneNumber = typeof phoneNumbers.$inferSelect;
+
+// Custom actions/webhooks
+export const actions = pgTable("actions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  agentId: varchar("agent_id").references(() => agents.id, { onDelete: 'cascade' }),
+  name: text("name").notNull(),
+  description: text("description"),
+  type: text("type").notNull(), // 'webhook', 'api_call', 'database_query'
+  method: text("method").notNull().default('POST'), // 'GET', 'POST', 'PUT', 'DELETE'
+  endpoint: text("endpoint").notNull(),
+  headers: jsonb("headers"), // Custom headers
+  bodyTemplate: text("body_template"), // Template for request body
+  responseMapping: jsonb("response_mapping"), // How to parse response
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertActionSchema = createInsertSchema(actions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertAction = z.infer<typeof insertActionSchema>;
+export type Action = typeof actions.$inferSelect;
+
+// Integration configurations
+export const integrationConfigs = pgTable("integration_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  service: text("service").notNull(), // 'twilio', 'squarespace', 'toast', 'stripe', 'calendly'
+  name: text("name").notNull(),
+  status: text("status").notNull().default('inactive'), // 'active', 'inactive', 'error'
+  credentials: jsonb("credentials").notNull(), // Encrypted API keys/tokens
+  config: jsonb("config"), // Service-specific configuration
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertIntegrationConfigSchema = createInsertSchema(integrationConfigs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertIntegrationConfig = z.infer<typeof insertIntegrationConfigSchema>;
+export type IntegrationConfig = typeof integrationConfigs.$inferSelect;
+
+// Menu items from POS systems
+export const menuItems = pgTable("menu_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  integrationId: varchar("integration_id").references(() => integrationConfigs.id, { onDelete: 'cascade' }),
+  posId: varchar("pos_id"), // ID in the POS system
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category"),
+  price: text("price").notNull(), // Stored as text to handle decimal precision
+  modifiers: jsonb("modifiers"), // Available customizations
+  available: boolean("available").default(true),
+  imageUrl: text("image_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertMenuItemSchema = createInsertSchema(menuItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertMenuItem = z.infer<typeof insertMenuItemSchema>;
+export type MenuItem = typeof menuItems.$inferSelect;
+
+// Orders placed through agents
+export const orders = pgTable("orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  agentId: varchar("agent_id").references(() => agents.id, { onDelete: 'set null' }),
+  contactId: varchar("contact_id").references(() => contacts.id, { onDelete: 'set null' }),
+  integrationId: varchar("integration_id").references(() => integrationConfigs.id, { onDelete: 'set null' }),
+  posOrderId: varchar("pos_order_id"), // ID in the POS system
+  items: jsonb("items").notNull(), // Array of {menuItemId, name, quantity, price, modifiers}
+  subtotal: text("subtotal").notNull(),
+  tax: text("tax"),
+  total: text("total").notNull(),
+  status: text("status").notNull().default('pending'), // 'pending', 'confirmed', 'preparing', 'completed', 'cancelled'
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertOrderSchema = createInsertSchema(orders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertOrder = z.infer<typeof insertOrderSchema>;
+export type Order = typeof orders.$inferSelect;
+
+// Call logs for tracking all interactions
+export const callLogs = pgTable("call_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  agentId: varchar("agent_id").references(() => agents.id, { onDelete: 'set null' }),
+  contactId: varchar("contact_id").references(() => contacts.id, { onDelete: 'set null' }),
+  phoneNumberId: varchar("phone_number_id").references(() => phoneNumbers.id, { onDelete: 'set null' }),
+  orderId: varchar("order_id").references(() => orders.id, { onDelete: 'set null' }),
+  callSid: varchar("call_sid"), // Twilio call SID
+  direction: text("direction").notNull(), // 'inbound', 'outbound'
+  fromNumber: varchar("from_number"),
+  toNumber: varchar("to_number"),
+  duration: text("duration"), // Duration in seconds
+  status: text("status").notNull(), // 'completed', 'busy', 'no-answer', 'failed'
+  transcript: text("transcript"),
+  recordingUrl: text("recording_url"),
+  metadata: jsonb("metadata"), // Additional call data
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertCallLogSchema = createInsertSchema(callLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertCallLog = z.infer<typeof insertCallLogSchema>;
+export type CallLog = typeof callLogs.$inferSelect;

@@ -17,6 +17,7 @@ import {
   type InsertFlowConnection,
   type KnowledgeBase,
   type InsertKnowledgeBase,
+  type UpdateKnowledgeBase,
   type Template,
   type InsertTemplate,
   type TestConversation,
@@ -49,9 +50,14 @@ export interface IStorage {
   deleteFlowConnection(id: string): Promise<void>;
 
   // Knowledge base operations
+  getAllKnowledgeBase(userId: string): Promise<KnowledgeBase[]>;
   getKnowledgeBase(agentId: string): Promise<KnowledgeBase[]>;
+  getKnowledgeBaseItem(id: string): Promise<KnowledgeBase | undefined>;
+  getOwnedKnowledgeItem(id: string, userId: string): Promise<KnowledgeBase | null>;
   createKnowledgeBase(item: InsertKnowledgeBase): Promise<KnowledgeBase>;
-  deleteKnowledgeBase(id: string): Promise<void>;
+  bulkCreateKnowledgeBase(items: InsertKnowledgeBase[]): Promise<KnowledgeBase[]>;
+  updateKnowledgeBase(id: string, userId: string, item: UpdateKnowledgeBase): Promise<KnowledgeBase | null>;
+  deleteKnowledgeBase(id: string, userId: string): Promise<boolean>;
 
   // Template operations
   getTemplates(): Promise<Template[]>;
@@ -150,8 +156,50 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Knowledge base operations
+  async getAllKnowledgeBase(userId: string): Promise<KnowledgeBase[]> {
+    // Get all knowledge items for all agents belonging to this user
+    return await db
+      .select({
+        id: knowledgeBase.id,
+        agentId: knowledgeBase.agentId,
+        category: knowledgeBase.category,
+        question: knowledgeBase.question,
+        answer: knowledgeBase.answer,
+        createdAt: knowledgeBase.createdAt,
+        updatedAt: knowledgeBase.updatedAt,
+      })
+      .from(knowledgeBase)
+      .innerJoin(agents, eq(knowledgeBase.agentId, agents.id))
+      .where(eq(agents.userId, userId));
+  }
+
   async getKnowledgeBase(agentId: string): Promise<KnowledgeBase[]> {
     return await db.select().from(knowledgeBase).where(eq(knowledgeBase.agentId, agentId));
+  }
+
+  async getKnowledgeBaseItem(id: string): Promise<KnowledgeBase | undefined> {
+    const [item] = await db.select().from(knowledgeBase).where(eq(knowledgeBase.id, id));
+    return item;
+  }
+
+  async getOwnedKnowledgeItem(id: string, userId: string): Promise<KnowledgeBase | null> {
+    // Centralized tenant-aware ownership check
+    // Returns the item only if it belongs to an agent owned by the user
+    const [result] = await db
+      .select({
+        id: knowledgeBase.id,
+        agentId: knowledgeBase.agentId,
+        category: knowledgeBase.category,
+        question: knowledgeBase.question,
+        answer: knowledgeBase.answer,
+        createdAt: knowledgeBase.createdAt,
+        updatedAt: knowledgeBase.updatedAt,
+      })
+      .from(knowledgeBase)
+      .innerJoin(agents, eq(knowledgeBase.agentId, agents.id))
+      .where(and(eq(knowledgeBase.id, id), eq(agents.userId, userId)));
+    
+    return result || null;
   }
 
   async createKnowledgeBase(item: InsertKnowledgeBase): Promise<KnowledgeBase> {
@@ -159,8 +207,39 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async deleteKnowledgeBase(id: string): Promise<void> {
+  async bulkCreateKnowledgeBase(items: InsertKnowledgeBase[]): Promise<KnowledgeBase[]> {
+    // Insert all items in a single transaction
+    const created = await db.insert(knowledgeBase).values(items).returning();
+    return created;
+  }
+
+  async updateKnowledgeBase(id: string, userId: string, item: UpdateKnowledgeBase): Promise<KnowledgeBase | null> {
+    // Enforce ownership at storage layer - defense in depth
+    // First verify the knowledge item belongs to an agent owned by the user
+    const owned = await this.getOwnedKnowledgeItem(id, userId);
+    if (!owned) {
+      return null; // Item doesn't exist or user doesn't own it
+    }
+
+    // Only accepts UpdateKnowledgeBase type - enforces tenant-safe updates at data layer
+    const [updated] = await db
+      .update(knowledgeBase)
+      .set({ ...item, updatedAt: new Date() })
+      .where(eq(knowledgeBase.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteKnowledgeBase(id: string, userId: string): Promise<boolean> {
+    // Enforce ownership at storage layer - defense in depth
+    // First verify the knowledge item belongs to an agent owned by the user
+    const owned = await this.getOwnedKnowledgeItem(id, userId);
+    if (!owned) {
+      return false; // Item doesn't exist or user doesn't own it
+    }
+
     await db.delete(knowledgeBase).where(eq(knowledgeBase.id, id));
+    return true;
   }
 
   // Template operations

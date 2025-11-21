@@ -1,4 +1,18 @@
-import { Bot, BookOpen, TestTube, LayoutTemplate, Settings, LogOut } from "lucide-react";
+import { 
+  Bot, 
+  BookOpen, 
+  TestTube, 
+  LayoutTemplate, 
+  Settings, 
+  LogOut,
+  BarChart3,
+  Zap,
+  Workflow,
+  Users,
+  Phone,
+  Plug2,
+  FileText
+} from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -17,14 +31,64 @@ import { useAuth } from "@/hooks/useAuth";
 
 const mainItems = [
   {
+    title: "Analytics",
+    url: "/analytics",
+    icon: BarChart3,
+  },
+  {
     title: "Agents",
     url: "/agents",
     icon: Bot,
   },
   {
+    title: "Knowledge Base",
+    url: "/knowledge-base",
+    icon: BookOpen,
+  },
+  {
+    title: "Actions",
+    url: "/actions",
+    icon: Zap,
+  },
+  {
+    title: "Workflows",
+    url: "/workflows",
+    icon: Workflow,
+  },
+  {
+    title: "Test Center",
+    url: "/test-center",
+    icon: TestTube,
+  },
+  {
+    title: "Contacts",
+    url: "/contacts",
+    icon: Users,
+  },
+  {
+    title: "Phone Numbers",
+    url: "/phone-numbers",
+    icon: Phone,
+  },
+  {
+    title: "Integrations",
+    url: "/integrations",
+    icon: Plug2,
+  },
+  {
+    title: "Logs",
+    url: "/logs",
+    icon: FileText,
+  },
+  {
     title: "Templates",
     url: "/templates",
     icon: LayoutTemplate,
+  },
+  {
+    title: "Settings",
+    url: "/settings",
+    icon: Settings,
   },
 ];
 

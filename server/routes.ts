@@ -4,7 +4,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { generateAgentResponse } from "./openai";
-import { insertAgentSchema, insertKnowledgeBaseSchema } from "@shared/schema";
+import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -98,6 +98,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Knowledge base routes
+  // Get all knowledge items for the current user (across all agents)
+  app.get("/api/knowledge", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const items = await storage.getAllKnowledgeBase(userId);
+      res.json(items);
+    } catch (error) {
+      console.error("Error fetching all knowledge base:", error);
+      res.status(500).json({ message: "Failed to fetch knowledge base" });
+    }
+  });
+
+  // Get knowledge items for a specific agent
   app.get("/api/agents/:id/knowledge", isAuthenticated, async (req: any, res) => {
     try {
       const agent = await storage.getAgent(req.params.id);
@@ -112,6 +125,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching knowledge base:", error);
       res.status(500).json({ message: "Failed to fetch knowledge base" });
+    }
+  });
+
+  // Create knowledge item (can specify agentId in body)
+  app.post("/api/knowledge", isAuthenticated, async (req: any, res) => {
+    try {
+      const agent = await storage.getAgent(req.body.agentId);
+      if (!agent) {
+        return res.status(404).json({ message: "Agent not found" });
+      }
+      if (agent.userId !== req.user.claims.sub) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const data = insertKnowledgeBaseSchema.parse(req.body);
+      const item = await storage.createKnowledgeBase(data);
+      res.json(item);
+    } catch (error: any) {
+      console.error("Error creating knowledge item:", error);
+      res.status(400).json({ message: error.message || "Failed to create knowledge item" });
+    }
+  });
+
+  // Bulk import knowledge items with transaction
+  app.post("/api/knowledge/bulk-import", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { items } = req.body;
+
+      if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: "Invalid import data" });
+      }
+
+      // Validate all items first
+      const validatedItems = [];
+      for (const item of items) {
+        // Validate schema
+        const data = insertKnowledgeBaseSchema.parse(item);
+        
+        // Verify agent ownership
+        const agent = await storage.getAgent(data.agentId);
+        if (!agent || agent.userId !== userId) {
+          return res.status(403).json({ 
+            message: `Forbidden: Agent ${data.agentId} not found or not owned by user` 
+          });
+        }
+        
+        validatedItems.push(data);
+      }
+
+      // Import all items in transaction
+      const imported = await storage.bulkCreateKnowledgeBase(validatedItems);
+      res.json({ success: true, count: imported.length });
+    } catch (error: any) {
+      console.error("Error bulk importing knowledge items:", error);
+      res.status(400).json({ message: error.message || "Failed to bulk import knowledge items" });
     }
   });
 
@@ -133,9 +201,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/knowledge/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Validate and sanitize update data using dedicated schema
+      // This schema explicitly whitelists only category/question/answer
+      // and can never include agentId, ensuring tenant safety
+      const validated = updateKnowledgeBaseSchema.parse(req.body);
+      
+      // Storage layer enforces ownership AND UpdateKnowledgeBase type - defense in depth
+      const updated = await storage.updateKnowledgeBase(req.params.id, userId, validated);
+      if (!updated) {
+        return res.status(404).json({ message: "Knowledge item not found or access denied" });
+      }
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating knowledge item:", error);
+      res.status(400).json({ message: error.message || "Failed to update knowledge item" });
+    }
+  });
+
   app.delete("/api/knowledge/:id", isAuthenticated, async (req: any, res) => {
     try {
-      await storage.deleteKnowledgeBase(req.params.id);
+      const userId = req.user.claims.sub;
+      // Storage layer enforces ownership check internally
+      const success = await storage.deleteKnowledgeBase(req.params.id, userId);
+      if (!success) {
+        return res.status(404).json({ message: "Knowledge item not found or access denied" });
+      }
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting knowledge item:", error);

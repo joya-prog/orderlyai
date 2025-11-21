@@ -195,8 +195,9 @@ export const phoneNumbers = pgTable("phone_numbers", {
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   agentId: varchar("agent_id").references(() => agents.id, { onDelete: 'set null' }), // Can be unassigned
   number: varchar("number").notNull().unique(),
+  friendlyName: text("friendly_name"), // User-defined label for the number
   provider: text("provider").notNull().default('twilio'), // 'twilio', 'vonage', etc.
-  providerId: varchar("provider_id"), // Provider's ID for this number
+  providerId: varchar("provider_id"), // Provider's ID for this number (Twilio SID)
   status: text("status").notNull().default('active'), // 'active', 'inactive', 'pending'
   capabilities: jsonb("capabilities"), // {voice: true, sms: true}
   createdAt: timestamp("created_at").defaultNow(),
@@ -209,7 +210,16 @@ export const insertPhoneNumberSchema = createInsertSchema(phoneNumbers).omit({
   updatedAt: true,
 });
 
+export const updatePhoneNumberSchema = z.object({
+  friendlyName: z.string().nullable().optional(),
+  agentId: z.string().nullable().optional(),
+  status: z.string().optional(),
+}).refine(data => Object.keys(data).length > 0, {
+  message: "At least one field must be provided for update",
+});
+
 export type InsertPhoneNumber = z.infer<typeof insertPhoneNumberSchema>;
+export type UpdatePhoneNumber = z.infer<typeof updatePhoneNumberSchema>;
 export type PhoneNumber = typeof phoneNumbers.$inferSelect;
 
 // Custom actions/webhooks

@@ -8,6 +8,8 @@ import {
   templates,
   testConversations,
   actions,
+  contacts,
+  phoneNumbers,
   type User,
   type UpsertUser,
   type Agent,
@@ -25,9 +27,10 @@ import {
   type InsertTestConversation,
   type Action,
   type InsertAction,
-  contacts,
   type Contact,
   type InsertContact,
+  type PhoneNumber,
+  type InsertPhoneNumber,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, like, or } from "drizzle-orm";
@@ -87,6 +90,13 @@ export interface IStorage {
   createContact(contact: InsertContact): Promise<Contact>;
   updateContact(id: string, userId: string, contact: Partial<InsertContact>): Promise<Contact | null>;
   deleteContact(id: string, userId: string): Promise<boolean>;
+
+  // Phone number operations
+  getPhoneNumbers(userId: string): Promise<PhoneNumber[]>;
+  getPhoneNumber(id: string): Promise<PhoneNumber | undefined>;
+  createPhoneNumber(phoneNumber: InsertPhoneNumber): Promise<PhoneNumber>;
+  updatePhoneNumber(id: string, userId: string, phoneNumber: Partial<InsertPhoneNumber>): Promise<PhoneNumber | null>;
+  deletePhoneNumber(id: string, userId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -410,6 +420,47 @@ export class DatabaseStorage implements IStorage {
     }
 
     await db.delete(contacts).where(eq(contacts.id, id));
+    return true;
+  }
+
+  // Phone number operations
+  async getPhoneNumbers(userId: string): Promise<PhoneNumber[]> {
+    return await db.select().from(phoneNumbers).where(eq(phoneNumbers.userId, userId));
+  }
+
+  async getPhoneNumber(id: string): Promise<PhoneNumber | undefined> {
+    const [phoneNumber] = await db.select().from(phoneNumbers).where(eq(phoneNumbers.id, id));
+    return phoneNumber;
+  }
+
+  async createPhoneNumber(phoneNumber: InsertPhoneNumber): Promise<PhoneNumber> {
+    const [created] = await db.insert(phoneNumbers).values(phoneNumber).returning();
+    return created;
+  }
+
+  async updatePhoneNumber(id: string, userId: string, phoneNumber: Partial<InsertPhoneNumber>): Promise<PhoneNumber | null> {
+    // Verify ownership
+    const existing = await this.getPhoneNumber(id);
+    if (!existing || existing.userId !== userId) {
+      return null;
+    }
+
+    const [updated] = await db
+      .update(phoneNumbers)
+      .set({ ...phoneNumber, updatedAt: new Date() })
+      .where(eq(phoneNumbers.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deletePhoneNumber(id: string, userId: string): Promise<boolean> {
+    // Verify ownership
+    const existing = await this.getPhoneNumber(id);
+    if (!existing || existing.userId !== userId) {
+      return false;
+    }
+
+    await db.delete(phoneNumbers).where(eq(phoneNumbers.id, id));
     return true;
   }
 }

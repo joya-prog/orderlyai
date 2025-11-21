@@ -70,14 +70,17 @@ Preferred communication style: Simple, everyday language.
 - `templates` - Pre-built agent templates for different industries
 - `testConversations` - Conversation history for testing agents
 - `contacts` - CRM contacts with name, email, phone, tags, and notes (searchable)
+- `phoneNumbers` - Twilio phone numbers with nullable agentId for assignment/unassignment workflows
 
 **Migration Strategy**: Drizzle Kit for schema migrations (push-based approach)
 
 **Data Relationships**:
 - Users have many agents (cascade delete)
 - Users have many contacts (cascade delete)
+- Users have many phone numbers (cascade delete)
 - Agents have many knowledge base items (cascade delete)
 - Agents have many test conversations (cascade delete)
+- Phone numbers optionally reference agents (nullable, set null on agent delete)
 - Templates can be cloned to create new agents
 
 ### External Dependencies
@@ -88,6 +91,13 @@ Preferred communication style: Simple, everyday language.
 - System prompts combine agent personality, greeting, and knowledge base
 - Conversation history maintained for context
 - Used in agent testing interface
+
+**Telephony Service**: Twilio API for phone number management
+- Centralized platform account (credentials stored as secrets)
+- Search available numbers by area code
+- Purchase and release phone numbers programmatically
+- Assign phone numbers to AI agents for call routing
+- Graceful degradation when credentials not configured (DB operations still work)
 
 **Database Service**: Neon Serverless PostgreSQL
 - WebSocket-based connection pooling
@@ -105,3 +115,25 @@ Preferred communication style: Simple, everyday language.
 - `SESSION_SECRET` - Express session encryption key
 - `REPL_ID` - Replit environment identifier
 - `ISSUER_URL` - OIDC issuer URL (defaults to replit.com/oidc)
+- `TWILIO_ACCOUNT_SID` - Twilio account identifier (optional for phone number features)
+- `TWILIO_AUTH_TOKEN` - Twilio authentication token (optional for phone number features)
+
+## Feature Implementation Status
+
+### Completed Features
+
+**Phone Numbers Management** (Production Ready)
+- Search available Twilio phone numbers by area code
+- Purchase phone numbers with optional friendly names
+- Assign/unassign phone numbers to AI agents
+- Release (delete) phone numbers from Twilio and database
+- Validation: Zod schema with nullable agentId support, undefined filtering, empty payload rejection
+- Security: Authentication on all routes, ownership validation, tenant isolation
+- End-to-end tested with playwright verification
+
+**Contacts Management** (Production Ready)
+- Full CRUD operations for customer contacts
+- Search and filtering capabilities
+- Tag-based organization
+- Notes and relationship tracking
+- End-to-end tested with playwright verification

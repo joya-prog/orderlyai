@@ -4,7 +4,15 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { generateAgentResponse } from "./openai";
-import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertActionSchema, insertContactSchema } from "@shared/schema";
+import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertActionSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema } from "@shared/schema";
+import twilio from "twilio";
+
+// Initialize Twilio client
+const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+const twilioClient = twilioAccountSid && twilioAuthToken 
+  ? twilio(twilioAccountSid, twilioAuthToken) 
+  : null;
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -670,6 +678,144 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting contact:", error);
       res.status(500).json({ message: "Failed to delete contact" });
+    }
+  });
+
+  // Phone number routes
+  app.get("/api/phone-numbers", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const phoneNumbers = await storage.getPhoneNumbers(userId);
+      res.json(phoneNumbers);
+    } catch (error) {
+      console.error("Error fetching phone numbers:", error);
+      res.status(500).json({ message: "Failed to fetch phone numbers" });
+    }
+  });
+
+  app.post("/api/phone-numbers/search", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!twilioClient) {
+        return res.status(503).json({ message: "Twilio not configured" });
+      }
+
+      const { areaCode, country = 'US' } = req.body;
+      
+      const availableNumbers = await twilioClient.availablePhoneNumbers(country)
+        .local.list({ areaCode, limit: 20 });
+
+      res.json(availableNumbers.map(num => ({
+        phoneNumber: num.phoneNumber,
+        friendlyName: num.friendlyName,
+        capabilities: num.capabilities,
+      })));
+    } catch (error) {
+      console.error("Error searching phone numbers:", error);
+      res.status(500).json({ message: "Failed to search phone numbers" });
+    }
+  });
+
+  app.post("/api/phone-numbers/purchase", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!twilioClient) {
+        return res.status(503).json({ message: "Twilio not configured" });
+      }
+
+      const userId = req.user.claims.sub;
+      const { phoneNumber, friendlyName } = req.body;
+
+      if (!phoneNumber) {
+        return res.status(400).json({ message: "Phone number is required" });
+      }
+
+      // Purchase the number from Twilio
+      const incomingNumber = await twilioClient.incomingPhoneNumbers.create({
+        phoneNumber,
+        friendlyName: friendlyName || phoneNumber,
+      });
+
+      // Prepare data matching schema requirements
+      const phoneNumberData = {
+        userId,
+        number: incomingNumber.phoneNumber,
+        friendlyName: (friendlyName && friendlyName.trim()) || incomingNumber.friendlyName || null,
+        provider: 'twilio',
+        providerId: incomingNumber.sid,
+        status: 'active',
+        capabilities: incomingNumber.capabilities,
+      };
+
+      const created = await storage.createPhoneNumber(phoneNumberData);
+      res.json(created);
+    } catch (error: any) {
+      console.error("Error purchasing phone number:", error);
+      res.status(500).json({ message: error.message || "Failed to purchase phone number" });
+    }
+  });
+
+  app.patch("/api/phone-numbers/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Validate with Zod schema
+      const validated = updatePhoneNumberSchema.parse(req.body);
+
+      // Remove undefined values to prevent corruption
+      const cleanedData: any = {};
+      for (const [key, value] of Object.entries(validated)) {
+        if (value !== undefined) {
+          cleanedData[key] = value;
+        }
+      }
+
+      // Ensure at least one field remains after cleaning
+      if (Object.keys(cleanedData).length === 0) {
+        return res.status(400).json({ message: "At least one field must be provided for update" });
+      }
+
+      const phoneNumber = await storage.updatePhoneNumber(req.params.id, userId, cleanedData);
+      if (!phoneNumber) {
+        return res.status(404).json({ message: "Phone number not found or access denied" });
+      }
+      res.json(phoneNumber);
+    } catch (error: any) {
+      console.error("Error updating phone number:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Invalid update data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to update phone number" });
+    }
+  });
+
+  app.delete("/api/phone-numbers/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const phoneNumber = await storage.getPhoneNumber(req.params.id);
+
+      if (!phoneNumber || phoneNumber.userId !== userId) {
+        return res.status(404).json({ message: "Phone number not found or access denied" });
+      }
+
+      // Release from Twilio (only if client is configured)
+      if (twilioClient && phoneNumber.providerId) {
+        try {
+          await twilioClient.incomingPhoneNumbers(phoneNumber.providerId).remove();
+        } catch (twilioError) {
+          console.error("Error releasing from Twilio:", twilioError);
+          // Continue with database deletion even if Twilio fails
+        }
+      }
+
+      // Delete from database (works even without Twilio client)
+      const success = await storage.deletePhoneNumber(req.params.id, userId);
+      if (!success) {
+        return res.status(404).json({ message: "Failed to delete phone number" });
+      }
+
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting phone number:", error);
+      res.status(500).json({ message: "Failed to delete phone number" });
     }
   });
 

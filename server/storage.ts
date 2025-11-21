@@ -7,6 +7,7 @@ import {
   knowledgeBase,
   templates,
   testConversations,
+  actions,
   type User,
   type UpsertUser,
   type Agent,
@@ -22,6 +23,8 @@ import {
   type InsertTemplate,
   type TestConversation,
   type InsertTestConversation,
+  type Action,
+  type InsertAction,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
@@ -67,6 +70,13 @@ export interface IStorage {
 
   // Test conversation operations
   saveTestConversation(conversation: InsertTestConversation): Promise<TestConversation>;
+
+  // Actions operations
+  getActions(userId: string): Promise<Action[]>;
+  getAction(id: string): Promise<Action | undefined>;
+  createAction(action: InsertAction): Promise<Action>;
+  updateAction(id: string, userId: string, action: Partial<InsertAction>): Promise<Action | null>;
+  deleteAction(id: string, userId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -291,6 +301,47 @@ export class DatabaseStorage implements IStorage {
   async saveTestConversation(conversation: InsertTestConversation): Promise<TestConversation> {
     const [saved] = await db.insert(testConversations).values(conversation).returning();
     return saved;
+  }
+
+  // Actions operations
+  async getActions(userId: string): Promise<Action[]> {
+    return await db.select().from(actions).where(eq(actions.userId, userId));
+  }
+
+  async getAction(id: string): Promise<Action | undefined> {
+    const [action] = await db.select().from(actions).where(eq(actions.id, id));
+    return action;
+  }
+
+  async createAction(action: InsertAction): Promise<Action> {
+    const [created] = await db.insert(actions).values(action).returning();
+    return created;
+  }
+
+  async updateAction(id: string, userId: string, action: Partial<InsertAction>): Promise<Action | null> {
+    // Verify ownership
+    const existing = await this.getAction(id);
+    if (!existing || existing.userId !== userId) {
+      return null;
+    }
+
+    const [updated] = await db
+      .update(actions)
+      .set({ ...action, updatedAt: new Date() })
+      .where(eq(actions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteAction(id: string, userId: string): Promise<boolean> {
+    // Verify ownership
+    const existing = await this.getAction(id);
+    if (!existing || existing.userId !== userId) {
+      return false;
+    }
+
+    await db.delete(actions).where(eq(actions.id, id));
+    return true;
   }
 }
 

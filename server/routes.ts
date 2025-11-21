@@ -4,7 +4,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { generateAgentResponse } from "./openai";
-import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema } from "@shared/schema";
+import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertActionSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -417,6 +417,157 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error saving flow connections:", error);
       res.status(500).json({ message: "Failed to save flow connections" });
+    }
+  });
+
+  // Actions routes
+  app.get("/api/actions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const actions = await storage.getActions(userId);
+      res.json(actions);
+    } catch (error) {
+      console.error("Error fetching actions:", error);
+      res.status(500).json({ message: "Failed to fetch actions" });
+    }
+  });
+
+  app.get("/api/actions/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const action = await storage.getAction(req.params.id);
+      if (!action) {
+        return res.status(404).json({ message: "Action not found" });
+      }
+      if (action.userId !== req.user.claims.sub) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      res.json(action);
+    } catch (error) {
+      console.error("Error fetching action:", error);
+      res.status(500).json({ message: "Failed to fetch action" });
+    }
+  });
+
+  app.post("/api/actions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const data = insertActionSchema.parse({ ...req.body, userId });
+      const action = await storage.createAction(data);
+      res.json(action);
+    } catch (error: any) {
+      console.error("Error creating action:", error);
+      res.status(400).json({ message: error.message || "Failed to create action" });
+    }
+  });
+
+  app.patch("/api/actions/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const updated = await storage.updateAction(req.params.id, userId, req.body);
+      if (!updated) {
+        return res.status(404).json({ message: "Action not found or forbidden" });
+      }
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating action:", error);
+      res.status(400).json({ message: error.message || "Failed to update action" });
+    }
+  });
+
+  app.delete("/api/actions/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteAction(req.params.id, userId);
+      if (!deleted) {
+        return res.status(404).json({ message: "Action not found or forbidden" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting action:", error);
+      res.status(500).json({ message: "Failed to delete action" });
+    }
+  });
+
+  app.post("/api/actions/:id/test", isAuthenticated, async (req: any, res) => {
+    try {
+      const action = await storage.getAction(req.params.id);
+      if (!action) {
+        return res.status(404).json({ message: "Action not found" });
+      }
+      if (action.userId !== req.user.claims.sub) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Validate and parse headers
+      const headers: Record<string, string> = {};
+      if (action.headers) {
+        try {
+          const parsedHeaders = JSON.parse(JSON.stringify(action.headers));
+          if (Array.isArray(parsedHeaders)) {
+            parsedHeaders.forEach((h: { key: string; value: string }) => {
+              if (h.key && h.value) {
+                headers[h.key] = h.value;
+              }
+            });
+          }
+        } catch (error) {
+          return res.status(400).json({ message: "Invalid headers format" });
+        }
+      }
+
+      // Validate body template if present
+      let requestBody = undefined;
+      if (action.bodyTemplate && (action.method === 'POST' || action.method === 'PUT')) {
+        try {
+          // Validate it's valid JSON
+          JSON.parse(action.bodyTemplate);
+          requestBody = action.bodyTemplate;
+        } catch (error) {
+          return res.status(400).json({ message: "Invalid JSON in body template" });
+        }
+      }
+
+      const requestOptions: RequestInit = {
+        method: action.method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        signal: AbortSignal.timeout(30000), // 30 second timeout
+      };
+
+      if (requestBody) {
+        requestOptions.body = requestBody;
+      }
+
+      // Execute the action with timeout
+      const response = await fetch(action.endpoint, requestOptions);
+      
+      // Parse response data
+      let responseData;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          responseData = await response.json();
+        } catch (error) {
+          responseData = { message: "Response is not valid JSON" };
+        }
+      } else {
+        const text = await response.text();
+        responseData = { text, contentType };
+      }
+
+      res.json({
+        status: response.status,
+        statusText: response.statusText,
+        data: responseData,
+      });
+    } catch (error: any) {
+      console.error("Error testing action:", error);
+      if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+        return res.status(408).json({ message: "Request timeout after 30 seconds" });
+      }
+      res.status(500).json({ message: error.message || "Failed to test action" });
     }
   });
 

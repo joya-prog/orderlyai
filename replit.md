@@ -190,7 +190,8 @@ Preferred communication style: Simple, everyday language.
 **Integrations Page** (Production Ready)
 - OAuth-enabled integrations: Square POS, Toast POS
 - Upcoming integrations (Coming Soon): Twilio, Resy, Tock, Yelp Reservations
-- Company logos using react-icons/si (Square, Twilio, Yelp) and custom branded icons (Toast, Resy, Tock)
+- Company logos using react-icons/si (Square, Twilio, Yelp) and official logo images (Toast, Resy, Tock)
+- All logos displayed in 48px circular containers with proper aspect ratio
 - Brand-accurate colors with dark mode support
 - 3-column responsive grid layout (stacks to 2 columns on medium screens)
 - All interactive elements properly instrumented with data-testid attributes

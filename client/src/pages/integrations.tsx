@@ -9,6 +9,9 @@ import { Check, Link2, Loader2, ExternalLink } from "lucide-react";
 import { SiSquare, SiTwilio, SiYelp } from "react-icons/si";
 import type { IntegrationConfig } from "@shared/schema";
 import { useLocation } from "wouter";
+import toastLogo from "@assets/toast_1763761702363.jpg";
+import resyLogo from "@assets/images_1763761705489.png";
+import tockLogo from "@assets/unnamed_1763761708469.png";
 
 export default function IntegrationsPage() {
   const { toast } = useToast();
@@ -174,10 +177,8 @@ export default function IntegrationsPage() {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E8511B]/10 dark:bg-[#E8511B]/20">
-                  <div className="h-7 w-7 flex items-center justify-center font-bold text-[#E8511B] text-xl">
-                    T
-                  </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl overflow-hidden">
+                  <img src={toastLogo} alt="Toast POS" className="h-12 w-12 object-cover" />
                 </div>
                 <div>
                   <CardTitle>Toast POS</CardTitle>
@@ -273,10 +274,8 @@ export default function IntegrationsPage() {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#D72420]/10 dark:bg-[#D72420]/20 opacity-75">
-                  <div className="h-7 w-7 flex items-center justify-center font-bold text-[#D72420] text-xl">
-                    R
-                  </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl overflow-hidden opacity-75">
+                  <img src={resyLogo} alt="Resy" className="h-12 w-12 object-cover" />
                 </div>
                 <div>
                   <CardTitle>Resy</CardTitle>
@@ -303,10 +302,8 @@ export default function IntegrationsPage() {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF6B35]/10 dark:bg-[#FF6B35]/20 opacity-75">
-                  <div className="h-7 w-7 flex items-center justify-center font-bold text-[#FF6B35] text-xl">
-                    T
-                  </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl overflow-hidden opacity-75">
+                  <img src={tockLogo} alt="Tock" className="h-12 w-12 object-cover" />
                 </div>
                 <div>
                   <CardTitle>Tock</CardTitle>

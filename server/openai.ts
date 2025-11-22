@@ -1,5 +1,6 @@
 // Reference: javascript_openai blueprint
 import OpenAI from "openai";
+import { Readable } from "stream";
 
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -64,5 +65,55 @@ You are a helpful restaurant AI assistant. Use the knowledge base to answer ques
     }
     
     throw new Error("Failed to generate agent response. Please try again.");
+  }
+}
+
+export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
+  try {
+    const file = new File([audioBuffer], "audio.webm", { type: "audio/webm" });
+    
+    const response = await openai.audio.transcriptions.create({
+      file: file,
+      model: "whisper-1",
+    });
+
+    return response.text;
+  } catch (error: any) {
+    console.error("OpenAI Whisper API error:", error);
+    
+    if (error?.status === 429 || error?.code === 'insufficient_quota') {
+      throw new Error("OpenAI API quota exceeded. Please check your API key billing status or try again later.");
+    }
+    
+    if (error?.status === 401 || error?.code === 'invalid_api_key') {
+      throw new Error("Invalid OpenAI API key. Please check your configuration.");
+    }
+    
+    throw new Error("Failed to transcribe audio. Please try again.");
+  }
+}
+
+export async function synthesizeSpeech(text: string): Promise<Buffer> {
+  try {
+    const response = await openai.audio.speech.create({
+      model: "tts-1",
+      voice: "nova",
+      input: text,
+    });
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return buffer;
+  } catch (error: any) {
+    console.error("OpenAI TTS API error:", error);
+    
+    if (error?.status === 429 || error?.code === 'insufficient_quota') {
+      throw new Error("OpenAI API quota exceeded. Please check your API key billing status or try again later.");
+    }
+    
+    if (error?.status === 401 || error?.code === 'invalid_api_key') {
+      throw new Error("Invalid OpenAI API key. Please check your configuration.");
+    }
+    
+    throw new Error("Failed to synthesize speech. Please try again.");
   }
 }

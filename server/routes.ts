@@ -3,7 +3,10 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { generateAgentResponse } from "./openai";
+import { generateAgentResponse, transcribeAudio, synthesizeSpeech } from "./openai";
+import multer from "multer";
+
+const upload = multer({ storage: multer.memoryStorage() });
 import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertActionSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema, insertIntegrationConfigSchema, insertAnalyticsEventSchema } from "@shared/schema";
 import twilio from "twilio";
 import crypto from "crypto";
@@ -266,6 +269,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error testing agent:", error);
       res.status(500).json({ message: "Failed to test agent" });
+    }
+  });
+
+  // Voice transcription route
+  app.post("/api/agents/:id/transcribe", isAuthenticated, upload.single("audio"), async (req: any, res) => {
+    try {
+      const agent = await storage.getAgent(req.params.id);
+      if (!agent) {
+        return res.status(404).json({ message: "Agent not found" });
+      }
+      if (agent.userId !== req.user.claims.sub) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No audio file provided" });
+      }
+
+      const transcript = await transcribeAudio(req.file.buffer);
+      res.json({ text: transcript });
+    } catch (error: any) {
+      console.error("Error transcribing audio:", error);
+      res.status(500).json({ message: error.message || "Failed to transcribe audio" });
+    }
+  });
+
+  // Voice synthesis route
+  app.post("/api/agents/:id/synthesize", isAuthenticated, async (req: any, res) => {
+    try {
+      const agent = await storage.getAgent(req.params.id);
+      if (!agent) {
+        return res.status(404).json({ message: "Agent not found" });
+      }
+      if (agent.userId !== req.user.claims.sub) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const { text } = req.body;
+      if (!text) {
+        return res.status(400).json({ message: "No text provided" });
+      }
+
+      const audioBuffer = await synthesizeSpeech(text);
+      
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Content-Length", audioBuffer.length);
+      res.send(audioBuffer);
+    } catch (error: any) {
+      console.error("Error synthesizing speech:", error);
+      res.status(500).json({ message: error.message || "Failed to synthesize speech" });
     }
   });
 

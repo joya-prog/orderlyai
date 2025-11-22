@@ -14,7 +14,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, Settings, Workflow, TestTube, Send, MessageSquare } from "lucide-react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { ArrowLeft, Save, Settings, Workflow, TestTube, Send, MessageSquare, Mic, MicOff, Phone, Volume2 } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { insertAgentSchema } from "@shared/schema";
@@ -31,6 +32,11 @@ export default function AgentEditor() {
   const [activeTab, setActiveTab] = useState("settings");
   const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [testInput, setTestInput] = useState("");
+  const [testMode, setTestMode] = useState<"text" | "voice">("text");
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
 
   const { data: agent, isLoading } = useQuery<Agent>({
     queryKey: ["/api/agents", id],
@@ -231,6 +237,122 @@ export default function AgentEditor() {
     if (!testInput.trim()) return;
     setMessages((prev) => [...prev, { role: "user", content: testInput }]);
     testMutation.mutate(testInput);
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: "audio/webm" });
+        await processVoiceMessage(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      setAudioChunks([]);
+      setMediaRecorder(recorder);
+      recorder.start();
+      setIsRecording(true);
+    } catch (error) {
+      console.error("Error starting recording:", error);
+      toast({
+        title: "Microphone Error",
+        description: "Could not access your microphone. Please allow microphone permissions.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const processVoiceMessage = async (audioBlob: Blob) => {
+    try {
+      setIsProcessing(true);
+
+      // Transcribe audio
+      const formData = new FormData();
+      formData.append("audio", audioBlob);
+
+      const transcribeResponse = await fetch(`/api/agents/${id}/transcribe`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!transcribeResponse.ok) {
+        throw new Error("Failed to transcribe audio");
+      }
+
+      const { text } = await transcribeResponse.json();
+      
+      // Add user message to conversation
+      setMessages((prev) => [...prev, { role: "user", content: text }]);
+
+      // Get agent response
+      const testResponse = await apiRequest("POST", `/api/agents/${id}/test`, {
+        message: text,
+        history: messages,
+      });
+
+      const agentResponse = testResponse.response;
+      setMessages((prev) => [...prev, { role: "assistant", content: agentResponse }]);
+
+      // Synthesize and play agent response
+      const synthesizeResponse = await fetch(`/api/agents/${id}/synthesize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: agentResponse }),
+      });
+
+      if (!synthesizeResponse.ok) {
+        throw new Error("Failed to synthesize speech");
+      }
+
+      const audioBuffer = await synthesizeResponse.arrayBuffer();
+      const audio = new Audio(URL.createObjectURL(new Blob([audioBuffer], { type: "audio/mpeg" })));
+      audio.play();
+
+    } catch (error: any) {
+      console.error("Error processing voice message:", error);
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to process voice message",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleVoiceButtonClick = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
   };
 
   if (!isNew && (authLoading || isLoading)) {
@@ -489,10 +611,32 @@ export default function AgentEditor() {
           {!isNew && (
             <Card>
               <CardHeader>
-                <CardTitle>Test Conversation</CardTitle>
-                <CardDescription>
-                  Have a conversation with your agent to test its responses
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Test Conversation</CardTitle>
+                    <CardDescription>
+                      {testMode === "text" 
+                        ? "Have a text conversation with your agent to test its responses"
+                        : "Have a voice conversation with your agent like a real phone call"
+                      }
+                    </CardDescription>
+                  </div>
+                  <ToggleGroup 
+                    type="single" 
+                    value={testMode} 
+                    onValueChange={(value) => value && setTestMode(value as "text" | "voice")}
+                    data-testid="toggle-test-mode"
+                  >
+                    <ToggleGroupItem value="text" aria-label="Text mode" data-testid="toggle-text-mode">
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      Text
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="voice" aria-label="Voice mode" data-testid="toggle-voice-mode">
+                      <Phone className="h-4 w-4 mr-2" />
+                      Voice
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -537,23 +681,50 @@ export default function AgentEditor() {
                     )}
                   </div>
 
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Type your message..."
-                      value={testInput}
-                      onChange={(e) => setTestInput(e.target.value)}
-                      onKeyPress={(e) => e.key === "Enter" && handleSendTest()}
-                      disabled={testMutation.isPending}
-                      data-testid="input-test-message"
-                    />
-                    <Button
-                      onClick={handleSendTest}
-                      disabled={!testInput.trim() || testMutation.isPending}
-                      data-testid="button-send-message"
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  {testMode === "text" ? (
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Type your message..."
+                        value={testInput}
+                        onChange={(e) => setTestInput(e.target.value)}
+                        onKeyPress={(e) => e.key === "Enter" && handleSendTest()}
+                        disabled={testMutation.isPending}
+                        data-testid="input-test-message"
+                      />
+                      <Button
+                        onClick={handleSendTest}
+                        disabled={!testInput.trim() || testMutation.isPending}
+                        data-testid="button-send-message"
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-4">
+                      <Button
+                        size="lg"
+                        variant={isRecording ? "destructive" : "default"}
+                        className="h-24 w-24 rounded-full"
+                        onClick={handleVoiceButtonClick}
+                        disabled={isProcessing}
+                        data-testid="button-voice-record"
+                      >
+                        {isRecording ? (
+                          <MicOff className="h-10 w-10" />
+                        ) : (
+                          <Mic className="h-10 w-10" />
+                        )}
+                      </Button>
+                      <p className="text-sm text-muted-foreground">
+                        {isRecording 
+                          ? "Tap to stop recording" 
+                          : isProcessing
+                          ? "Processing your message..."
+                          : "Tap to start speaking"
+                        }
+                      </p>
+                    </div>
+                  )}
 
                   {messages.length > 0 && (
                     <Button

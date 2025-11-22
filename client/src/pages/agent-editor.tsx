@@ -297,13 +297,20 @@ export default function AgentEditor() {
 
       const { text } = await transcribeResponse.json();
       
-      // Add user message to conversation
-      setMessages((prev) => [...prev, { role: "user", content: text }]);
+      // Show transcribed text to user
+      toast({
+        title: "You said:",
+        description: text,
+      });
+      
+      // Add user message to conversation and capture updated messages
+      const updatedMessages = [...messages, { role: "user", content: text }];
+      setMessages(updatedMessages);
 
-      // Get agent response
+      // Get agent response using the updated message history
       const testResponse = await apiRequest("POST", `/api/agents/${id}/test`, {
         message: text,
-        history: messages,
+        history: updatedMessages,
       });
 
       const agentResponse = testResponse.response;
@@ -324,6 +331,10 @@ export default function AgentEditor() {
       const audio = new Audio(URL.createObjectURL(new Blob([audioBuffer], { type: "audio/mpeg" })));
       audio.play();
 
+      // Reset recorder state for next recording
+      setMediaRecorder(null);
+      setAudioChunks([]);
+
     } catch (error: any) {
       console.error("Error processing voice message:", error);
       if (isUnauthorizedError(error)) {
@@ -342,6 +353,9 @@ export default function AgentEditor() {
         description: "Failed to process voice message",
         variant: "destructive",
       });
+      // Reset recorder state even on error
+      setMediaRecorder(null);
+      setAudioChunks([]);
     } finally {
       setIsProcessing(false);
     }

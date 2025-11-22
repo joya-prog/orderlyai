@@ -188,16 +188,41 @@ Preferred communication style: Simple, everyday language.
 - Bulk save API with automatic upsert and deletion logic
 - Preserves existing workflow data when switching between agents
 
-**Test Center Integration** (Production Ready)
+**Test Center Integration with Voice Testing** (Production Ready)
 - Test Center integrated into agent editor as a tab (Settings, Workflow, and Test tabs)
 - Standalone Test Center navigation item removed from sidebar
 - Test conversations accessed through: Agents → Select Agent → Test Tab
-- Real-time conversation testing with OpenAI GPT-5
-- Disabled for new agents (only available for existing agents)
-- Uses agent's configured greeting, personality, and knowledge base
-- Conversation history maintained during session
-- Clear conversation functionality for starting fresh tests
-- All interactive elements properly instrumented with data-testid attributes
+- **Text Mode:**
+  - Real-time conversation testing with OpenAI GPT-5
+  - Disabled for new agents (only available for existing agents)
+  - Uses agent's configured greeting, personality, and knowledge base
+  - Conversation history maintained during session with proper context preservation
+  - Clear conversation functionality for starting fresh tests
+- **Voice Mode:**
+  - Browser-based voice recording using MediaRecorder API
+  - Speech-to-text transcription using OpenAI Whisper API (whisper-1 model)
+  - Real-time transcription feedback via toast notifications
+  - Agent response generation with full conversation context
+  - Text-to-speech synthesis using OpenAI TTS API (tts-1 model, nova voice)
+  - Automatic audio playback of agent responses
+  - Visual state indicators: recording (red), processing (disabled), ready (green)
+  - Microphone permission handling with user-friendly error messages
+  - MediaRecorder lifecycle management for repeated recordings
+- **Shared Features:**
+  - Text/Voice mode toggle using ToggleGroup component
+  - Conversation history preserved when switching between modes
+  - Multi-turn conversations work correctly in both modes
+  - Full integration with agent configuration (greeting, personality, knowledge base)
+  - All interactive elements properly instrumented with data-testid attributes
+- **API Endpoints:**
+  - POST /api/agents/:id/test - Agent response generation
+  - POST /api/agents/:id/transcribe - Speech-to-text conversion
+  - POST /api/agents/:id/synthesize - Text-to-speech conversion
+- **Dependencies:**
+  - OpenAI API key required (Whisper, GPT-5, TTS)
+  - Browser MediaRecorder API support
+  - Microphone permissions for voice mode
+- End-to-end tested with comprehensive test coverage
 
 **Integrations Page** (Production Ready)
 - OAuth-enabled integrations: Square POS, Toast POS

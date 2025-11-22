@@ -1,6 +1,5 @@
 import { 
   BookOpen, 
-  TestTube, 
   LayoutTemplate, 
   Settings, 
   LogOut,
@@ -49,11 +48,6 @@ const mainItems = [
     title: "Actions",
     url: "/actions",
     icon: Zap,
-  },
-  {
-    title: "Test Center",
-    url: "/test-center",
-    icon: TestTube,
   },
   {
     title: "Contacts",

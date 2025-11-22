@@ -14,7 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, Settings, Workflow } from "lucide-react";
+import { ArrowLeft, Save, Settings, Workflow, TestTube, Send, MessageSquare } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { insertAgentSchema } from "@shared/schema";
@@ -29,6 +29,8 @@ export default function AgentEditor() {
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const isNew = id === "new";
   const [activeTab, setActiveTab] = useState("settings");
+  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  const [testInput, setTestInput] = useState("");
 
   const { data: agent, isLoading } = useQuery<Agent>({
     queryKey: ["/api/agents", id],
@@ -193,6 +195,44 @@ export default function AgentEditor() {
     saveFlowMutation.mutate({ nodes, edges });
   }, [saveFlowMutation]);
 
+  const testMutation = useMutation({
+    mutationFn: async (userMessage: string) => {
+      const response = await apiRequest("POST", `/api/agents/${id}/test`, {
+        message: userMessage,
+        history: messages,
+      });
+      return response;
+    },
+    onSuccess: (data: { response: string }) => {
+      setMessages((prev) => [...prev, { role: "assistant", content: data.response }]);
+      setTestInput("");
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to get response from agent",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSendTest = () => {
+    if (!testInput.trim()) return;
+    setMessages((prev) => [...prev, { role: "user", content: testInput }]);
+    testMutation.mutate(testInput);
+  };
+
   if (!isNew && (authLoading || isLoading)) {
     return (
       <div className="p-8">
@@ -219,7 +259,11 @@ export default function AgentEditor() {
               {isNew ? "Create Agent" : agent?.name || "Edit Agent"}
             </h1>
             <p className="text-muted-foreground mt-1">
-              {activeTab === "settings" ? "Configure your AI voice agent settings" : "Design conversation flows for your agent"}
+              {activeTab === "settings" 
+                ? "Configure your AI voice agent settings" 
+                : activeTab === "workflow"
+                ? "Design conversation flows for your agent"
+                : "Test conversations with your agent"}
             </p>
           </div>
         </div>
@@ -249,6 +293,15 @@ export default function AgentEditor() {
           >
             <Workflow className="h-4 w-4" />
             Workflow
+          </TabsTrigger>
+          <TabsTrigger 
+            value="test" 
+            className="gap-2" 
+            disabled={isNew}
+            data-testid="tab-test"
+          >
+            <TestTube className="h-4 w-4" />
+            Test
           </TabsTrigger>
         </TabsList>
 
@@ -429,6 +482,91 @@ export default function AgentEditor() {
               initialEdges={initialEdges}
               onSave={handleSaveFlow}
             />
+          )}
+        </TabsContent>
+
+        <TabsContent value="test">
+          {!isNew && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Test Conversation</CardTitle>
+                <CardDescription>
+                  Have a conversation with your agent to test its responses
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="border rounded-2xl p-4 min-h-[400px] max-h-[500px] overflow-y-auto bg-muted/30">
+                    {messages.length === 0 ? (
+                      <div className="flex items-center justify-center h-full text-muted-foreground">
+                        <div className="text-center">
+                          <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                          <p>Start a conversation to test your agent</p>
+                          <p className="text-sm mt-2">
+                            The agent will use the greeting, personality, and knowledge you've configured
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {messages.map((msg, i) => (
+                          <div
+                            key={i}
+                            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                          >
+                            <div
+                              className={`max-w-[80%] rounded-2xl px-4 py-2 ${
+                                msg.role === "user"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-card border"
+                              }`}
+                              data-testid={`message-${msg.role}-${i}`}
+                            >
+                              <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                            </div>
+                          </div>
+                        ))}
+                        {testMutation.isPending && (
+                          <div className="flex justify-start">
+                            <div className="bg-card border rounded-2xl px-4 py-2">
+                              <p className="text-sm text-muted-foreground">Thinking...</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Type your message..."
+                      value={testInput}
+                      onChange={(e) => setTestInput(e.target.value)}
+                      onKeyPress={(e) => e.key === "Enter" && handleSendTest()}
+                      disabled={testMutation.isPending}
+                      data-testid="input-test-message"
+                    />
+                    <Button
+                      onClick={handleSendTest}
+                      disabled={!testInput.trim() || testMutation.isPending}
+                      data-testid="button-send-message"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {messages.length > 0 && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setMessages([])}
+                      data-testid="button-clear-conversation"
+                    >
+                      Clear Conversation
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
       </Tabs>

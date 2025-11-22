@@ -178,7 +178,7 @@ Preferred communication style: Simple, everyday language.
 - End-to-end tested with comprehensive edge cases
 
 **Workflow Builder Integration** (Production Ready)
-- Workflow builder integrated into agent editor as a tab (Settings and Workflow tabs)
+- Workflow builder integrated into agent editor as a tab (Settings, Workflow, and Test tabs)
 - Standalone Workflows navigation item removed from sidebar
 - Workflows accessed through: Agents → Select Agent → Workflow Tab
 - Drag-and-drop interface with restaurant-focused node types (greeting, menu, reservation, order, faq)
@@ -187,6 +187,17 @@ Preferred communication style: Simple, everyday language.
 - Frontend-generated UUIDs for new nodes using crypto.randomUUID()
 - Bulk save API with automatic upsert and deletion logic
 - Preserves existing workflow data when switching between agents
+
+**Test Center Integration** (Production Ready)
+- Test Center integrated into agent editor as a tab (Settings, Workflow, and Test tabs)
+- Standalone Test Center navigation item removed from sidebar
+- Test conversations accessed through: Agents → Select Agent → Test Tab
+- Real-time conversation testing with OpenAI GPT-5
+- Disabled for new agents (only available for existing agents)
+- Uses agent's configured greeting, personality, and knowledge base
+- Conversation history maintained during session
+- Clear conversation functionality for starting fresh tests
+- All interactive elements properly instrumented with data-testid attributes
 
 **Integrations Page** (Production Ready)
 - OAuth-enabled integrations: Square POS, Toast POS

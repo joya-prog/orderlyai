@@ -36,7 +36,6 @@ export default function AgentEditor() {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
 
   const { data: agent, isLoading } = useQuery<Agent>({
     queryKey: ["/api/agents", id],
@@ -202,10 +201,10 @@ export default function AgentEditor() {
   }, [saveFlowMutation]);
 
   const testMutation = useMutation({
-    mutationFn: async (userMessage: string) => {
+    mutationFn: async ({ message, history }: { message: string; history: Array<{ role: string; content: string }> }) => {
       const response = await apiRequest("POST", `/api/agents/${id}/test`, {
-        message: userMessage,
-        history: messages,
+        message,
+        history,
       });
       return response;
     },
@@ -235,8 +234,10 @@ export default function AgentEditor() {
 
   const handleSendTest = () => {
     if (!testInput.trim()) return;
-    setMessages((prev) => [...prev, { role: "user", content: testInput }]);
-    testMutation.mutate(testInput);
+    // Capture updated messages before sending to API
+    const updatedMessages = [...messages, { role: "user", content: testInput }];
+    setMessages(updatedMessages);
+    testMutation.mutate({ message: testInput, history: updatedMessages });
   };
 
   const startRecording = async () => {
@@ -257,7 +258,6 @@ export default function AgentEditor() {
         stream.getTracks().forEach(track => track.stop());
       };
 
-      setAudioChunks([]);
       setMediaRecorder(recorder);
       recorder.start();
       setIsRecording(true);
@@ -333,7 +333,6 @@ export default function AgentEditor() {
 
       // Reset recorder state for next recording
       setMediaRecorder(null);
-      setAudioChunks([]);
 
     } catch (error: any) {
       console.error("Error processing voice message:", error);
@@ -355,7 +354,6 @@ export default function AgentEditor() {
       });
       // Reset recorder state even on error
       setMediaRecorder(null);
-      setAudioChunks([]);
     } finally {
       setIsProcessing(false);
     }

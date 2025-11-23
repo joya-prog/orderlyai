@@ -140,6 +140,18 @@ Preferred communication style: Simple, everyday language.
 
 ### Completed Features
 
+**Plan & Billing System** (Production Ready)
+- Settings page with sidebar navigation (Preferences, Plan & Billing, Security, Usage, Notifications tabs)
+- Current plan card displaying real subscription data and usage metrics
+- Four pricing tiers with restaurant-focused metrics (Starter, Professional, Business, Enterprise)
+- Detailed cost structure comparison table across all plans
+- Database schema: subscriptions table (plan type, status, limits, features) and usageMetrics table (period tracking, consumption counters)
+- Automatic trial subscription creation on first login
+- Backend validation: plan whitelist, business logic with plan-specific limits
+- Frontend safeguards: null handling, loading states, proper type conversions
+- API endpoints: GET /api/subscription (auto-provision trial), PUT /api/subscription (validated plan updates), GET /api/usage-metrics
+- Next steps: Stripe integration for payments, real-time usage tracking, upgrade/downgrade flows
+
 **Phone Numbers Management** (Production Ready)
 - Search available Twilio phone numbers by area code
 - Purchase phone numbers with optional friendly names

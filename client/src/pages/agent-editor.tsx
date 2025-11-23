@@ -25,6 +25,7 @@ import { insertAgentSchema } from "@shared/schema";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { z } from "zod";
 import { FlowBuilder } from "@/components/flow-builder";
+import { VoiceSelector } from "@/components/voice-selector";
 
 export default function AgentEditor() {
   const { id } = useParams<{ id: string }>();
@@ -43,6 +44,8 @@ export default function AgentEditor() {
   const [customVocabInput, setCustomVocabInput] = useState("");
   const [filterWordInput, setFilterWordInput] = useState("");
   const [callState, setCallState] = useState<"idle" | "greeting" | "listening" | "processing" | "speaking">("idle");
+  const [voiceSelectorOpen, setVoiceSelectorOpen] = useState(false);
+  const [selectedVoiceName, setSelectedVoiceName] = useState("");
 
   const { data: agent, isLoading } = useQuery<Agent>({
     queryKey: ["/api/agents", id],
@@ -912,10 +915,10 @@ export default function AgentEditor() {
                                     <Badge variant="secondary" className="text-xs">Active</Badge>
                                   </div>
                                 </SelectItem>
-                                <SelectItem value="elevenlabs" disabled>
+                                <SelectItem value="elevenlabs">
                                   <div className="flex items-center gap-2">
                                     <span>ElevenLabs</span>
-                                    <Badge variant="outline" className="text-xs">Coming Soon</Badge>
+                                    <Badge variant="secondary" className="text-xs">Active</Badge>
                                   </div>
                                 </SelectItem>
                                 <SelectItem value="cartesia" disabled>
@@ -938,63 +941,85 @@ export default function AgentEditor() {
                           <FormItem>
                             <FormLabel>Voice</FormLabel>
                             <FormDescription>Choose the voice personality for your agent</FormDescription>
-                            <div className="space-y-3">
-                              <Select onValueChange={field.onChange} value={field.value}>
-                                <FormControl>
-                                  <SelectTrigger data-testid="select-voice-id">
-                                    <SelectValue placeholder="Select a voice" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {form.watch("voiceProvider") === "openai" && (
-                                    <>
-                                      <SelectItem value="alloy">Alloy (Neutral)</SelectItem>
-                                      <SelectItem value="echo">Echo (Male)</SelectItem>
-                                      <SelectItem value="fable">Fable (British Male)</SelectItem>
-                                      <SelectItem value="onyx">Onyx (Deep Male)</SelectItem>
-                                      <SelectItem value="nova">Nova (Female)</SelectItem>
-                                      <SelectItem value="shimmer">Shimmer (Soft Female)</SelectItem>
-                                    </>
-                                  )}
-                                  {!form.watch("voiceProvider") && (
-                                    <SelectItem value="" disabled>Select a provider first</SelectItem>
-                                  )}
-                                </SelectContent>
-                              </Select>
-                              {field.value && form.watch("voiceProvider") === "openai" && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={async () => {
-                                    try {
-                                      const response = await fetch(`/api/voices/openai/preview`, {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({ 
-                                          voiceId: field.value,
-                                          text: "Hello! I'm your restaurant assistant. How can I help you today?"
-                                        })
-                                      });
-                                      
-                                      if (!response.ok) throw new Error("Preview failed");
-                                      
-                                      const blob = await response.blob();
-                                      const url = URL.createObjectURL(blob);
-                                      const audio = new Audio(url);
-                                      audio.play();
-                                    } catch (error) {
-                                      console.error("Voice preview failed:", error);
-                                    }
-                                  }}
-                                  className="w-full gap-2"
-                                  data-testid="button-preview-voice"
-                                >
-                                  <Volume2 className="h-4 w-4" />
-                                  Preview Voice
-                                </Button>
-                              )}
-                            </div>
+                            {field.value ? (
+                              <Card className="overflow-hidden">
+                                <CardContent className="p-4">
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div className="flex-1">
+                                      <div className="font-medium mb-1">
+                                        {selectedVoiceName || field.value}
+                                      </div>
+                                      <div className="flex flex-wrap gap-2 mb-2">
+                                        <Badge variant="secondary" className="text-xs">
+                                          {form.watch("voiceProvider") === "openai" ? "OpenAI" : "ElevenLabs"}
+                                        </Badge>
+                                        <Badge variant="outline" className="text-xs font-mono">
+                                          ID: {field.value}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={async () => {
+                                          try {
+                                            const provider = form.watch("voiceProvider") || "openai";
+                                            const response = await fetch(`/api/voices/${provider}/preview`, {
+                                              method: "POST",
+                                              headers: { "Content-Type": "application/json" },
+                                              body: JSON.stringify({ 
+                                                voiceId: field.value,
+                                                text: "Hello! I'm your restaurant assistant. How can I help you today?"
+                                              })
+                                            });
+                                            
+                                            if (!response.ok) throw new Error("Preview failed");
+                                            
+                                            const blob = await response.blob();
+                                            const url = URL.createObjectURL(blob);
+                                            const audio = new Audio(url);
+                                            audio.play();
+                                          } catch (error) {
+                                            console.error("Voice preview failed:", error);
+                                            toast({
+                                              title: "Error",
+                                              description: "Failed to preview voice",
+                                              variant: "destructive",
+                                            });
+                                          }
+                                        }}
+                                        className="gap-2"
+                                        data-testid="button-listen-voice"
+                                      >
+                                        <Volume2 className="h-4 w-4" />
+                                        Listen
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="default"
+                                        size="sm"
+                                        onClick={() => setVoiceSelectorOpen(true)}
+                                        data-testid="button-edit-voice"
+                                      >
+                                        Edit
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ) : (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full justify-center"
+                                onClick={() => setVoiceSelectorOpen(true)}
+                                data-testid="button-select-voice"
+                              >
+                                Select Voice
+                              </Button>
+                            )}
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1165,6 +1190,18 @@ export default function AgentEditor() {
                       />
                     </form>
                   </Form>
+
+                  <VoiceSelector
+                    open={voiceSelectorOpen}
+                    onOpenChange={setVoiceSelectorOpen}
+                    provider={form.watch("voiceProvider") || "openai"}
+                    selectedVoiceId={form.watch("voiceId") || ""}
+                    onSelectVoice={(voiceId, voiceName) => {
+                      form.setValue("voiceId", voiceId);
+                      setSelectedVoiceName(voiceName);
+                      setVoiceSelectorOpen(false);
+                    }}
+                  />
                 </TabsContent>
 
                 <TabsContent value="call-config" className="space-y-6">

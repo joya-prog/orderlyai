@@ -338,7 +338,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const voices = await listOpenAIVoices();
         res.json(voices);
       } else if (provider === 'elevenlabs') {
-        res.status(501).json({ message: "ElevenLabs voices coming soon" });
+        const { getElevenLabsVoices } = await import('./elevenlabs');
+        const voices = await getElevenLabsVoices();
+        res.json(voices);
       } else if (provider === 'cartesia') {
         res.status(501).json({ message: "Cartesia voices coming soon" });
       } else {
@@ -354,13 +356,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/voices/:provider/preview", isAuthenticated, async (req: any, res) => {
     try {
       const { provider } = req.params;
-      const { voiceId } = req.body;
+      const { voiceId, text } = req.body;
       
       if (!voiceId) {
         return res.status(400).json({ message: "Voice ID required" });
       }
 
-      const previewText = "Hello! This is a preview of how I sound. I'm ready to help your customers with reservations, orders, and questions.";
+      const previewText = text || "Hello! This is a preview of how I sound. I'm ready to help your customers with reservations, orders, and questions.";
       
       if (provider === 'openai') {
         const voiceConfig: VoiceConfig = {
@@ -374,7 +376,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.setHeader("Content-Length", audioBuffer.length);
         res.send(audioBuffer);
       } else if (provider === 'elevenlabs') {
-        res.status(501).json({ message: "ElevenLabs preview coming soon" });
+        const { previewElevenLabsVoice } = await import('./elevenlabs');
+        const audioBuffer = await previewElevenLabsVoice(voiceId, previewText);
+        
+        res.setHeader("Content-Type", "audio/mpeg");
+        res.setHeader("Content-Length", audioBuffer.length);
+        res.send(audioBuffer);
       } else if (provider === 'cartesia') {
         res.status(501).json({ message: "Cartesia preview coming soon" });
       } else {

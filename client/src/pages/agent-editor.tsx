@@ -971,7 +971,7 @@ export default function AgentEditor() {
                                               headers: { "Content-Type": "application/json" },
                                               body: JSON.stringify({ 
                                                 voiceId: field.value,
-                                                text: "Hello! I'm your restaurant assistant. How can I help you today?"
+                                                text: "Hello! How can I help you today?"
                                               })
                                             });
                                             

@@ -362,7 +362,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Voice ID required" });
       }
 
-      const previewText = text || "Hello! This is a preview of how I sound. I'm ready to help your customers with reservations, orders, and questions.";
+      const previewText = text || "Hello! How can I help you today?";
       
       if (provider === 'openai') {
         const voiceConfig: VoiceConfig = {

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Volume2, Copy, ChevronLeft, ChevronRight } from "lucide-react";
+import { Volume2, Copy, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Voice {
@@ -39,6 +39,7 @@ export function VoiceSelector({ open, onOpenChange, provider, selectedVoiceId, o
   const [genderFilter, setGenderFilter] = useState<"all" | "male" | "female">("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
   const itemsPerPage = 10;
 
   const getVoiceId = (voice: Voice) => voice.voice_id || voice.id || "";
@@ -70,11 +71,14 @@ export function VoiceSelector({ open, onOpenChange, provider, selectedVoiceId, o
 
   const playVoice = async (voiceId: string) => {
     try {
-      setPlayingVoiceId(voiceId);
+      setLoadingVoiceId(voiceId);
       const response = await fetch(`/api/voices/${provider}/preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ voiceId }),
+        body: JSON.stringify({ 
+          voiceId,
+          text: "Hello! How can I help you today?"
+        }),
       });
 
       if (!response.ok) throw new Error("Preview failed");
@@ -82,6 +86,10 @@ export function VoiceSelector({ open, onOpenChange, provider, selectedVoiceId, o
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
+      
+      setLoadingVoiceId(null);
+      setPlayingVoiceId(voiceId);
+      
       audio.onended = () => setPlayingVoiceId(null);
       await audio.play();
     } catch (error) {
@@ -91,6 +99,7 @@ export function VoiceSelector({ open, onOpenChange, provider, selectedVoiceId, o
         description: "Failed to play voice preview",
         variant: "destructive",
       });
+      setLoadingVoiceId(null);
       setPlayingVoiceId(null);
     }
   };
@@ -252,10 +261,16 @@ export function VoiceSelector({ open, onOpenChange, provider, selectedVoiceId, o
                               e.stopPropagation();
                               playVoice(voiceId);
                             }}
-                            disabled={playingVoiceId === voiceId}
+                            disabled={loadingVoiceId === voiceId || playingVoiceId === voiceId}
                             data-testid={`voice-play-${voiceId}`}
                           >
-                            <Volume2 className="h-4 w-4" />
+                            {loadingVoiceId === voiceId ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : playingVoiceId === voiceId ? (
+                              <Volume2 className="h-4 w-4 animate-pulse" />
+                            ) : (
+                              <Volume2 className="h-4 w-4" />
+                            )}
                           </Button>
 
                           <div className="flex-1 min-w-0">

@@ -1,5 +1,5 @@
 import { Switch, Route } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -9,6 +9,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/useAuth";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Agents from "@/pages/agents";
@@ -57,15 +58,19 @@ function Router() {
   );
 }
 
-function SidebarLayout() {
-  const { isMobile, setOpen } = useSidebar();
+function SidebarResponsiveWrapper() {
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const { setOpen } = useSidebar();
+  const isFirstRender = useRef(true);
 
-  // Close sidebar on mobile on initial render
+  // Sync sidebar state with breakpoint changes after initial mount
   useEffect(() => {
-    if (isMobile) {
-      setOpen(false);
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
     }
-  }, [isMobile, setOpen]);
+    setOpen(isDesktop);
+  }, [isDesktop, setOpen]);
 
   return (
     <div className="flex h-screen w-full">
@@ -85,6 +90,9 @@ function SidebarLayout() {
 
 function AppContent() {
   const { isAuthenticated, isLoading } = useAuth();
+  
+  // Detect if we're on desktop (>= 768px) using media query
+  const isDesktop = useMediaQuery("(min-width: 768px)");
 
   const sidebarStyle = {
     "--sidebar-width": "20rem",
@@ -101,8 +109,8 @@ function AppContent() {
   }
 
   return (
-    <SidebarProvider style={sidebarStyle}>
-      <SidebarLayout />
+    <SidebarProvider style={sidebarStyle} defaultOpen={isDesktop}>
+      <SidebarResponsiveWrapper />
       <Toaster />
     </SidebarProvider>
   );

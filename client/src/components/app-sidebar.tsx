@@ -108,7 +108,7 @@ export function AppSidebar() {
   const usagePercentage = minutesLimit > 0 ? Math.round((minutesUsed / minutesLimit) * 100) : 0;
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="offcanvas">
       <SidebarContent>
         <SidebarGroup>
           <div className="flex items-center gap-2 px-4 py-6">

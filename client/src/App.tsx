@@ -1,9 +1,10 @@
 import { Switch, Route } from "wouter";
+import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -56,6 +57,32 @@ function Router() {
   );
 }
 
+function SidebarLayout() {
+  const { isMobile, setOpen } = useSidebar();
+
+  // Close sidebar on mobile on initial render
+  useEffect(() => {
+    if (isMobile) {
+      setOpen(false);
+    }
+  }, [isMobile, setOpen]);
+
+  return (
+    <div className="flex h-screen w-full">
+      <AppSidebar />
+      <div className="flex flex-col flex-1 min-w-0">
+        <header className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6 border-b sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10">
+          <SidebarTrigger data-testid="button-sidebar-toggle" />
+          <ThemeToggle />
+        </header>
+        <main className="flex-1 overflow-auto">
+          <Router />
+        </main>
+      </div>
+    </div>
+  );
+}
+
 function AppContent() {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -75,18 +102,7 @@ function AppContent() {
 
   return (
     <SidebarProvider style={sidebarStyle}>
-      <div className="flex h-screen w-full">
-        <AppSidebar />
-        <div className="flex flex-col flex-1">
-          <header className="flex h-16 items-center justify-between px-6 border-b sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
-            <ThemeToggle />
-          </header>
-          <main className="flex-1 overflow-auto">
-            <Router />
-          </main>
-        </div>
-      </div>
+      <SidebarLayout />
       <Toaster />
     </SidebarProvider>
   );

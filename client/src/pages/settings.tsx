@@ -166,9 +166,30 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="flex h-full">
-      {/* Sidebar Navigation */}
-      <div className="w-64 border-r bg-muted/30 p-6 space-y-1">
+    <div className="flex flex-col md:flex-row h-full">
+      {/* Mobile: Horizontal Scrollable Tabs */}
+      <div className="md:hidden border-b bg-muted/30 overflow-x-auto">
+        <div className="flex gap-2 p-4 min-w-max">
+          {menuItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm whitespace-nowrap transition-colors ${
+                activeTab === item.id
+                  ? "bg-primary text-primary-foreground"
+                  : "hover-elevate text-foreground bg-background"
+              }`}
+              data-testid={`settings-tab-${item.id}`}
+            >
+              <item.icon className="h-4 w-4" />
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Desktop: Sidebar Navigation */}
+      <div className="hidden md:block w-64 border-r bg-muted/30 p-6 space-y-1">
         <h2 className="text-lg font-semibold mb-4">Settings</h2>
         {menuItems.map((item) => (
           <button
@@ -190,7 +211,7 @@ export default function SettingsPage() {
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
         {activeTab === "billing" && (
-          <div className="p-8 max-w-7xl mx-auto">
+          <div className="p-4 md:p-8 max-w-7xl mx-auto">
             <div className="mb-8">
               <h1 className="text-3xl font-semibold font-serif mb-2">Plan & Billing</h1>
               <p className="text-muted-foreground">
@@ -216,7 +237,7 @@ export default function SettingsPage() {
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                   </div>
                 ) : subscription ? (
-                  <div className="grid grid-cols-5 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
                     <div>
                       <div className="text-sm text-muted-foreground mb-1">Current Plan</div>
                       <div className="font-semibold text-lg capitalize">
@@ -275,7 +296,7 @@ export default function SettingsPage() {
             {/* Pricing Tiers */}
             <div className="mb-8">
               <h2 className="text-2xl font-semibold mb-6">Discover More Plans</h2>
-              <div className="grid grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                 {pricingTiers.map((tier) => (
                   <Card
                     key={tier.name}

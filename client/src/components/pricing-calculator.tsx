@@ -76,10 +76,10 @@ export function PricingCalculator() {
           Estimate your monthly costs based on usage and provider selection
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <CardContent className="p-4 md:p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
           {/* Left Column - Controls */}
-          <div className="lg:col-span-2 space-y-8">
+          <div className="lg:col-span-2 space-y-6 md:space-y-8">
             {/* Calls Per Day Slider */}
             <div>
               <div className="flex items-baseline justify-between mb-4">

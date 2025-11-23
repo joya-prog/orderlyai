@@ -9,7 +9,8 @@ import { Volume2, Copy, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Voice {
-  voice_id: string;
+  id?: string;
+  voice_id?: string;
   name: string;
   preview_url?: string;
   description?: string;
@@ -39,6 +40,8 @@ export function VoiceSelector({ open, onOpenChange, provider, selectedVoiceId, o
   const [currentPage, setCurrentPage] = useState(1);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const itemsPerPage = 10;
+
+  const getVoiceId = (voice: Voice) => voice.voice_id || voice.id || "";
 
   useEffect(() => {
     if (open && provider) {
@@ -101,8 +104,9 @@ export function VoiceSelector({ open, onOpenChange, provider, selectedVoiceId, o
   };
 
   const filteredVoices = voices.filter((voice) => {
+    const voiceId = getVoiceId(voice);
     const matchesSearch = voice.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      voice.voice_id.toLowerCase().includes(searchQuery.toLowerCase());
+      voiceId.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesAccent = accentFilter === "all" || voice.labels?.accent?.toLowerCase() === accentFilter.toLowerCase();
     const matchesGender = genderFilter === "all" || voice.labels?.gender?.toLowerCase() === genderFilter;
     return matchesSearch && matchesAccent && matchesGender;
@@ -224,67 +228,70 @@ export function VoiceSelector({ open, onOpenChange, provider, selectedVoiceId, o
                 ) : paginatedVoices.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">No voices found</div>
                 ) : (
-                  paginatedVoices.map((voice) => (
-                    <div
-                      key={voice.voice_id}
-                      className={`border rounded-lg p-4 hover-elevate cursor-pointer transition-all ${
-                        selectedVoiceId === voice.voice_id ? "ring-2 ring-primary" : ""
-                      }`}
-                      onClick={() => onSelectVoice(voice.voice_id, voice.name)}
-                      data-testid={`voice-item-${voice.voice_id}`}
-                    >
-                      <div className="flex items-start gap-4">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="shrink-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            playVoice(voice.voice_id);
-                          }}
-                          disabled={playingVoiceId === voice.voice_id}
-                          data-testid={`voice-play-${voice.voice_id}`}
-                        >
-                          <Volume2 className="h-4 w-4" />
-                        </Button>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium mb-1">{voice.name}</div>
-                          {voice.description && (
-                            <div className="text-sm text-muted-foreground mb-2 line-clamp-2">
-                              {voice.description}
-                            </div>
-                          )}
-                          <div className="flex flex-wrap gap-2">
-                            {voice.labels?.accent && (
-                              <Badge variant="secondary">{voice.labels.accent}</Badge>
-                            )}
-                            {voice.labels?.gender && (
-                              <Badge variant="outline">{voice.labels.gender}</Badge>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span className="font-mono">ID: {voice.voice_id.substring(0, 8)}...</span>
+                  paginatedVoices.map((voice) => {
+                    const voiceId = getVoiceId(voice);
+                    return (
+                      <div
+                        key={voiceId}
+                        className={`border rounded-lg p-4 hover-elevate cursor-pointer transition-all ${
+                          selectedVoiceId === voiceId ? "ring-2 ring-primary" : ""
+                        }`}
+                        onClick={() => onSelectVoice(voiceId, voice.name)}
+                        data-testid={`voice-item-${voiceId}`}
+                      >
+                        <div className="flex items-start gap-4">
                           <Button
                             type="button"
-                            variant="ghost"
+                            variant="outline"
                             size="icon"
-                            className="h-6 w-6"
+                            className="shrink-0"
                             onClick={(e) => {
                               e.stopPropagation();
-                              copyToClipboard(voice.voice_id);
+                              playVoice(voiceId);
                             }}
-                            data-testid={`voice-copy-${voice.voice_id}`}
+                            disabled={playingVoiceId === voiceId}
+                            data-testid={`voice-play-${voiceId}`}
                           >
-                            <Copy className="h-3 w-3" />
+                            <Volume2 className="h-4 w-4" />
                           </Button>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium mb-1">{voice.name}</div>
+                            {voice.description && (
+                              <div className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                                {voice.description}
+                              </div>
+                            )}
+                            <div className="flex flex-wrap gap-2">
+                              {voice.labels?.accent && (
+                                <Badge variant="secondary">{voice.labels.accent}</Badge>
+                              )}
+                              {voice.labels?.gender && (
+                                <Badge variant="outline">{voice.labels.gender}</Badge>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="font-mono">ID: {voiceId.substring(0, 8)}...</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                copyToClipboard(voiceId);
+                              }}
+                              data-testid={`voice-copy-${voiceId}`}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </TabsContent>
             </Tabs>

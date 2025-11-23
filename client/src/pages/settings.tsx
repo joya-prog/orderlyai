@@ -16,6 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import type { Subscription, UsageMetric } from "@shared/schema";
+import { PricingCalculator } from "@/components/pricing-calculator";
 
 type SettingsTab = "preferences" | "billing" | "security" | "usage" | "notifications";
 
@@ -265,6 +266,11 @@ export default function SettingsPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Pricing Calculator */}
+            <div className="mb-8">
+              <PricingCalculator />
+            </div>
 
             {/* Pricing Tiers */}
             <div className="mb-8">

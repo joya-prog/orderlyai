@@ -143,6 +143,14 @@ Preferred communication style: Simple, everyday language.
 **Plan & Billing System** (Production Ready)
 - Settings page with sidebar navigation (Preferences, Plan & Billing, Security, Usage, Notifications tabs)
 - Current plan card displaying real subscription data and usage metrics
+- **Interactive Pricing Calculator**:
+  - Dual sliders: Monthly minutes (900-15,000) and average call duration (5-60 min)
+  - LLM model selection (13 options: GPT-5, Claude 3.7, Gemini 2.0, etc.)
+  - Voice engine selection (ElevenLabs/Cartesia, OpenAI)
+  - Telephony provider selection (Custom, Retell Twilio/Telnyx)
+  - Real-time cost breakdown (LLM + Voice + Telephony per minute)
+  - Total monthly cost calculation with quick stats (cost per call, daily cost, monthly calls)
+  - Optimized for restaurant usage (30+ calls/day at 30 min average)
 - Four pricing tiers with restaurant-focused metrics (Starter, Professional, Business, Enterprise)
 - Detailed cost structure comparison table across all plans
 - Database schema: subscriptions table (plan type, status, limits, features) and usageMetrics table (period tracking, consumption counters)
@@ -150,6 +158,7 @@ Preferred communication style: Simple, everyday language.
 - Backend validation: plan whitelist, business logic with plan-specific limits
 - Frontend safeguards: null handling, loading states, proper type conversions
 - API endpoints: GET /api/subscription (auto-provision trial), PUT /api/subscription (validated plan updates), GET /api/usage-metrics
+- Sidebar usage indicator with circular progress showing minutes used vs limit
 - Next steps: Stripe integration for payments, real-time usage tracking, upgrade/downgrade flows
 
 **Phone Numbers Management** (Production Ready)

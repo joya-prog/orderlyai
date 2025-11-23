@@ -93,12 +93,24 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
   }
 }
 
-export async function synthesizeSpeech(text: string): Promise<Buffer> {
+export interface VoiceConfig {
+  provider: string;
+  voiceId: string;
+  speed?: string;
+  volume?: string;
+  model?: string;
+}
+
+export async function synthesizeSpeech(text: string, config?: VoiceConfig): Promise<Buffer> {
   try {
+    const voiceId = config?.voiceId || "nova";
+    const speed = config?.speed ? parseFloat(config.speed) : 1.0;
+    
     const response = await openai.audio.speech.create({
       model: "tts-1",
-      voice: "nova",
+      voice: voiceId as any,
       input: text,
+      speed: Math.max(0.25, Math.min(4.0, speed)),
     });
 
     const buffer = Buffer.from(await response.arrayBuffer());
@@ -116,4 +128,24 @@ export async function synthesizeSpeech(text: string): Promise<Buffer> {
     
     throw new Error("Failed to synthesize speech. Please try again.");
   }
+}
+
+export interface Voice {
+  id: string;
+  name: string;
+  provider: string;
+  language: string;
+  gender?: string;
+  description?: string;
+}
+
+export async function listOpenAIVoices(): Promise<Voice[]> {
+  return [
+    { id: "alloy", name: "Alloy", provider: "openai", language: "en", gender: "neutral", description: "Neutral and balanced" },
+    { id: "echo", name: "Echo", provider: "openai", language: "en", gender: "male", description: "Clear and articulate" },
+    { id: "fable", name: "Fable", provider: "openai", language: "en", gender: "neutral", description: "Warm and expressive" },
+    { id: "onyx", name: "Onyx", provider: "openai", language: "en", gender: "male", description: "Deep and authoritative" },
+    { id: "nova", name: "Nova", provider: "openai", language: "en", gender: "female", description: "Friendly and engaging" },
+    { id: "shimmer", name: "Shimmer", provider: "openai", language: "en", gender: "female", description: "Soft and pleasant" },
+  ];
 }

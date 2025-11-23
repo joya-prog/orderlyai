@@ -3,7 +3,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { generateAgentResponse, transcribeAudio, synthesizeSpeech } from "./openai";
+import { generateAgentResponse, transcribeAudio, synthesizeSpeech, listOpenAIVoices, VoiceConfig } from "./openai";
 import multer from "multer";
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -311,7 +311,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No text provided" });
       }
 
-      const audioBuffer = await synthesizeSpeech(text);
+      const voiceConfig: VoiceConfig = {
+        provider: agent.voiceProvider || 'openai',
+        voiceId: agent.voiceId || 'nova',
+        speed: agent.voiceSpeed || '1.0',
+        volume: agent.voiceVolume || '100',
+      };
+
+      const audioBuffer = await synthesizeSpeech(text, voiceConfig);
       
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Content-Length", audioBuffer.length);
@@ -319,6 +326,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error synthesizing speech:", error);
       res.status(500).json({ message: error.message || "Failed to synthesize speech" });
+    }
+  });
+
+  // Voice listing route
+  app.get("/api/voices/:provider", isAuthenticated, async (req: any, res) => {
+    try {
+      const { provider } = req.params;
+      
+      if (provider === 'openai') {
+        const voices = await listOpenAIVoices();
+        res.json(voices);
+      } else if (provider === 'elevenlabs') {
+        res.status(501).json({ message: "ElevenLabs voices coming soon" });
+      } else if (provider === 'cartesia') {
+        res.status(501).json({ message: "Cartesia voices coming soon" });
+      } else {
+        res.status(400).json({ message: "Invalid voice provider" });
+      }
+    } catch (error: any) {
+      console.error("Error listing voices:", error);
+      res.status(500).json({ message: error.message || "Failed to list voices" });
+    }
+  });
+
+  // Voice preview route
+  app.post("/api/voices/:provider/preview", isAuthenticated, async (req: any, res) => {
+    try {
+      const { provider } = req.params;
+      const { voiceId } = req.body;
+      
+      if (!voiceId) {
+        return res.status(400).json({ message: "Voice ID required" });
+      }
+
+      const previewText = "Hello! This is a preview of how I sound. I'm ready to help your customers with reservations, orders, and questions.";
+      
+      if (provider === 'openai') {
+        const voiceConfig: VoiceConfig = {
+          provider: 'openai',
+          voiceId: voiceId,
+          speed: '1.0',
+        };
+        const audioBuffer = await synthesizeSpeech(previewText, voiceConfig);
+        
+        res.setHeader("Content-Type", "audio/mpeg");
+        res.setHeader("Content-Length", audioBuffer.length);
+        res.send(audioBuffer);
+      } else if (provider === 'elevenlabs') {
+        res.status(501).json({ message: "ElevenLabs preview coming soon" });
+      } else if (provider === 'cartesia') {
+        res.status(501).json({ message: "Cartesia preview coming soon" });
+      } else {
+        res.status(400).json({ message: "Invalid voice provider" });
+      }
+    } catch (error: any) {
+      console.error("Error generating voice preview:", error);
+      res.status(500).json({ message: error.message || "Failed to generate voice preview" });
     }
   });
 

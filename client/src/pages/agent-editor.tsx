@@ -15,7 +15,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { ArrowLeft, Save, Settings, Workflow, TestTube, Send, MessageSquare, Mic, MicOff, Phone, Volume2 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Save, Settings, Workflow, TestTube, Send, MessageSquare, Mic, MicOff, Phone, Volume2, X, Languages, Sparkles } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { insertAgentSchema } from "@shared/schema";
@@ -30,12 +33,16 @@ export default function AgentEditor() {
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const isNew = id === "new";
   const [activeTab, setActiveTab] = useState("settings");
+  const [settingsTab, setSettingsTab] = useState("general");
   const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [testInput, setTestInput] = useState("");
   const [testMode, setTestMode] = useState<"text" | "voice">("text");
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [customVocabInput, setCustomVocabInput] = useState("");
+  const [filterWordInput, setFilterWordInput] = useState("");
+  const [callState, setCallState] = useState<"idle" | "greeting" | "listening" | "processing" | "speaking">("idle");
 
   const { data: agent, isLoading } = useQuery<Agent>({
     queryKey: ["/api/agents", id],
@@ -90,8 +97,7 @@ export default function AgentEditor() {
     }
   }, [isAuthenticated, authLoading, toast]);
 
-  const form = useForm<z.infer<typeof insertAgentSchema>>({
-    resolver: zodResolver(insertAgentSchema),
+  const form = useForm<any>({
     defaultValues: {
       userId: user?.id || "",
       name: "",
@@ -101,6 +107,38 @@ export default function AgentEditor() {
       greetingMessage: "Hello! Thanks for calling. How can I help you today?",
       personality: "Friendly, professional, and helpful",
       systemPrompt: "You are a helpful AI assistant for a restaurant. Help customers with reservations, menu questions, and general inquiries.",
+      voiceEngine: "1.0",
+      aiModel: "gpt-4o",
+      timezone: "US/Pacific",
+      customVocabulary: [],
+      filterWords: [],
+      useFillerWords: false,
+      voiceProvider: "openai",
+      voiceId: "nova",
+      voiceName: "Nova",
+      language: "en",
+      voiceSpeed: "1.0",
+      voiceVolume: "100",
+      interruptionSensitivity: "0",
+      voicePrompting: "",
+      patienceLevel: "medium",
+      speechRecognition: "faster",
+      optimizeLatency: "0",
+      stability: "50",
+      styleExaggeration: "0",
+      similarity: "75",
+      maxIdleDuration: "7",
+      speakerBoost: false,
+      idleReminders: true,
+      idleReminderMessage: "I'm still here. Do you have any questions?",
+      idleReminderInterval: "4",
+      pauseBeforeSpeaking: "0",
+      ringDuration: "0",
+      limitCallDuration: true,
+      maxCallDuration: "20",
+      enableRecordings: false,
+      enableTranscripts: true,
+      limitDataRetention: false,
     },
   });
 
@@ -115,12 +153,44 @@ export default function AgentEditor() {
         greetingMessage: agent.greetingMessage,
         personality: agent.personality,
         systemPrompt: agent.systemPrompt,
+        voiceEngine: agent.voiceEngine || "1.0",
+        aiModel: agent.aiModel || "gpt-4o",
+        timezone: agent.timezone || "US/Pacific",
+        customVocabulary: agent.customVocabulary || [],
+        filterWords: agent.filterWords || [],
+        useFillerWords: agent.useFillerWords || false,
+        voiceProvider: agent.voiceProvider || "openai",
+        voiceId: agent.voiceId || "nova",
+        voiceName: agent.voiceName,
+        language: agent.language || "en",
+        voiceSpeed: agent.voiceSpeed || "1.0",
+        voiceVolume: agent.voiceVolume || "100",
+        interruptionSensitivity: agent.interruptionSensitivity || "0",
+        voicePrompting: agent.voicePrompting || "",
+        patienceLevel: agent.patienceLevel || "medium",
+        speechRecognition: agent.speechRecognition || "faster",
+        optimizeLatency: agent.optimizeLatency || "0",
+        stability: agent.stability || "50",
+        styleExaggeration: agent.styleExaggeration || "0",
+        similarity: agent.similarity || "75",
+        maxIdleDuration: agent.maxIdleDuration || "7",
+        speakerBoost: agent.speakerBoost || false,
+        idleReminders: agent.idleReminders !== undefined ? agent.idleReminders : true,
+        idleReminderMessage: agent.idleReminderMessage || "I'm still here. Do you have any questions?",
+        idleReminderInterval: agent.idleReminderInterval || "4",
+        pauseBeforeSpeaking: agent.pauseBeforeSpeaking || "0",
+        ringDuration: agent.ringDuration || "0",
+        limitCallDuration: agent.limitCallDuration !== undefined ? agent.limitCallDuration : true,
+        maxCallDuration: agent.maxCallDuration || "20",
+        enableRecordings: agent.enableRecordings || false,
+        enableTranscripts: agent.enableTranscripts !== undefined ? agent.enableTranscripts : true,
+        limitDataRetention: agent.limitDataRetention || false,
       });
     }
   }, [agent, isNew, form]);
 
   const saveMutation = useMutation({
-    mutationFn: async (data: z.infer<typeof insertAgentSchema>) => {
+    mutationFn: async (data: any) => {
       if (isNew) {
         return await apiRequest("POST", "/api/agents", { ...data, userId: user?.id });
       } else {
@@ -235,7 +305,7 @@ export default function AgentEditor() {
   const handleSendTest = () => {
     if (!testInput.trim()) return;
     // Capture updated messages before sending to API
-    const updatedMessages = [...messages, { role: "user", content: testInput }];
+    const updatedMessages = [...messages, { role: "user" as const, content: testInput }];
     setMessages(updatedMessages);
     testMutation.mutate({ message: testInput, history: updatedMessages });
   };
@@ -304,7 +374,7 @@ export default function AgentEditor() {
       });
       
       // Add user message to conversation and capture updated messages
-      const updatedMessages = [...messages, { role: "user", content: text }];
+      const updatedMessages = [...messages, { role: "user" as const, content: text }];
       setMessages(updatedMessages);
 
       // Get agent response using the updated message history

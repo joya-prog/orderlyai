@@ -18,7 +18,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Save, Settings, Workflow, TestTube, Send, MessageSquare, Mic, MicOff, Phone, Volume2, X, Languages, Sparkles } from "lucide-react";
+import { ArrowLeft, Save, Settings, Workflow, TestTube, Send, MessageSquare, Mic, MicOff, Phone, Volume2, X, Languages, Sparkles, Zap, Clock, Timer } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { insertAgentSchema } from "@shared/schema";
@@ -783,15 +783,388 @@ export default function AgentEditor() {
                           </FormItem>
                         )}
                       />
+
+                      <FormField
+                        control={form.control}
+                        name="customVocabulary"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Custom Vocabulary</FormLabel>
+                            <FormDescription>Teach your agent custom pronunciations (comma-separated)</FormDescription>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g., Bella's, Risotto, Charcuterie"
+                                {...field}
+                                value={field.value?.join(", ") || ""}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  field.onChange(value ? value.split(",").map(s => s.trim()).filter(Boolean) : []);
+                                }}
+                                data-testid="input-custom-vocabulary"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="filterWords"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Filter Words</FormLabel>
+                            <FormDescription>Words to remove or replace (comma-separated)</FormDescription>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g., profanity, slang terms"
+                                {...field}
+                                value={field.value?.join(", ") || ""}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  field.onChange(value ? value.split(",").map(s => s.trim()).filter(Boolean) : []);
+                                }}
+                                data-testid="input-filter-words"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="useFillerWords"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-base">Use Filler Words</FormLabel>
+                              <FormDescription>
+                                Allow natural speech patterns like "um", "uh", "you know"
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                data-testid="switch-filler-words"
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
                     </form>
                   </Form>
                 </TabsContent>
 
                 <TabsContent value="voice" className="space-y-6">
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Volume2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Voice configuration coming soon</p>
-                  </div>
+                  <Form {...form}>
+                    <form className="space-y-6">
+                      <FormField
+                        control={form.control}
+                        name="language"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Language</FormLabel>
+                            <FormDescription>The language that your agent will speak and understand</FormDescription>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-language">
+                                  <SelectValue placeholder="Select language" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="en-US">English (US)</SelectItem>
+                                <SelectItem value="en-GB">English (UK)</SelectItem>
+                                <SelectItem value="en-AU">English (Australia)</SelectItem>
+                                <SelectItem value="es-ES">Spanish (Spain)</SelectItem>
+                                <SelectItem value="es-MX">Spanish (Mexico)</SelectItem>
+                                <SelectItem value="fr-FR">French</SelectItem>
+                                <SelectItem value="de-DE">German</SelectItem>
+                                <SelectItem value="it-IT">Italian</SelectItem>
+                                <SelectItem value="pt-BR">Portuguese (Brazil)</SelectItem>
+                                <SelectItem value="ja-JP">Japanese</SelectItem>
+                                <SelectItem value="zh-CN">Chinese (Simplified)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="voiceProvider"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Voice Provider</FormLabel>
+                            <FormDescription>Select the text-to-speech service for your agent</FormDescription>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-voice-provider">
+                                  <SelectValue placeholder="Select provider" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="openai">
+                                  <div className="flex items-center gap-2">
+                                    <span>OpenAI TTS</span>
+                                    <Badge variant="secondary" className="text-xs">Active</Badge>
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="elevenlabs" disabled>
+                                  <div className="flex items-center gap-2">
+                                    <span>ElevenLabs</span>
+                                    <Badge variant="outline" className="text-xs">Coming Soon</Badge>
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="cartesia" disabled>
+                                  <div className="flex items-center gap-2">
+                                    <span>Cartesia</span>
+                                    <Badge variant="outline" className="text-xs">Coming Soon</Badge>
+                                  </div>
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="voiceId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Voice</FormLabel>
+                            <FormDescription>Choose the voice personality for your agent</FormDescription>
+                            <div className="space-y-3">
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger data-testid="select-voice-id">
+                                    <SelectValue placeholder="Select a voice" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {form.watch("voiceProvider") === "openai" && (
+                                    <>
+                                      <SelectItem value="alloy">Alloy (Neutral)</SelectItem>
+                                      <SelectItem value="echo">Echo (Male)</SelectItem>
+                                      <SelectItem value="fable">Fable (British Male)</SelectItem>
+                                      <SelectItem value="onyx">Onyx (Deep Male)</SelectItem>
+                                      <SelectItem value="nova">Nova (Female)</SelectItem>
+                                      <SelectItem value="shimmer">Shimmer (Soft Female)</SelectItem>
+                                    </>
+                                  )}
+                                  {!form.watch("voiceProvider") && (
+                                    <SelectItem value="" disabled>Select a provider first</SelectItem>
+                                  )}
+                                </SelectContent>
+                              </Select>
+                              {field.value && form.watch("voiceProvider") === "openai" && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      const response = await fetch(`/api/voices/openai/preview`, {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ 
+                                          voiceId: field.value,
+                                          text: "Hello! I'm your restaurant assistant. How can I help you today?"
+                                        })
+                                      });
+                                      
+                                      if (!response.ok) throw new Error("Preview failed");
+                                      
+                                      const blob = await response.blob();
+                                      const url = URL.createObjectURL(blob);
+                                      const audio = new Audio(url);
+                                      audio.play();
+                                    } catch (error) {
+                                      console.error("Voice preview failed:", error);
+                                    }
+                                  }}
+                                  className="w-full gap-2"
+                                  data-testid="button-preview-voice"
+                                >
+                                  <Volume2 className="h-4 w-4" />
+                                  Preview Voice
+                                </Button>
+                              )}
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="patienceLevel"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Patience Level</FormLabel>
+                            <FormDescription>How long the agent waits before responding</FormDescription>
+                            <FormControl>
+                              <div className="grid grid-cols-3 gap-3">
+                                <Card
+                                  className={`cursor-pointer transition-all hover-elevate ${
+                                    field.value === "low" ? "ring-2 ring-primary" : ""
+                                  }`}
+                                  onClick={() => field.onChange("low")}
+                                  data-testid="card-patience-low"
+                                >
+                                  <CardContent className="p-4 text-center">
+                                    <Zap className="h-6 w-6 mx-auto mb-2" />
+                                    <div className="font-medium">Low</div>
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      Quick responses
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                                <Card
+                                  className={`cursor-pointer transition-all hover-elevate ${
+                                    field.value === "medium" ? "ring-2 ring-primary" : ""
+                                  }`}
+                                  onClick={() => field.onChange("medium")}
+                                  data-testid="card-patience-medium"
+                                >
+                                  <CardContent className="p-4 text-center">
+                                    <Clock className="h-6 w-6 mx-auto mb-2" />
+                                    <div className="font-medium">Medium</div>
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      Balanced
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                                <Card
+                                  className={`cursor-pointer transition-all hover-elevate ${
+                                    field.value === "high" ? "ring-2 ring-primary" : ""
+                                  }`}
+                                  onClick={() => field.onChange("high")}
+                                  data-testid="card-patience-high"
+                                >
+                                  <CardContent className="p-4 text-center">
+                                    <Timer className="h-6 w-6 mx-auto mb-2" />
+                                    <div className="font-medium">High</div>
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      Thoughtful pauses
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="speechRecognition"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-base">Enhanced Speech Recognition</FormLabel>
+                              <FormDescription>
+                                Improve accuracy for accents and background noise
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                data-testid="switch-speech-recognition"
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="voiceSpeed"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center justify-between">
+                              <FormLabel>Voice Speed</FormLabel>
+                              <span className="text-sm text-muted-foreground">{field.value}x</span>
+                            </div>
+                            <FormDescription>Adjust how fast your agent speaks</FormDescription>
+                            <FormControl>
+                              <Slider
+                                min={0.5}
+                                max={2.0}
+                                step={0.1}
+                                value={[field.value]}
+                                onValueChange={(vals) => field.onChange(vals[0])}
+                                data-testid="slider-voice-speed"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="voiceVolume"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center justify-between">
+                              <FormLabel>Voice Volume</FormLabel>
+                              <span className="text-sm text-muted-foreground">{Math.round(field.value * 100)}%</span>
+                            </div>
+                            <FormDescription>Control the output volume level</FormDescription>
+                            <FormControl>
+                              <Slider
+                                min={0}
+                                max={1}
+                                step={0.05}
+                                value={[field.value]}
+                                onValueChange={(vals) => field.onChange(vals[0])}
+                                data-testid="slider-voice-volume"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="interruptionSensitivity"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center justify-between">
+                              <FormLabel>Interruption Sensitivity</FormLabel>
+                              <span className="text-sm text-muted-foreground">{field.value}</span>
+                            </div>
+                            <FormDescription>
+                              How easily the agent can be interrupted while speaking
+                            </FormDescription>
+                            <FormControl>
+                              <Slider
+                                min={0}
+                                max={10}
+                                step={1}
+                                value={[field.value]}
+                                onValueChange={(vals) => field.onChange(vals[0])}
+                                data-testid="slider-interruption-sensitivity"
+                              />
+                            </FormControl>
+                            <div className="flex justify-between text-xs text-muted-foreground px-1">
+                              <span>Hard to interrupt</span>
+                              <span>Easy to interrupt</span>
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </form>
+                  </Form>
                 </TabsContent>
 
                 <TabsContent value="call-config" className="space-y-6">

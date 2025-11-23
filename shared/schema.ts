@@ -425,3 +425,73 @@ export const insertOAuthStateSchema = createInsertSchema(oauthStates).omit({
 
 export type InsertOAuthState = z.infer<typeof insertOAuthStateSchema>;
 export type OAuthState = typeof oauthStates.$inferSelect;
+
+// Subscriptions table for billing management
+export const subscriptions = pgTable("subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }).unique(),
+  planType: text("plan_type").notNull().default('trial'), // 'trial', 'starter', 'professional', 'business', 'enterprise'
+  status: text("status").notNull().default('active'), // 'active', 'canceled', 'past_due', 'trialing'
+  stripeCustomerId: varchar("stripe_customer_id"),
+  stripeSubscriptionId: varchar("stripe_subscription_id"),
+  currentPeriodStart: timestamp("current_period_start"),
+  currentPeriodEnd: timestamp("current_period_end"),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false),
+  
+  // Usage limits based on plan
+  minutesLimit: text("minutes_limit").notNull().default('60'), // Monthly call minutes
+  agentsLimit: text("agents_limit").notNull().default('1'), // Number of AI agents allowed
+  phoneNumbersLimit: text("phone_numbers_limit").notNull().default('1'), // Number of phone numbers
+  concurrentCallsLimit: text("concurrent_calls_limit").notNull().default('2'), // Max concurrent calls
+  
+  // Features enabled
+  posIntegrationsEnabled: boolean("pos_integrations_enabled").default(false),
+  analyticsEnabled: boolean("analytics_enabled").default(false),
+  customWorkflowsEnabled: boolean("custom_workflows_enabled").default(false),
+  prioritySupportEnabled: boolean("priority_support_enabled").default(false),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
+export type Subscription = typeof subscriptions.$inferSelect;
+
+// Usage metrics for tracking consumption
+export const usageMetrics = pgTable("usage_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  subscriptionId: varchar("subscription_id").notNull().references(() => subscriptions.id, { onDelete: 'cascade' }),
+  
+  // Current billing period metrics
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  
+  // Usage counters
+  minutesUsed: text("minutes_used").notNull().default('0'), // Total call minutes used
+  activeAgents: text("active_agents").notNull().default('0'), // Current active agents
+  activePhoneNumbers: text("active_phone_numbers").notNull().default('0'), // Current phone numbers
+  totalCalls: text("total_calls").notNull().default('0'), // Total calls in period
+  
+  // Overage tracking
+  overageMinutes: text("overage_minutes").notNull().default('0'), // Minutes over limit
+  overageCharges: text("overage_charges").notNull().default('0'), // Charges for overages
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertUsageMetricSchema = createInsertSchema(usageMetrics).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertUsageMetric = z.infer<typeof insertUsageMetricSchema>;
+export type UsageMetric = typeof usageMetrics.$inferSelect;

@@ -13,6 +13,8 @@ import {
   integrationConfigs,
   analyticsEvents,
   oauthStates,
+  subscriptions,
+  usageMetrics,
   type User,
   type UpsertUser,
   type Agent,
@@ -40,6 +42,10 @@ import {
   type InsertAnalyticsEvent,
   type OAuthState,
   type InsertOAuthState,
+  type Subscription,
+  type InsertSubscription,
+  type UsageMetric,
+  type InsertUsageMetric,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, like, or, sql } from "drizzle-orm";
@@ -125,6 +131,17 @@ export interface IStorage {
   getOAuthState(nonce: string): Promise<OAuthState | undefined>;
   deleteOAuthState(nonce: string): Promise<boolean>;
   cleanupExpiredOAuthStates(): Promise<number>;
+
+  // Subscription operations
+  getSubscription(userId: string): Promise<Subscription | null>;
+  createSubscription(subscription: InsertSubscription): Promise<Subscription>;
+  updateSubscription(userId: string, subscription: Partial<InsertSubscription>): Promise<Subscription | null>;
+  deleteSubscription(userId: string): Promise<boolean>;
+
+  // Usage metrics operations
+  getCurrentUsageMetrics(userId: string): Promise<UsageMetric | null>;
+  createUsageMetrics(metrics: InsertUsageMetric): Promise<UsageMetric>;
+  updateUsageMetrics(userId: string, metrics: Partial<InsertUsageMetric>): Promise<UsageMetric | null>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -617,6 +634,68 @@ export class DatabaseStorage implements IStorage {
     const tenMinutesAgo = new Date(Date.now() - 600000);
     const result = await db.delete(oauthStates).where(sql`${oauthStates.createdAt} < ${tenMinutesAgo}`);
     return result.rowCount || 0;
+  }
+
+  // Subscription operations
+  async getSubscription(userId: string): Promise<Subscription | null> {
+    const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId));
+    return subscription || null;
+  }
+
+  async createSubscription(subscription: InsertSubscription): Promise<Subscription> {
+    const [created] = await db.insert(subscriptions).values(subscription).returning();
+    return created;
+  }
+
+  async updateSubscription(userId: string, subscription: Partial<InsertSubscription>): Promise<Subscription | null> {
+    const [updated] = await db
+      .update(subscriptions)
+      .set({ ...subscription, updatedAt: new Date() })
+      .where(eq(subscriptions.userId, userId))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteSubscription(userId: string): Promise<boolean> {
+    const result = await db.delete(subscriptions).where(eq(subscriptions.userId, userId));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Usage metrics operations
+  async getCurrentUsageMetrics(userId: string): Promise<UsageMetric | null> {
+    // Get the subscription first
+    const subscription = await this.getSubscription(userId);
+    if (!subscription) return null;
+
+    // Get the most recent usage metrics for this subscription
+    const [metrics] = await db
+      .select()
+      .from(usageMetrics)
+      .where(eq(usageMetrics.subscriptionId, subscription.id))
+      .orderBy(sql`${usageMetrics.createdAt} DESC`)
+      .limit(1);
+
+    return metrics || null;
+  }
+
+  async createUsageMetrics(metrics: InsertUsageMetric): Promise<UsageMetric> {
+    const [created] = await db.insert(usageMetrics).values(metrics).returning();
+    return created;
+  }
+
+  async updateUsageMetrics(userId: string, metrics: Partial<InsertUsageMetric>): Promise<UsageMetric | null> {
+    // Get subscription
+    const subscription = await this.getSubscription(userId);
+    if (!subscription) return null;
+
+    // Update the most recent metrics for this subscription
+    const [updated] = await db
+      .update(usageMetrics)
+      .set({ ...metrics, updatedAt: new Date() })
+      .where(eq(usageMetrics.subscriptionId, subscription.id))
+      .returning();
+
+    return updated || null;
   }
 }
 

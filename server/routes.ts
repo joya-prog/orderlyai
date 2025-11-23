@@ -1252,6 +1252,145 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Subscription routes
+  app.get("/api/subscription", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      let subscription = await storage.getSubscription(userId);
+
+      // If no subscription exists, create a default trial subscription
+      if (!subscription) {
+        subscription = await storage.createSubscription({
+          userId,
+          planType: 'trial',
+          status: 'active',
+          minutesLimit: '60',
+          agentsLimit: '1',
+          phoneNumbersLimit: '1',
+          concurrentCallsLimit: '2',
+        });
+
+        // Also create initial usage metrics
+        const now = new Date();
+        const periodEnd = new Date(now);
+        periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+        await storage.createUsageMetrics({
+          userId,
+          subscriptionId: subscription.id,
+          periodStart: now,
+          periodEnd,
+          minutesUsed: '0',
+          activeAgents: '0',
+          activePhoneNumbers: '0',
+          totalCalls: '0',
+          overageMinutes: '0',
+          overageCharges: '0',
+        });
+      }
+
+      res.json(subscription);
+    } catch (error) {
+      console.error("Error fetching subscription:", error);
+      res.status(500).json({ message: "Failed to fetch subscription" });
+    }
+  });
+
+  app.put("/api/subscription", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Validate plan type
+      const validPlans = ['trial', 'starter', 'professional', 'business', 'enterprise'];
+      const { planType } = req.body;
+      
+      if (planType && !validPlans.includes(planType)) {
+        return res.status(400).json({ message: "Invalid plan type" });
+      }
+
+      // Define plan limits
+      const planLimits: Record<string, any> = {
+        trial: {
+          minutesLimit: '60',
+          agentsLimit: '1',
+          phoneNumbersLimit: '1',
+          concurrentCallsLimit: '2',
+          posIntegrationsEnabled: false,
+          analyticsEnabled: false,
+        },
+        starter: {
+          minutesLimit: '500',
+          agentsLimit: '1',
+          phoneNumbersLimit: '1',
+          concurrentCallsLimit: '2',
+          posIntegrationsEnabled: false,
+          analyticsEnabled: false,
+        },
+        professional: {
+          minutesLimit: '2000',
+          agentsLimit: '3',
+          phoneNumbersLimit: '3',
+          concurrentCallsLimit: '5',
+          posIntegrationsEnabled: true,
+          analyticsEnabled: true,
+        },
+        business: {
+          minutesLimit: '10000',
+          agentsLimit: '999',
+          phoneNumbersLimit: '10',
+          concurrentCallsLimit: '20',
+          posIntegrationsEnabled: true,
+          analyticsEnabled: true,
+          customWorkflowsEnabled: true,
+        },
+        enterprise: {
+          minutesLimit: '99999',
+          agentsLimit: '999',
+          phoneNumbersLimit: '999',
+          concurrentCallsLimit: '999',
+          posIntegrationsEnabled: true,
+          analyticsEnabled: true,
+          customWorkflowsEnabled: true,
+          prioritySupportEnabled: true,
+        },
+      };
+
+      // Build safe update object with plan limits if changing plan
+      const updates: any = {};
+      if (planType) {
+        updates.planType = planType;
+        Object.assign(updates, planLimits[planType]);
+      }
+
+      const subscription = await storage.updateSubscription(userId, updates);
+      if (!subscription) {
+        return res.status(404).json({ message: "Subscription not found" });
+      }
+
+      res.json(subscription);
+    } catch (error) {
+      console.error("Error updating subscription:", error);
+      res.status(500).json({ message: "Failed to update subscription" });
+    }
+  });
+
+  // Usage metrics routes
+  app.get("/api/usage-metrics", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const metrics = await storage.getCurrentUsageMetrics(userId);
+      
+      if (!metrics) {
+        return res.status(404).json({ message: "No usage metrics found" });
+      }
+
+      res.json(metrics);
+    } catch (error) {
+      console.error("Error fetching usage metrics:", error);
+      res.status(500).json({ message: "Failed to fetch usage metrics" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

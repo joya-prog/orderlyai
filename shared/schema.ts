@@ -47,6 +47,45 @@ export const agents = pgTable("agents", {
   greetingMessage: text("greeting_message").notNull(),
   personality: text("personality").notNull(),
   systemPrompt: text("system_prompt").notNull(),
+  
+  // General Configuration
+  voiceEngine: text("voice_engine").notNull().default('1.0'), // '1.0', '2.0'
+  aiModel: text("ai_model").notNull().default('gpt-4o'), // 'gpt-4o', 'gpt-4', 'gpt-3.5-turbo'
+  timezone: text("timezone").notNull().default('US/Pacific'),
+  customVocabulary: text("custom_vocabulary").array().default(sql`'{}'::text[]`),
+  filterWords: text("filter_words").array().default(sql`'{}'::text[]`),
+  useFillerWords: boolean("use_filler_words").default(false),
+  
+  // Voice Configuration
+  voiceProvider: text("voice_provider").notNull().default('openai'), // 'openai', 'elevenlabs', 'cartesia'
+  voiceId: text("voice_id").notNull().default('nova'),
+  voiceName: text("voice_name"),
+  language: text("language").notNull().default('en'),
+  voiceSpeed: text("voice_speed").notNull().default('1.0'), // 0.5 - 2.0
+  voiceVolume: text("voice_volume").notNull().default('100'), // 0 - 100
+  interruptionSensitivity: text("interruption_sensitivity").notNull().default('0'), // 0-5 words
+  voicePrompting: text("voice_prompting"),
+  patienceLevel: text("patience_level").notNull().default('medium'), // 'low', 'medium', 'high'
+  speechRecognition: text("speech_recognition").notNull().default('faster'), // 'faster', 'high_accuracy'
+  
+  // Call Configuration
+  optimizeLatency: text("optimize_latency").notNull().default('0'), // '0', '1', '2', '3', '4'
+  stability: text("stability").notNull().default('50'), // 0-100
+  styleExaggeration: text("style_exaggeration").notNull().default('0'), // 0-100
+  similarity: text("similarity").notNull().default('75'), // 0-100
+  maxIdleDuration: text("max_idle_duration").notNull().default('7'), // seconds
+  speakerBoost: boolean("speaker_boost").default(false),
+  idleReminders: boolean("idle_reminders").default(true),
+  idleReminderMessage: text("idle_reminder_message").default("I'm still here. Do you have any questions?"),
+  idleReminderInterval: text("idle_reminder_interval").notNull().default('4'), // seconds
+  pauseBeforeSpeaking: text("pause_before_speaking").notNull().default('0'), // seconds
+  ringDuration: text("ring_duration").notNull().default('0'), // seconds
+  limitCallDuration: boolean("limit_call_duration").default(true),
+  maxCallDuration: text("max_call_duration").notNull().default('20'), // minutes
+  enableRecordings: boolean("enable_recordings").default(false),
+  enableTranscripts: boolean("enable_transcripts").default(true),
+  limitDataRetention: boolean("limit_data_retention").default(false),
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -12,6 +12,7 @@ import {
   MessageSquare
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   Sidebar,
   SidebarContent,
@@ -27,6 +28,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import orderlyLogo from "@assets/WXdQJT24YKxTTzIwCPlW3AJf4Y_1763761787840.avif";
+import type { Subscription, UsageMetric } from "@shared/schema";
 
 const mainItems = [
   {
@@ -85,10 +87,25 @@ export function AppSidebar() {
   const [location] = useLocation();
   const { user } = useAuth();
 
+  // Fetch subscription and usage data
+  const { data: subscription } = useQuery<Subscription>({
+    queryKey: ["/api/subscription"],
+  });
+
+  const { data: usageMetrics } = useQuery<UsageMetric>({
+    queryKey: ["/api/usage-metrics"],
+    enabled: !!subscription,
+  });
+
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     if (!firstName && !lastName) return "U";
     return `${firstName?.[0] || ""}${lastName?.[0] || ""}`.toUpperCase();
   };
+
+  // Calculate usage percentage
+  const minutesUsed = parseInt(usageMetrics?.minutesUsed || '0');
+  const minutesLimit = parseInt(subscription?.minutesLimit || '0');
+  const usagePercentage = minutesLimit > 0 ? Math.round((minutesUsed / minutesLimit) * 100) : 0;
 
   return (
     <Sidebar>
@@ -128,6 +145,54 @@ export function AppSidebar() {
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Usage Indicator */}
+        <SidebarGroup className="mt-auto">
+          <div className="px-4 py-3 border-t" data-testid="usage-indicator">
+            <div className="flex items-center gap-3">
+              {/* Circular Progress */}
+              <div className="relative h-12 w-12 flex-shrink-0">
+                <svg className="transform -rotate-90 h-12 w-12">
+                  <circle
+                    cx="24"
+                    cy="24"
+                    r="20"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="none"
+                    className="text-muted opacity-20"
+                  />
+                  <circle
+                    cx="24"
+                    cy="24"
+                    r="20"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="none"
+                    strokeDasharray={`${2 * Math.PI * 20}`}
+                    strokeDashoffset={`${2 * Math.PI * 20 * (1 - usagePercentage / 100)}`}
+                    className="text-primary transition-all duration-300"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-xs font-semibold" data-testid="usage-percentage">
+                    {usagePercentage}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Usage Info */}
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-semibold capitalize" data-testid="plan-name">
+                  {subscription?.planType || 'Loading...'}
+                </span>
+                <span className="text-xs text-muted-foreground" data-testid="usage-text">
+                  {minutesUsed} / {minutesLimit} MIN
+                </span>
+              </div>
+            </div>
+          </div>
         </SidebarGroup>
       </SidebarContent>
 

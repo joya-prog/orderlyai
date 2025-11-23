@@ -512,168 +512,295 @@ export default function AgentEditor() {
         <TabsContent value="settings">
           <Card>
             <CardHeader>
-              <CardTitle>Agent Configuration</CardTitle>
+              <CardTitle>Configure</CardTitle>
               <CardDescription>
-                Define your agent's identity, personality, and behavior
+                Customize your agent's voice, behavior, and call settings
               </CardDescription>
             </CardHeader>
             <CardContent>
-          <Form {...form}>
-            <form className="space-y-6">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Agent Name</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="e.g., Bella's Bistro Reservations"
-                        {...field}
-                        data-testid="input-agent-name"
+              <Tabs value={settingsTab} onValueChange={setSettingsTab} className="space-y-6">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="general" className="gap-2" data-testid="tab-general">
+                    <Sparkles className="h-4 w-4" />
+                    General
+                  </TabsTrigger>
+                  <TabsTrigger value="voice" className="gap-2" data-testid="tab-voice">
+                    <Volume2 className="h-4 w-4" />
+                    Voice
+                  </TabsTrigger>
+                  <TabsTrigger value="call-config" className="gap-2" data-testid="tab-call-config">
+                    <Phone className="h-4 w-4" />
+                    Call Configuration
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="general" className="space-y-6">
+                  <Form {...form}>
+                    <form className="space-y-6">
+                      <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Agent Name</FormLabel>
+                            <FormDescription>What name will your agent go by.</FormDescription>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g., Restaurant Concierge"
+                                {...field}
+                                data-testid="input-agent-name"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description (Optional)</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Brief description of this agent's purpose"
-                        {...field}
-                        value={field.value || ""}
-                        data-testid="input-agent-description"
+                      <FormField
+                        control={form.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Image</FormLabel>
+                            <FormDescription>An optional image that will be displayed in your agents list.</FormDescription>
+                            <FormControl>
+                              <Input
+                                placeholder="Brief description of this agent's purpose"
+                                {...field}
+                                value={field.value || ""}
+                                data-testid="input-agent-description"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
-              <FormField
-                control={form.control}
-                name="industry"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Industry Type</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-industry">
-                          <SelectValue placeholder="Select industry" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="fine_dining">Fine Dining</SelectItem>
-                        <SelectItem value="casual_dining">Casual Dining</SelectItem>
-                        <SelectItem value="catering">Catering</SelectItem>
-                        <SelectItem value="hotel">Hotel</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-status">
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="draft">Draft</SelectItem>
-                        <SelectItem value="testing">Testing</SelectItem>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="paused">Paused</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      Set to "Active" when ready to deploy
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="greetingMessage"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Greeting Message</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="What the agent says when answering the phone"
-                        className="min-h-20"
-                        {...field}
-                        data-testid="textarea-greeting"
+                      <FormField
+                        control={form.control}
+                        name="voiceEngine"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Voice Engine</FormLabel>
+                            <FormDescription>The system that orchestrates your agent's speaking, listening, and reasoning capabilities</FormDescription>
+                            <FormControl>
+                              <ToggleGroup type="single" value={field.value} onValueChange={field.onChange} className="justify-start" data-testid="toggle-voice-engine">
+                                <ToggleGroupItem value="1.0" aria-label="Version 1.0" data-testid="toggle-engine-v1">
+                                  Version 1.0
+                                </ToggleGroupItem>
+                                <ToggleGroupItem value="2.0" aria-label="Version 2.0" data-testid="toggle-engine-v2">
+                                  Version 2.0
+                                </ToggleGroupItem>
+                              </ToggleGroup>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                    </FormControl>
-                    <FormDescription>
-                      This is the first thing customers hear when calling
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
-              <FormField
-                control={form.control}
-                name="personality"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Personality</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="e.g., Warm, professional, and attentive"
-                        {...field}
-                        data-testid="input-personality"
+                      <FormField
+                        control={form.control}
+                        name="aiModel"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>AI Model</FormLabel>
+                            <FormDescription>Opt for speed or depth to suit your agent's role</FormDescription>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-ai-model">
+                                  <SelectValue placeholder="Select AI model" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="gpt-4o">
+                                  <div className="flex items-center gap-2">
+                                    <span>GPT-4o</span>
+                                    <Badge variant="secondary" className="text-xs">OpenAI</Badge>
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="gpt-4">
+                                  <div className="flex items-center gap-2">
+                                    <span>GPT-4</span>
+                                    <Badge variant="secondary" className="text-xs">OpenAI</Badge>
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="gpt-3.5-turbo">
+                                  <div className="flex items-center gap-2">
+                                    <span>GPT-3.5 Turbo</span>
+                                    <Badge variant="secondary" className="text-xs">OpenAI</Badge>
+                                  </div>
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                    </FormControl>
-                    <FormDescription>
-                      Describe how the agent should communicate
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
-              <FormField
-                control={form.control}
-                name="systemPrompt"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>System Prompt</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Instructions for the AI agent..."
-                        className="min-h-32 font-mono text-sm"
-                        {...field}
-                        data-testid="textarea-system-prompt"
+                      <FormField
+                        control={form.control}
+                        name="timezone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Timezone</FormLabel>
+                            <FormDescription>The region in which your agent will be</FormDescription>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-timezone">
+                                  <SelectValue placeholder="Select timezone" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="US/Pacific">US/Pacific</SelectItem>
+                                <SelectItem value="US/Mountain">US/Mountain</SelectItem>
+                                <SelectItem value="US/Central">US/Central</SelectItem>
+                                <SelectItem value="US/Eastern">US/Eastern</SelectItem>
+                                <SelectItem value="America/Toronto">America/Toronto</SelectItem>
+                                <SelectItem value="Europe/London">Europe/London</SelectItem>
+                                <SelectItem value="Europe/Paris">Europe/Paris</SelectItem>
+                                <SelectItem value="Asia/Tokyo">Asia/Tokyo</SelectItem>
+                                <SelectItem value="Asia/Shanghai">Asia/Shanghai</SelectItem>
+                                <SelectItem value="Australia/Sydney">Australia/Sydney</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                    </FormControl>
-                    <FormDescription>
-                      Detailed instructions that guide the agent's behavior
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </form>
-          </Form>
+
+                      <FormField
+                        control={form.control}
+                        name="industry"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Industry Type</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-industry">
+                                  <SelectValue placeholder="Select industry" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="fine_dining">Fine Dining</SelectItem>
+                                <SelectItem value="casual_dining">Casual Dining</SelectItem>
+                                <SelectItem value="catering">Catering</SelectItem>
+                                <SelectItem value="hotel">Hotel</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="status"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Status</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-status">
+                                  <SelectValue placeholder="Select status" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="draft">Draft</SelectItem>
+                                <SelectItem value="testing">Testing</SelectItem>
+                                <SelectItem value="active">Active</SelectItem>
+                                <SelectItem value="paused">Paused</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>
+                              Set to "Active" when ready to deploy
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="greetingMessage"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Greeting Message</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="What the agent says when answering the phone"
+                                className="min-h-20"
+                                {...field}
+                                data-testid="textarea-greeting"
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              This is the first thing customers hear when calling
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="personality"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Personality</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g., Warm, professional, and attentive"
+                                {...field}
+                                data-testid="input-personality"
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Describe how the agent should communicate
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="systemPrompt"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>System Prompt</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Instructions for the AI agent..."
+                                className="min-h-32 font-mono text-sm"
+                                {...field}
+                                data-testid="textarea-system-prompt"
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Detailed instructions that guide the agent's behavior
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </form>
+                  </Form>
+                </TabsContent>
+
+                <TabsContent value="voice" className="space-y-6">
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Volume2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Voice configuration coming soon</p>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="call-config" className="space-y-6">
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Phone className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Call configuration coming soon</p>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
         </TabsContent>

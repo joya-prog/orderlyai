@@ -2,7 +2,7 @@
 
 ## Overview
 
-Orderly AI is a voice AI agent platform designed for restaurants and hospitality businesses. The application enables users to build, customize, and deploy intelligent phone agents that handle reservations, orders, and customer inquiries. The platform provides a web-based dashboard for managing AI agents, configuring their behavior through knowledge bases, and testing conversations before deployment.
+Orderly AI is a voice AI agent platform designed for restaurants and hospitality businesses. It enables users to build, customize, and deploy intelligent phone agents for reservations, orders, and customer inquiries. The platform includes a web-based dashboard for managing AI agents, configuring their behavior via knowledge bases, and testing conversations.
 
 ## User Preferences
 
@@ -17,240 +17,57 @@ Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Frontend Architecture
+### Frontend
 
-**Framework**: React 18+ with TypeScript, using Vite as the build tool and development server.
+- **Framework**: React 18+ with TypeScript, using Vite.
+- **UI Component System**: shadcn/ui (New York style) built on Radix UI, following Material Design 3 principles.
+- **Styling**: Tailwind CSS with custom CSS variables for design tokens, focusing on a professional hospitality aesthetic. Custom typography includes Inter (UI) and Space Grotesk (headings). Supports light/dark themes.
+- **State Management**: TanStack Query for server state, React Hook Form with Zod for form state, and React Context for theme/sidebar.
+- **Routing**: Wouter for client-side routing.
+- **Layout**: Fixed left sidebar (280px) and a main content area with responsive design.
 
-**UI Component System**: The application uses shadcn/ui (New York style) built on Radix UI primitives. This provides a comprehensive set of accessible, customizable components following Material Design 3 principles adapted for SaaS dashboards.
+### Backend
 
-**Styling Approach**: 
-- Tailwind CSS with custom design tokens defined in CSS variables
-- Design system emphasizes clarity over decoration with professional hospitality aesthetics
-- Custom typography using Inter (UI elements) and Space Grotesk (headings)
-- Spacing system based on Tailwind units (2, 4, 6, 8, 12, 16, 24)
-- Theme support (light/dark) with CSS custom properties
-
-**State Management**: 
-- TanStack Query (React Query) for server state management
-- React Hook Form with Zod validation for form state
-- React Context for theme and sidebar state
-
-**Routing**: Wouter for client-side routing (lightweight alternative to React Router)
-
-**Layout Structure**: 
-- Fixed left sidebar (280px width) for main navigation
-- Main content area with max-width containers
-- Responsive design with mobile breakpoints
-
-### Backend Architecture
-
-**Runtime**: Node.js with Express.js framework
-
-**Language**: TypeScript with ES modules
-
-**Development vs Production**:
-- Development: Uses Vite middleware for HMR and hot reloading
-- Production: Serves pre-built static assets from dist/public
-
-**API Design**: RESTful API with the following patterns:
-- Authentication middleware protecting all `/api` routes
-- Route handlers organized in `server/routes.ts`
-- Storage abstraction layer (`server/storage.ts`) for database operations
-- Separate development and production entry points
-
-**Session Management**: Express sessions with PostgreSQL storage using connect-pg-simple
-
-**Authentication**: OpenID Connect (OIDC) integration with Replit Auth using Passport.js strategy
+- **Runtime**: Node.js with Express.js (TypeScript, ES modules).
+- **API Design**: RESTful API with authentication middleware, organized routes, and an abstraction layer for database operations.
+- **Session Management**: Express sessions with PostgreSQL storage.
+- **Authentication**: OpenID Connect (OIDC) via Replit Auth using Passport.js.
 
 ### Data Storage
 
-**Database**: PostgreSQL (via Neon serverless)
+- **Database**: PostgreSQL (Neon serverless).
+- **ORM**: Drizzle ORM with type-safe schemas.
+- **Schema**:
+    - `users`: User accounts.
+    - `sessions`: Express session storage.
+    - `agents`: AI agent configurations with a status workflow.
+    - `flowNodes`, `flowConnections`: Visual flow builder data.
+    - `knowledgeBase`: Q&A pairs for agent training.
+    - `templates`: Pre-built agent templates.
+    - `testConversations`: Conversation history for agent testing.
+    - `contacts`: CRM contacts with tags and notes.
+    - `phoneNumbers`: Twilio phone numbers with agent assignments.
+    - `integrationConfigs`: POS integration OAuth tokens (Square, Toast).
+    - `analyticsEvents`: Event tracking for calls, orders, reservations.
+- **Migrations**: Drizzle Kit.
 
-**ORM**: Drizzle ORM with type-safe schema definitions
+### Core Features
 
-**Schema Structure**:
-- `users` - User accounts from Replit Auth
-- `sessions` - Express session storage
-- `agents` - AI agent configurations with status workflow (draft → testing → active → paused)
-- `flowNodes` and `flowConnections` - Visual flow builder data (currently unused but schema exists)
-- `knowledgeBase` - Q&A pairs organized by category for agent training
-- `templates` - Pre-built agent templates for different industries
-- `testConversations` - Conversation history for testing agents
-- `contacts` - CRM contacts with name, email, phone, tags, and notes (searchable)
-- `phoneNumbers` - Twilio phone numbers with nullable agentId for assignment/unassignment workflows
-- `integrationConfigs` - POS integration OAuth tokens and configuration (Square, Toast)
-- `analyticsEvents` - Event tracking for calls, orders, reservations with metadata
+- **Plan & Billing**: Settings page with pricing calculator, subscription management, and usage tracking.
+- **Phone Numbers Management**: Search, purchase, assign, and release Twilio phone numbers.
+- **Contacts Management**: Full CRUD, search, filter, and tag operations for contacts.
+- **POS Integrations**: OAuth 2.0 flows for Square and Toast POS, with automatic token refresh.
+- **Analytics Dashboard**: Real-time tracking for calls, orders, reservations, with KPI cards and Recharts visualizations.
+- **Workflow Builder**: Integrated into the agent editor with drag-and-drop interface for creating agent flows.
+- **Test Center**: Integrated into the agent editor with text and voice testing modes (using OpenAI GPT-5, Whisper, TTS) for conversational agents.
+- **Integrations Page**: Displays available and upcoming integrations (Square, Toast, Twilio, Resy, Tock, Yelp).
 
-**Migration Strategy**: Drizzle Kit for schema migrations (push-based approach)
+## External Dependencies
 
-**Data Relationships**:
-- Users have many agents (cascade delete)
-- Users have many contacts (cascade delete)
-- Users have many phone numbers (cascade delete)
-- Users have many integrations (cascade delete)
-- Users have many analytics events (cascade delete)
-- Agents have many knowledge base items (cascade delete)
-- Agents have many test conversations (cascade delete)
-- Agents optionally referenced by analytics events (nullable, set null on agent delete)
-- Phone numbers optionally reference agents (nullable, set null on agent delete)
-- Templates can be cloned to create new agents
-
-### External Dependencies
-
-**Authentication Service**: Replit OIDC provider for user authentication and session management
-
-**AI Service**: OpenAI API (GPT-5 model) for generating conversational responses
-- System prompts combine agent personality, greeting, and knowledge base
-- Conversation history maintained for context
-- Used in agent testing interface
-
-**Telephony Service**: Twilio API for phone number management
-- Centralized platform account (credentials stored as secrets)
-- Search available numbers by area code
-- Purchase and release phone numbers programmatically
-- Assign phone numbers to AI agents for call routing
-- Graceful degradation when credentials not configured (DB operations still work)
-
-**Database Service**: Neon Serverless PostgreSQL
-- WebSocket-based connection pooling
-- Configured via DATABASE_URL environment variable
-
-**Development Tools**:
-- Replit-specific plugins for development experience (cartographer, dev banner, runtime error overlay)
-- These are conditionally loaded only in Replit development environment
-
-**Fonts**: Google Fonts CDN for Inter, Space Grotesk, and Fira Code typefaces
-
-**Environment Variables Required**:
-- `DATABASE_URL` - PostgreSQL connection string
-- `OPENAI_API_KEY` - OpenAI API key for agent responses
-- `SESSION_SECRET` - Express session encryption key
-- `REPL_ID` - Replit environment identifier
-- `ISSUER_URL` - OIDC issuer URL (defaults to replit.com/oidc)
-- `TWILIO_ACCOUNT_SID` - Twilio account identifier (optional for phone number features)
-- `TWILIO_AUTH_TOKEN` - Twilio authentication token (optional for phone number features)
-- `SQUARE_CLIENT_ID` - Square OAuth application client ID (required for Square POS integration)
-- `SQUARE_CLIENT_SECRET` - Square OAuth application client secret (required for Square POS integration)
-- `SQUARE_OAUTH_REDIRECT_URI` - Square OAuth callback URL (required, e.g., https://yourdomain.com/api/integrations/square/oauth/callback)
-- `TOAST_CLIENT_ID` - Toast OAuth application client ID (required for Toast POS integration)
-- `TOAST_CLIENT_SECRET` - Toast OAuth application client secret (required for Toast POS integration)
-- `TOAST_OAUTH_REDIRECT_URI` - Toast OAuth callback URL (required, e.g., https://yourdomain.com/api/integrations/toast/oauth/callback)
-
-## Feature Implementation Status
-
-### Completed Features
-
-**Plan & Billing System** (Production Ready)
-- Settings page with sidebar navigation (Preferences, Plan & Billing, Security, Usage, Notifications tabs)
-- Current plan card displaying real subscription data and usage metrics
-- **Interactive Pricing Calculator**:
-  - Dual sliders: Monthly minutes (900-15,000) and average call duration (5-60 min)
-  - LLM model selection (13 options: GPT-5, Claude 3.7, Gemini 2.0, etc.)
-  - Voice engine selection (ElevenLabs/Cartesia, OpenAI)
-  - Telephony provider selection (Custom, Retell Twilio/Telnyx)
-  - Real-time cost breakdown (LLM + Voice + Telephony per minute)
-  - Total monthly cost calculation with quick stats (cost per call, daily cost, monthly calls)
-  - Optimized for restaurant usage (30+ calls/day at 30 min average)
-- Four pricing tiers with restaurant-focused metrics (Starter, Professional, Business, Enterprise)
-- Detailed cost structure comparison table across all plans
-- Database schema: subscriptions table (plan type, status, limits, features) and usageMetrics table (period tracking, consumption counters)
-- Automatic trial subscription creation on first login
-- Backend validation: plan whitelist, business logic with plan-specific limits
-- Frontend safeguards: null handling, loading states, proper type conversions
-- API endpoints: GET /api/subscription (auto-provision trial), PUT /api/subscription (validated plan updates), GET /api/usage-metrics
-- Sidebar usage indicator with circular progress showing minutes used vs limit
-- Next steps: Stripe integration for payments, real-time usage tracking, upgrade/downgrade flows
-
-**Phone Numbers Management** (Production Ready)
-- Search available Twilio phone numbers by area code
-- Purchase phone numbers with optional friendly names
-- Assign/unassign phone numbers to AI agents
-- Release (delete) phone numbers from Twilio and database
-- Validation: Zod schema with nullable agentId support, undefined filtering, empty payload rejection
-- Security: Authentication on all routes, ownership validation, tenant isolation
-- End-to-end tested with playwright verification
-
-**Contacts Management** (Production Ready)
-- Full CRUD operations for customer contacts
-- Search and filtering capabilities
-- Tag-based organization
-- Notes and relationship tracking
-- End-to-end tested with playwright verification
-
-**POS Integrations** (In Progress - Migrating to OAuth)
-- OAuth 2.0 flows for Square POS and Toast POS
-- Automatic token refresh and management
-- Secure token storage in JSONB fields
-- One-click connection via OAuth redirect
-- Integration status tracking and monitoring
-- Previous version: Manual API key entry (deprecated)
-
-**Analytics Dashboard** (Production Ready)
-- Real-time analytics tracking for calls, orders, reservations
-- Overview API endpoint with aggregated statistics
-- Event types: call_started, call_ended, order_placed, reservation_made
-- KPI cards: Total Calls, Average Duration, Orders, Reservations, Revenue, Total Events
-- Recharts visualizations: Call Volume, Event Distribution, Agent Activity, Revenue Trends
-- Date range filtering (last 30 days default)
-- Edge case handling: nullable agentId, invalid metadata amounts, string parsing
-- Chronological sorting of time-series data
-- Nullish coalescing to preserve zero values
-- Loading states and empty states
-- End-to-end tested with comprehensive edge cases
-
-**Workflow Builder Integration** (Production Ready)
-- Workflow builder integrated into agent editor as a tab (Settings, Workflow, and Test tabs)
-- Standalone Workflows navigation item removed from sidebar
-- Workflows accessed through: Agents → Select Agent → Workflow Tab
-- Drag-and-drop interface with restaurant-focused node types (greeting, menu, reservation, order, faq)
-- Node palette on right, large canvas on left
-- Save/load functionality within agent editor context
-- Frontend-generated UUIDs for new nodes using crypto.randomUUID()
-- Bulk save API with automatic upsert and deletion logic
-- Preserves existing workflow data when switching between agents
-
-**Test Center Integration with Voice Testing** (Production Ready)
-- Test Center integrated into agent editor as a tab (Settings, Workflow, and Test tabs)
-- Standalone Test Center navigation item removed from sidebar
-- Test conversations accessed through: Agents → Select Agent → Test Tab
-- **Text Mode:**
-  - Real-time conversation testing with OpenAI GPT-5
-  - Disabled for new agents (only available for existing agents)
-  - Uses agent's configured greeting, personality, and knowledge base
-  - Conversation history maintained during session with proper context preservation
-  - Clear conversation functionality for starting fresh tests
-- **Voice Mode:**
-  - Browser-based voice recording using MediaRecorder API
-  - Speech-to-text transcription using OpenAI Whisper API (whisper-1 model)
-  - Real-time transcription feedback via toast notifications
-  - Agent response generation with full conversation context
-  - Text-to-speech synthesis using OpenAI TTS API (tts-1 model, nova voice)
-  - Automatic audio playback of agent responses
-  - Visual state indicators: recording (red), processing (disabled), ready (green)
-  - Microphone permission handling with user-friendly error messages
-  - MediaRecorder lifecycle management for repeated recordings
-- **Shared Features:**
-  - Text/Voice mode toggle using ToggleGroup component
-  - Conversation history preserved when switching between modes
-  - Multi-turn conversations work correctly in both modes
-  - Full integration with agent configuration (greeting, personality, knowledge base)
-  - All interactive elements properly instrumented with data-testid attributes
-- **API Endpoints:**
-  - POST /api/agents/:id/test - Agent response generation
-  - POST /api/agents/:id/transcribe - Speech-to-text conversion
-  - POST /api/agents/:id/synthesize - Text-to-speech conversion
-- **Dependencies:**
-  - OpenAI API key required (Whisper, GPT-5, TTS)
-  - Browser MediaRecorder API support
-  - Microphone permissions for voice mode
-- End-to-end tested with comprehensive test coverage
-
-**Integrations Page** (Production Ready)
-- OAuth-enabled integrations: Square POS, Toast POS
-- Upcoming integrations (Coming Soon): Twilio, Resy, Tock, Yelp Reservations
-- Company logos using react-icons/si (Square, Twilio, Yelp) and official logo images (Toast, Resy, Tock)
-- All logos displayed in 48px circular containers with proper aspect ratio
-- Brand-accurate colors with dark mode support
-- 3-column responsive grid layout (stacks to 2 columns on medium screens)
-- All interactive elements properly instrumented with data-testid attributes
-- Opacity applied only to icon containers to preserve text contrast for accessibility
+- **Authentication Service**: Replit OIDC provider.
+- **AI Service**: OpenAI API (GPT-5, Whisper, TTS) for conversational responses, speech-to-text, and text-to-speech.
+- **Telephony Service**: Twilio API for phone number management and call routing.
+- **Database Service**: Neon Serverless PostgreSQL.
+- **Development Tools**: Replit-specific plugins (cartographer, dev banner, runtime error overlay).
+- **Fonts**: Google Fonts CDN (Inter, Space Grotesk, Fira Code).
+- **Environment Variables**: `DATABASE_URL`, `OPENAI_API_KEY`, `SESSION_SECRET`, `REPL_ID`, `ISSUER_URL`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `SQUARE_CLIENT_ID`, `SQUARE_CLIENT_SECRET`, `SQUARE_OAUTH_REDIRECT_URI`, `TOAST_CLIENT_ID`, `TOAST_CLIENT_SECRET`, `TOAST_OAUTH_REDIRECT_URI`.

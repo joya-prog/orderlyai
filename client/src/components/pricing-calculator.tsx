@@ -33,33 +33,40 @@ const VOICE_ENGINES: PricingOption[] = [
 
 const TELEPHONY_PROVIDERS: PricingOption[] = [
   { id: "custom", label: "Custom Telephony", costPerMinute: 0.000 },
-  { id: "retell", label: "Retell Twilio/Telnyx", costPerMinute: 0.012 },
 ];
 
 export function PricingCalculator() {
-  const [minutes, setMinutes] = useState(3000); // Default to 100 calls/month @ 30 min each
+  // Restaurant-focused inputs
+  const [callsPerDay, setCallsPerDay] = useState(50); // Default: 50 calls/day
+  const [avgCallDuration, setAvgCallDuration] = useState(5); // Default: 5 minutes per call
+  const [locations, setLocations] = useState(1); // Default: 1 location
+  
   const [selectedLLM, setSelectedLLM] = useState("claude-3.7-sonnet");
   const [selectedVoice, setSelectedVoice] = useState("elevenlabs-cartesia");
-  const [selectedTelephony, setSelectedTelephony] = useState("custom");
-  const [avgCallDuration, setAvgCallDuration] = useState(30); // Average call duration in minutes
+  const [selectedTelephony] = useState("custom"); // Fixed to custom
 
   // Find selected options
   const llmOption = LLM_MODELS.find((m) => m.id === selectedLLM) || LLM_MODELS[0];
   const voiceOption = VOICE_ENGINES.find((v) => v.id === selectedVoice) || VOICE_ENGINES[0];
   const telephonyOption = TELEPHONY_PROVIDERS.find((t) => t.id === selectedTelephony) || TELEPHONY_PROVIDERS[0];
 
-  // Calculate costs
+  // Calculate costs per location
   const llmCost = llmOption.costPerMinute;
   const voiceCost = voiceOption.costPerMinute;
   const telephonyCost = telephonyOption.costPerMinute;
   const costPerMinute = llmCost + voiceCost + telephonyCost;
-  const totalMonthlyCost = costPerMinute * minutes;
-
-  // Calculate call metrics
-  const totalCallsPerMonth = Math.round(minutes / avgCallDuration);
-  const callsPerDay = Math.round(totalCallsPerMonth / 30);
+  
+  // Per-location calculations
+  const dailyMinutes = callsPerDay * avgCallDuration;
+  const monthlyMinutesPerLocation = dailyMinutes * 30;
+  const monthlyCostPerLocation = costPerMinute * monthlyMinutesPerLocation;
+  
+  // Total calculations (across all locations)
+  const totalMonthlyMinutes = monthlyMinutesPerLocation * locations;
+  const totalMonthlyCost = monthlyCostPerLocation * locations;
+  const totalCallsPerMonth = callsPerDay * 30 * locations;
   const costPerCall = costPerMinute * avgCallDuration;
-  const dailyCost = (totalMonthlyCost / 30);
+  const dailyCost = totalMonthlyCost / 30;
 
   return (
     <Card className="bg-gradient-to-br from-primary/10 via-primary/5 to-background border-primary/20">
@@ -73,31 +80,31 @@ export function PricingCalculator() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - Controls */}
           <div className="lg:col-span-2 space-y-8">
-            {/* Minutes Slider */}
+            {/* Calls Per Day Slider */}
             <div>
               <div className="flex items-baseline justify-between mb-4">
                 <label className="text-sm font-medium">
-                  How many minutes of calls do you have per month?
+                  How many calls does your restaurant have per day?
                 </label>
-                <span className="text-3xl font-bold" data-testid="minutes-value">
-                  {minutes.toLocaleString()}
+                <span className="text-3xl font-bold" data-testid="calls-per-day-value">
+                  {callsPerDay}
                 </span>
               </div>
               <Slider
-                value={[minutes]}
-                onValueChange={(value) => setMinutes(value[0])}
-                min={900}
-                max={15000}
-                step={100}
+                value={[callsPerDay]}
+                onValueChange={(value) => setCallsPerDay(value[0])}
+                min={30}
+                max={400}
+                step={10}
                 className="mb-2"
-                data-testid="slider-minutes"
+                data-testid="slider-calls-per-day"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>900 min (~30 calls/day)</span>
+                <span>30 calls/day</span>
                 <span className="text-center">
-                  {totalCallsPerMonth.toLocaleString()} calls/month (~{callsPerDay} calls/day)
+                  {(callsPerDay * 30).toLocaleString()} calls/month per location
                 </span>
-                <span>15,000 min (~500 calls/day)</span>
+                <span>400 calls/day</span>
               </div>
             </div>
 
@@ -105,7 +112,7 @@ export function PricingCalculator() {
             <div>
               <div className="flex items-baseline justify-between mb-4">
                 <label className="text-sm font-medium">
-                  Average call duration (minutes)
+                  How long is the duration of each call?
                 </label>
                 <span className="text-2xl font-bold" data-testid="avg-duration-value">
                   {avgCallDuration} min
@@ -114,15 +121,40 @@ export function PricingCalculator() {
               <Slider
                 value={[avgCallDuration]}
                 onValueChange={(value) => setAvgCallDuration(value[0])}
-                min={5}
-                max={60}
-                step={5}
+                min={2.5}
+                max={8}
+                step={0.5}
                 className="mb-2"
                 data-testid="slider-avg-duration"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>5 min (quick inquiries)</span>
-                <span>60 min (complex orders)</span>
+                <span>2.5 min (quick inquiries)</span>
+                <span>8 min (complex orders)</span>
+              </div>
+            </div>
+
+            {/* Locations Slider */}
+            <div>
+              <div className="flex items-baseline justify-between mb-4">
+                <label className="text-sm font-medium">
+                  How many locations do you have?
+                </label>
+                <span className="text-2xl font-bold" data-testid="locations-value">
+                  {locations}
+                </span>
+              </div>
+              <Slider
+                value={[locations]}
+                onValueChange={(value) => setLocations(value[0])}
+                min={1}
+                max={10}
+                step={1}
+                className="mb-2"
+                data-testid="slider-locations"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>1 location</span>
+                <span>10 locations</span>
               </div>
             </div>
 
@@ -161,28 +193,11 @@ export function PricingCalculator() {
                 ))}
               </div>
             </div>
-
-            {/* Telephony Selection */}
-            <div>
-              <label className="text-sm font-medium mb-3 block">Telephony</label>
-              <div className="flex flex-wrap gap-2">
-                {TELEPHONY_PROVIDERS.map((provider) => (
-                  <Badge
-                    key={provider.id}
-                    variant={selectedTelephony === provider.id ? "default" : "outline"}
-                    className="cursor-pointer hover-elevate px-3 py-1.5 text-xs"
-                    onClick={() => setSelectedTelephony(provider.id)}
-                    data-testid={`telephony-${provider.id}`}
-                  >
-                    {provider.label}
-                  </Badge>
-                ))}
-              </div>
-            </div>
           </div>
 
           {/* Right Column - Cost Breakdown */}
           <div className="space-y-6">
+            {/* Per-Location Breakdown */}
             <div className="rounded-lg border bg-card p-6 space-y-4">
               <div>
                 <div className="text-sm text-muted-foreground mb-1">Cost Per Minute</div>
@@ -213,12 +228,24 @@ export function PricingCalculator() {
               </div>
 
               <div className="pt-4 border-t">
-                <div className="text-sm text-muted-foreground mb-1">Total Monthly Cost</div>
+                <div className="text-sm text-muted-foreground mb-1">Per Location (Monthly)</div>
+                <div className="text-2xl font-bold text-primary" data-testid="per-location-cost">
+                  ${monthlyCostPerLocation.toFixed(2)}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {monthlyMinutesPerLocation.toLocaleString()} min/month × ${costPerMinute.toFixed(3)}/min
+                </div>
+              </div>
+
+              <div className="pt-4 border-t">
+                <div className="text-sm text-muted-foreground mb-1">
+                  Total Monthly Cost {locations > 1 ? `(${locations} locations)` : ""}
+                </div>
                 <div className="text-4xl font-bold text-primary" data-testid="total-cost">
                   ${totalMonthlyCost.toFixed(2)}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  {minutes.toLocaleString()} minutes × ${costPerMinute.toFixed(3)}/min
+                  {totalMonthlyMinutes.toLocaleString()} total minutes
                 </div>
               </div>
             </div>
@@ -236,13 +263,13 @@ export function PricingCalculator() {
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Daily cost (~{callsPerDay} calls/day)</span>
+                  <span>Total daily cost (all locations)</span>
                   <span className="font-medium" data-testid="daily-cost">
                     ${dailyCost.toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Monthly calls</span>
+                  <span>Total monthly calls</span>
                   <span className="font-medium" data-testid="monthly-calls">
                     {totalCallsPerMonth.toLocaleString()}
                   </span>

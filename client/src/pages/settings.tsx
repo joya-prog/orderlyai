@@ -167,21 +167,21 @@ export default function SettingsPage() {
 
   return (
     <div className="flex flex-col md:flex-row h-full">
-      {/* Mobile: Horizontal Scrollable Tabs */}
-      <div className="md:hidden border-b bg-muted/30 overflow-x-auto">
-        <div className="flex gap-2 p-4 min-w-max">
+      {/* Mobile: Wrapped Tabs */}
+      <div className="md:hidden border-b bg-muted/30">
+        <div className="flex flex-wrap gap-2 p-3">
           {menuItems.map((item) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm whitespace-nowrap transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs whitespace-nowrap transition-colors ${
                 activeTab === item.id
                   ? "bg-primary text-primary-foreground"
                   : "hover-elevate text-foreground bg-background"
               }`}
               data-testid={`settings-tab-${item.id}`}
             >
-              <item.icon className="h-4 w-4" />
+              <item.icon className="h-3.5 w-3.5" />
               {item.label}
             </button>
           ))}
@@ -344,10 +344,8 @@ export default function SettingsPage() {
             {/* Cost Structure Table */}
             <div>
               <h2 className="text-2xl font-semibold mb-6">Costs Structure</h2>
-              <Card>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
+              <div className="overflow-x-auto rounded-3xl border border-card-border bg-card shadow-md">
+                <table className="w-full min-w-max">
                       <thead>
                         <tr className="border-b bg-muted/50">
                           <th className="text-left p-4 font-medium text-sm">Feature</th>
@@ -409,9 +407,7 @@ export default function SettingsPage() {
                         ))}
                       </tbody>
                     </table>
-                  </div>
-                </CardContent>
-              </Card>
+              </div>
             </div>
           </div>
         )}

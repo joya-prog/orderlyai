@@ -132,6 +132,9 @@ export function VoiceSelector({ open, onOpenChange, provider, selectedVoiceId, o
           <div className="space-y-6">
             <div>
               <label className="text-sm font-medium mb-2 block">Provider</label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Change provider in the main Voice tab first
+              </p>
               <Select value={provider} disabled>
                 <SelectTrigger data-testid="voice-selector-provider">
                   <SelectValue />

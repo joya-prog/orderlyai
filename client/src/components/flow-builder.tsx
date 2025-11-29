@@ -41,6 +41,9 @@ import {
   X,
   GitBranch,
   Play,
+  ArrowRight,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 
 // Color definitions for node badges - inspired by professional IVR builders
@@ -52,6 +55,32 @@ const nodeColors = {
   red: { bg: 'bg-rose-500', light: 'bg-rose-50 dark:bg-rose-950/30', border: 'border-rose-200 dark:border-rose-800' },
   cyan: { bg: 'bg-cyan-500', light: 'bg-cyan-50 dark:bg-cyan-950/30', border: 'border-cyan-200 dark:border-cyan-800' },
   gray: { bg: 'bg-gray-500', light: 'bg-gray-50 dark:bg-gray-950/30', border: 'border-gray-200 dark:border-gray-800' },
+};
+
+// Transition type definition
+interface Transition {
+  id: string;
+  label: string;
+  color?: string;
+}
+
+// Default transitions for each node type
+const defaultTransitions: Record<string, Transition[]> = {
+  greeting: [{ id: 'next', label: 'Continue', color: 'emerald' }],
+  checkAvailability: [
+    { id: 'available', label: 'Available', color: 'emerald' },
+    { id: 'unavailable', label: 'Unavailable', color: 'rose' },
+  ],
+  bookTable: [{ id: 'next', label: 'Confirmed', color: 'emerald' }],
+  takeOrder: [{ id: 'next', label: 'Order Complete', color: 'emerald' }],
+  dietaryRestrictions: [{ id: 'next', label: 'Continue', color: 'emerald' }],
+  collectInfo: [{ id: 'next', label: 'Info Collected', color: 'emerald' }],
+  condition: [
+    { id: 'yes', label: 'Yes', color: 'emerald' },
+    { id: 'no', label: 'No', color: 'rose' },
+  ],
+  transfer: [{ id: 'next', label: 'Transferred', color: 'emerald' }],
+  end: [],
 };
 
 // Restaurant-specific node types with new color scheme
@@ -67,7 +96,15 @@ const restaurantNodeTypes = [
   { type: 'end', label: 'End Call', subtitle: 'Hang up', icon: XCircle, color: 'gray' },
 ];
 
-// Professional editable node component with inline description editing
+// Transition color mapping
+const transitionColors: Record<string, { bg: string; text: string; handle: string }> = {
+  emerald: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400', handle: '!bg-emerald-500' },
+  rose: { bg: 'bg-rose-100 dark:bg-rose-900/30', text: 'text-rose-700 dark:text-rose-400', handle: '!bg-rose-500' },
+  blue: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-400', handle: '!bg-blue-500' },
+  amber: { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-400', handle: '!bg-amber-500' },
+};
+
+// Professional editable node component with inline description editing and transitions
 function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id: string }) {
   const nodeConfig = restaurantNodeTypes.find(t => t.type === data.type);
   const Icon = nodeConfig?.icon || MessageCircle;
@@ -75,7 +112,11 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
   const colors = nodeColors[colorKey];
   const [isEditing, setIsEditing] = useState(false);
   const [localContent, setLocalContent] = useState(data.content || '');
+  const [editingTransitionId, setEditingTransitionId] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Get transitions from data or use defaults
+  const transitions: Transition[] = data.transitions || defaultTransitions[data.type] || [];
   
   // Sync local content with data
   useEffect(() => {
@@ -93,9 +134,38 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setLocalContent(value);
-    // Update node data through the callback passed via data prop
     if (data.onUpdate) {
       data.onUpdate(id, { content: value });
+    }
+  };
+  
+  const handleTransitionLabelChange = (transitionId: string, newLabel: string) => {
+    const updatedTransitions = transitions.map(t => 
+      t.id === transitionId ? { ...t, label: newLabel } : t
+    );
+    if (data.onUpdate) {
+      data.onUpdate(id, { transitions: updatedTransitions });
+    }
+  };
+  
+  const handleAddTransition = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newTransition: Transition = {
+      id: `transition-${Date.now()}`,
+      label: 'New Path',
+      color: 'blue',
+    };
+    const updatedTransitions = [...transitions, newTransition];
+    if (data.onUpdate) {
+      data.onUpdate(id, { transitions: updatedTransitions });
+    }
+  };
+  
+  const handleRemoveTransition = (e: React.MouseEvent, transitionId: string) => {
+    e.stopPropagation();
+    const updatedTransitions = transitions.filter(t => t.id !== transitionId);
+    if (data.onUpdate) {
+      data.onUpdate(id, { transitions: updatedTransitions });
     }
   };
   
@@ -115,26 +185,32 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
     setIsEditing(false);
   };
   
-  // Stop drag when interacting with textarea
   const handleTextareaMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
   };
   
+  const handleTransitionInputMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+  
+  // Check if this is an end node (no transitions)
+  const isEndNode = data.type === 'end';
+  
   return (
-    <div className="group">
-      {/* Top Handle */}
+    <div className="group relative">
+      {/* Top Handle - Entry point */}
       <Handle 
         type="target" 
         position={Position.Top} 
-        className="!w-2.5 !h-2.5 !bg-gray-300 dark:!bg-gray-600 !border-2 !border-white dark:!border-gray-800 !-top-1"
+        className="!w-3 !h-3 !bg-gray-400 dark:!bg-gray-500 !border-2 !border-white dark:!border-gray-800 !-top-1.5 !rounded-full"
         id={`${id}-target`}
         isConnectable={true}
       />
       
-      {/* Node Card - Larger to accommodate editable content */}
+      {/* Node Card */}
       <div 
         className={`
-          w-[240px] bg-white dark:bg-gray-900 rounded-xl 
+          w-[260px] bg-white dark:bg-gray-900 rounded-xl 
           shadow-sm hover:shadow-md transition-all duration-200
           border-2 ${selected ? 'border-blue-500 shadow-blue-100 dark:shadow-blue-900/20' : 'border-gray-100 dark:border-gray-800'}
         `}
@@ -142,29 +218,19 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
       >
         {/* Header with icon and title */}
         <div className="p-3 flex items-center gap-3 border-b border-gray-100 dark:border-gray-800">
-          {/* Colored Icon Badge */}
-          <div className={`
-            w-8 h-8 rounded-lg ${colors.bg} flex items-center justify-center flex-shrink-0 shadow-sm
-          `}>
+          <div className={`w-8 h-8 rounded-lg ${colors.bg} flex items-center justify-center flex-shrink-0 shadow-sm`}>
             <Icon className="h-4 w-4 text-white" />
           </div>
           
-          {/* Title */}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {data.label}
-            </p>
-            <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wide">
-              {nodeConfig?.subtitle}
-            </p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{data.label}</p>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wide">{nodeConfig?.subtitle}</p>
           </div>
           
-          {/* Delete button - visible when selected */}
           {selected && (
             <button
               onClick={handleDelete}
-              className="w-6 h-6 rounded-md bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 
-                flex items-center justify-center transition-colors"
+              className="w-6 h-6 rounded-md bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center justify-center transition-colors"
               data-testid="button-delete-node"
             >
               <X className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
@@ -173,7 +239,7 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
         </div>
         
         {/* Editable Content Area */}
-        <div className="p-3">
+        <div className="p-3 border-b border-gray-100 dark:border-gray-800">
           <label className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1.5 block">
             Instructions
           </label>
@@ -184,9 +250,9 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
             onClick={handleTextareaClick}
             onBlur={handleTextareaBlur}
             onMouseDown={handleTextareaMouseDown}
-            placeholder={`What should the AI do here? e.g., "${nodeConfig?.subtitle || 'Enter instructions'}..."`}
+            placeholder={`What should the AI do here?`}
             className={`
-              w-full min-h-[60px] max-h-[120px] text-xs leading-relaxed resize-none
+              w-full min-h-[50px] max-h-[100px] text-xs leading-relaxed resize-none
               bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2
               border border-gray-200 dark:border-gray-700
               focus:border-blue-400 dark:focus:border-blue-500 focus:ring-1 focus:ring-blue-400/20
@@ -197,16 +263,111 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
             data-testid="input-node-content"
           />
         </div>
+        
+        {/* Transitions Section */}
+        {!isEndNode && (
+          <div className="p-3">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">
+                Transitions
+              </label>
+              {selected && (
+                <button
+                  onClick={handleAddTransition}
+                  className="w-5 h-5 rounded bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 
+                    flex items-center justify-center transition-colors"
+                  data-testid="button-add-transition"
+                >
+                  <Plus className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                </button>
+              )}
+            </div>
+            
+            {/* Transition List */}
+            <div className="space-y-2">
+              {transitions.map((transition, index) => {
+                const tColors = transitionColors[transition.color || 'emerald'];
+                return (
+                  <div 
+                    key={transition.id}
+                    className={`flex items-center gap-2 p-1.5 rounded-lg ${tColors.bg} group/transition`}
+                  >
+                    <ArrowRight className={`h-3 w-3 ${tColors.text} flex-shrink-0`} />
+                    {editingTransitionId === transition.id ? (
+                      <input
+                        type="text"
+                        defaultValue={transition.label}
+                        onBlur={(e) => {
+                          handleTransitionLabelChange(transition.id, e.target.value);
+                          setEditingTransitionId(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleTransitionLabelChange(transition.id, e.currentTarget.value);
+                            setEditingTransitionId(null);
+                          }
+                        }}
+                        onMouseDown={handleTransitionInputMouseDown}
+                        autoFocus
+                        className={`flex-1 text-xs font-medium bg-transparent border-none outline-none ${tColors.text}`}
+                        data-testid={`input-transition-${transition.id}`}
+                      />
+                    ) : (
+                      <span 
+                        onClick={(e) => { e.stopPropagation(); setEditingTransitionId(transition.id); }}
+                        className={`flex-1 text-xs font-medium ${tColors.text} cursor-pointer hover:underline`}
+                        data-testid={`text-transition-${transition.id}`}
+                      >
+                        {transition.label}
+                      </span>
+                    )}
+                    {selected && transitions.length > 1 && (
+                      <button
+                        onClick={(e) => handleRemoveTransition(e, transition.id)}
+                        className="opacity-0 group-hover/transition:opacity-100 w-4 h-4 rounded bg-white/50 dark:bg-gray-800/50 
+                          hover:bg-white dark:hover:bg-gray-800 flex items-center justify-center transition-all"
+                        data-testid={`button-remove-transition-${transition.id}`}
+                      >
+                        <Trash2 className="h-2.5 w-2.5 text-gray-500" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
       
-      {/* Bottom Handle */}
-      <Handle 
-        type="source" 
-        position={Position.Bottom} 
-        className="!w-2.5 !h-2.5 !bg-gray-300 dark:!bg-gray-600 !border-2 !border-white dark:!border-gray-800 !-bottom-1"
-        id={`${id}-source`}
-        isConnectable={true}
-      />
+      {/* Bottom Handles - One for each transition */}
+      {transitions.length === 1 ? (
+        <Handle 
+          type="source" 
+          position={Position.Bottom} 
+          className={`!w-3 !h-3 !border-2 !border-white dark:!border-gray-800 !-bottom-1.5 !rounded-full ${transitionColors[transitions[0].color || 'emerald'].handle}`}
+          id={`${id}-${transitions[0].id}`}
+          isConnectable={true}
+        />
+      ) : transitions.length > 1 ? (
+        <>
+          {transitions.map((transition, index) => {
+            const handleColor = transitionColors[transition.color || 'emerald'];
+            const spacing = 100 / (transitions.length + 1);
+            const leftPercent = spacing * (index + 1);
+            return (
+              <Handle 
+                key={transition.id}
+                type="source" 
+                position={Position.Bottom}
+                className={`!w-3 !h-3 !border-2 !border-white dark:!border-gray-800 !-bottom-1.5 !rounded-full ${handleColor.handle}`}
+                id={`${id}-${transition.id}`}
+                isConnectable={true}
+                style={{ left: `${leftPercent}%` }}
+              />
+            );
+          })}
+        </>
+      ) : null}
     </div>
   );
 }
@@ -257,6 +418,7 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const { screenToFlowPosition, zoomIn, zoomOut, fitView } = useReactFlow();
   
   // Undo/Redo history - use state for proper React integration
@@ -345,6 +507,14 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
     [setEdges],
   );
+
+  const onNodeClick = useCallback((_event: any, node: Node) => {
+    setSelectedNodeId(node.id);
+  }, []);
+
+  const onPaneClick = useCallback(() => {
+    setSelectedNodeId(null);
+  }, []);
 
   const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -462,11 +632,13 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
         <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100 dark:from-gray-950 dark:via-blue-950/20 dark:to-gray-900" />
         
         <ReactFlow
-          nodes={nodes}
+          nodes={nodes.map(n => ({ ...n, selected: n.id === selectedNodeId }))}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onNodeClick={onNodeClick}
+          onPaneClick={onPaneClick}
           onDrop={onDrop}
           onDragOver={onDragOver}
           nodeTypes={nodeTypes}

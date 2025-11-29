@@ -19,11 +19,9 @@ import {
   Panel,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   MessageCircle, 
@@ -33,7 +31,6 @@ import {
   Phone, 
   CheckCircle, 
   XCircle,
-  Settings,
   Search,
   Undo2,
   Redo2,
@@ -70,12 +67,58 @@ const restaurantNodeTypes = [
   { type: 'end', label: 'End Call', subtitle: 'Hang up', icon: XCircle, color: 'gray' },
 ];
 
-// Professional node component matching inspiration images
+// Professional editable node component with inline description editing
 function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id: string }) {
   const nodeConfig = restaurantNodeTypes.find(t => t.type === data.type);
   const Icon = nodeConfig?.icon || MessageCircle;
   const colorKey = (nodeConfig?.color || 'gray') as keyof typeof nodeColors;
   const colors = nodeColors[colorKey];
+  const [isEditing, setIsEditing] = useState(false);
+  const [localContent, setLocalContent] = useState(data.content || '');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Sync local content with data
+  useEffect(() => {
+    setLocalContent(data.content || '');
+  }, [data.content]);
+  
+  // Focus textarea when editing starts
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.select();
+    }
+  }, [isEditing]);
+  
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setLocalContent(value);
+    // Update node data through the callback passed via data prop
+    if (data.onUpdate) {
+      data.onUpdate(id, { content: value });
+    }
+  };
+  
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (data.onDelete) {
+      data.onDelete(id);
+    }
+  };
+  
+  const handleTextareaClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditing(true);
+  };
+  
+  const handleTextareaBlur = () => {
+    setIsEditing(false);
+  };
+  
+  // Stop drag when interacting with textarea
+  const handleTextareaMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
   
   return (
     <div className="group">
@@ -88,16 +131,17 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
         isConnectable={true}
       />
       
-      {/* Node Card */}
+      {/* Node Card - Larger to accommodate editable content */}
       <div 
         className={`
-          min-w-[180px] max-w-[200px] bg-white dark:bg-gray-900 rounded-xl 
+          w-[240px] bg-white dark:bg-gray-900 rounded-xl 
           shadow-sm hover:shadow-md transition-all duration-200
           border-2 ${selected ? 'border-blue-500 shadow-blue-100 dark:shadow-blue-900/20' : 'border-gray-100 dark:border-gray-800'}
         `}
         data-testid={`flow-node-${data.type}`}
       >
-        <div className="p-3 flex items-start gap-3">
+        {/* Header with icon and title */}
+        <div className="p-3 flex items-center gap-3 border-b border-gray-100 dark:border-gray-800">
           {/* Colored Icon Badge */}
           <div className={`
             w-8 h-8 rounded-lg ${colors.bg} flex items-center justify-center flex-shrink-0 shadow-sm
@@ -105,15 +149,53 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
             <Icon className="h-4 w-4 text-white" />
           </div>
           
-          {/* Title and Subtitle */}
+          {/* Title */}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
               {data.label}
             </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-              {data.content || nodeConfig?.subtitle || 'No description'}
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wide">
+              {nodeConfig?.subtitle}
             </p>
           </div>
+          
+          {/* Delete button - visible when selected */}
+          {selected && (
+            <button
+              onClick={handleDelete}
+              className="w-6 h-6 rounded-md bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 
+                flex items-center justify-center transition-colors"
+              data-testid="button-delete-node"
+            >
+              <X className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
+            </button>
+          )}
+        </div>
+        
+        {/* Editable Content Area */}
+        <div className="p-3">
+          <label className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1.5 block">
+            Instructions
+          </label>
+          <textarea
+            ref={textareaRef}
+            value={localContent}
+            onChange={handleContentChange}
+            onClick={handleTextareaClick}
+            onBlur={handleTextareaBlur}
+            onMouseDown={handleTextareaMouseDown}
+            placeholder={`What should the AI do here? e.g., "${nodeConfig?.subtitle || 'Enter instructions'}..."`}
+            className={`
+              w-full min-h-[60px] max-h-[120px] text-xs leading-relaxed resize-none
+              bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2
+              border border-gray-200 dark:border-gray-700
+              focus:border-blue-400 dark:focus:border-blue-500 focus:ring-1 focus:ring-blue-400/20
+              text-gray-700 dark:text-gray-300 placeholder:text-gray-400 dark:placeholder:text-gray-500
+              transition-colors outline-none
+              ${isEditing ? 'cursor-text' : 'cursor-pointer'}
+            `}
+            data-testid="input-node-content"
+          />
         </div>
       </div>
       
@@ -174,7 +256,6 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const { screenToFlowPosition, zoomIn, zoomOut, fitView } = useReactFlow();
   
@@ -182,9 +263,6 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
   const [history, setHistory] = useState<HistoryEntry[]>([cloneState(initialNodes, initialEdges)]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const skipHistoryRef = useRef(false);
-  
-  // Derive selected node from canonical nodes array
-  const selectedNode = selectedNodeId ? nodes.find(n => n.id === selectedNodeId) || null : null;
 
   // Sync with incoming props
   const [lastSyncedNodesKey, setLastSyncedNodesKey] = useState('');
@@ -268,18 +346,62 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
     [setEdges],
   );
 
-  const onNodeClick = useCallback((_event: any, node: Node) => {
-    setSelectedNodeId(node.id);
-  }, []);
-
-  const onPaneClick = useCallback(() => {
-    setSelectedNodeId(null);
-  }, []);
-
   const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
   }, []);
+
+  // Define update and delete functions first (will be injected into nodes)
+  const updateNodeDataRef = useRef<(nodeId: string, newData: any) => void>();
+  const deleteNodeRef = useRef<(nodeId: string) => void>();
+  
+  const updateNodeData = useCallback((nodeId: string, newData: any) => {
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === nodeId
+          ? { ...node, data: { ...node.data, ...newData } }
+          : node
+      )
+    );
+  }, [setNodes]);
+
+  const deleteNode = useCallback((nodeId: string) => {
+    setNodes((nds) => nds.filter((node) => node.id !== nodeId));
+    setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
+  }, [setNodes, setEdges]);
+  
+  // Keep refs updated
+  useEffect(() => {
+    updateNodeDataRef.current = updateNodeData;
+    deleteNodeRef.current = deleteNode;
+  }, [updateNodeData, deleteNode]);
+  
+  // Inject callbacks into nodes that don't have them (only runs when node IDs change)
+  const nodeIdsKey = nodes.map(n => n.id).join(',');
+  const prevNodeIdsRef = useRef(nodeIdsKey);
+  
+  useEffect(() => {
+    // Only check when nodes are added (IDs changed or new nodes)
+    if (nodeIdsKey !== prevNodeIdsRef.current || nodes.some(n => typeof n.data.onUpdate !== 'function')) {
+      prevNodeIdsRef.current = nodeIdsKey;
+      const needsUpdate = nodes.some(n => typeof n.data.onUpdate !== 'function' || typeof n.data.onDelete !== 'function');
+      if (needsUpdate) {
+        setNodes((nds) =>
+          nds.map((node) => {
+            if (typeof node.data.onUpdate === 'function') return node;
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                onUpdate: (id: string, data: any) => updateNodeDataRef.current?.(id, data),
+                onDelete: (id: string) => deleteNodeRef.current?.(id),
+              },
+            };
+          })
+        );
+      }
+    }
+  }, [nodeIdsKey, nodes, setNodes]);
 
   const onDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
@@ -304,31 +426,16 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
           type, 
           label: nodeConfig.label,
           content: '',
-          agentId 
+          agentId,
+          onUpdate: updateNodeData,
+          onDelete: deleteNode,
         },
       };
 
       setNodes((nds) => [...nds, newNode]);
-      setSelectedNodeId(newNode.id);
     },
-    [agentId, screenToFlowPosition, setNodes],
+    [agentId, screenToFlowPosition, setNodes, updateNodeData, deleteNode],
   );
-
-  const updateNodeData = useCallback((nodeId: string, newData: any) => {
-    setNodes((nds) =>
-      nds.map((node) =>
-        node.id === nodeId
-          ? { ...node, data: { ...node.data, ...newData } }
-          : node
-      )
-    );
-  }, [setNodes]);
-
-  const deleteNode = useCallback((nodeId: string) => {
-    setNodes((nds) => nds.filter((node) => node.id !== nodeId));
-    setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
-    setSelectedNodeId(null);
-  }, [setNodes, setEdges]);
 
   const handleSave = useCallback(() => {
     if (onSave) {
@@ -360,8 +467,6 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
-          onNodeClick={onNodeClick}
-          onPaneClick={onPaneClick}
           onDrop={onDrop}
           onDragOver={onDragOver}
           nodeTypes={nodeTypes}
@@ -520,66 +625,6 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
           </ScrollArea>
         </Card>
 
-        {/* Node Property Editor */}
-        {selectedNode && (
-          <Card className="flex-shrink-0 max-h-80 overflow-auto" data-testid="node-properties-panel">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {(() => {
-                    const nodeConfig = restaurantNodeTypes.find(t => t.type === selectedNode.data.type);
-                    const Icon = nodeConfig?.icon || Settings;
-                    const colorKey = (nodeConfig?.color || 'gray') as keyof typeof nodeColors;
-                    const colors = nodeColors[colorKey];
-                    return (
-                      <div className={`w-6 h-6 rounded-md ${colors.bg} flex items-center justify-center`}>
-                        <Icon className="h-3.5 w-3.5 text-white" />
-                      </div>
-                    );
-                  })()}
-                  <CardTitle className="text-base">{String(selectedNode.data.label)}</CardTitle>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => setSelectedNodeId(null)}
-                  data-testid="button-close-properties"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4 pb-4">
-              <div className="space-y-2">
-                <Label htmlFor="node-content" className="text-xs font-medium">
-                  Description / Instructions
-                </Label>
-                <Textarea
-                  id="node-content"
-                  placeholder="Enter what the AI should say or do at this step..."
-                  value={String(selectedNode.data.content || '')}
-                  onChange={(e) =>
-                    updateNodeData(selectedNode.id, { content: e.target.value })
-                  }
-                  className="min-h-24 text-sm resize-none"
-                  data-testid="input-node-content"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button 
-                  variant="destructive" 
-                  size="sm" 
-                  className="text-xs"
-                  onClick={() => deleteNode(selectedNode.id)}
-                  data-testid="button-delete-node"
-                >
-                  Delete
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   );

@@ -3,36 +3,43 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 
-// Pricing data structure
+// Pricing data structure - CLIENT PRICING (with ~77% margin / 4x markup from wholesale)
+// Base subscription: $149/month per location
+// Voice rate: $0.29/minute
+const BASE_MONTHLY_FEE_PER_LOCATION = 149;
+const VOICE_RATE_PER_MINUTE = 0.29;
+
 interface PricingOption {
   id: string;
   label: string;
   costPerMinute: number;
 }
 
+// LLM costs with 4x markup for 77% margin (wholesale × 4)
 const LLM_MODELS: PricingOption[] = [
-  { id: "gpt-5", label: "GPT 5", costPerMinute: 0.080 },
-  { id: "gpt-5-mini", label: "GPT 5mini", costPerMinute: 0.040 },
-  { id: "gpt-5-nano", label: "GPT 5 nano", costPerMinute: 0.020 },
-  { id: "gpt-4.1", label: "GPT 4.1", costPerMinute: 0.070 },
-  { id: "gpt-4.1-mini", label: "GPT 4.1 mini", costPerMinute: 0.035 },
-  { id: "gpt-4o", label: "GPT 4o", costPerMinute: 0.050 },
-  { id: "gpt-4o-mini", label: "GPT 4o mini", costPerMinute: 0.025 },
-  { id: "gpt-4.1-nano", label: "GPT 4.1 nano", costPerMinute: 0.015 },
-  { id: "claude-3.7-sonnet", label: "Claude 3.7 sonnet", costPerMinute: 0.060 },
-  { id: "claude-3.5-haiku", label: "Claude 3.5 haiku", costPerMinute: 0.030 },
-  { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash", costPerMinute: 0.045 },
-  { id: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite", costPerMinute: 0.022 },
-  { id: "custom", label: "Custom LLM", costPerMinute: 0.000 },
+  { id: "gpt-5", label: "GPT 5", costPerMinute: 0.32 },           // $0.08 × 4
+  { id: "gpt-5-mini", label: "GPT 5mini", costPerMinute: 0.16 },   // $0.04 × 4
+  { id: "gpt-5-nano", label: "GPT 5 nano", costPerMinute: 0.08 },  // $0.02 × 4
+  { id: "gpt-4.1", label: "GPT 4.1", costPerMinute: 0.28 },        // $0.07 × 4
+  { id: "gpt-4.1-mini", label: "GPT 4.1 mini", costPerMinute: 0.14 }, // $0.035 × 4
+  { id: "gpt-4o", label: "GPT 4o", costPerMinute: 0.20 },          // $0.05 × 4
+  { id: "gpt-4o-mini", label: "GPT 4o mini", costPerMinute: 0.10 }, // $0.025 × 4
+  { id: "gpt-4.1-nano", label: "GPT 4.1 nano", costPerMinute: 0.06 }, // $0.015 × 4
+  { id: "claude-3.7-sonnet", label: "Claude 3.7 sonnet", costPerMinute: 0.24 }, // $0.06 × 4
+  { id: "claude-3.5-haiku", label: "Claude 3.5 haiku", costPerMinute: 0.12 },   // $0.03 × 4
+  { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash", costPerMinute: 0.18 },   // $0.045 × 4
+  { id: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite", costPerMinute: 0.09 }, // $0.022 × 4
+  { id: "custom", label: "Custom LLM", costPerMinute: 0.00 },
 ];
 
+// Voice engine included in base voice rate
 const VOICE_ENGINES: PricingOption[] = [
-  { id: "elevenlabs-cartesia", label: "Elevenlabs/Cartesia Voices", costPerMinute: 0.070 },
-  { id: "openai", label: "OpenAI Voices", costPerMinute: 0.045 },
+  { id: "elevenlabs-cartesia", label: "Elevenlabs/Cartesia Voices", costPerMinute: 0.00 },
+  { id: "openai", label: "OpenAI Voices", costPerMinute: 0.00 },
 ];
 
 const TELEPHONY_PROVIDERS: PricingOption[] = [
-  { id: "custom", label: "Custom Telephony", costPerMinute: 0.000 },
+  { id: "custom", label: "Custom Telephony", costPerMinute: 0.00 },
 ];
 
 export function PricingCalculator() {
@@ -50,23 +57,28 @@ export function PricingCalculator() {
   const voiceOption = VOICE_ENGINES.find((v) => v.id === selectedVoice) || VOICE_ENGINES[0];
   const telephonyOption = TELEPHONY_PROVIDERS.find((t) => t.id === selectedTelephony) || TELEPHONY_PROVIDERS[0];
 
-  // Calculate costs per location
+  // Calculate costs per minute (LLM + voice rate)
   const llmCost = llmOption.costPerMinute;
-  const voiceCost = voiceOption.costPerMinute;
-  const telephonyCost = telephonyOption.costPerMinute;
+  const voiceCost = VOICE_RATE_PER_MINUTE; // Fixed $0.29/minute voice rate
+  const telephonyCost = telephonyOption.costPerMinute; // Usually $0 for custom
   const costPerMinute = llmCost + voiceCost + telephonyCost;
   
   // Per-location calculations
   const dailyMinutes = callsPerDay * avgCallDuration;
   const monthlyMinutesPerLocation = dailyMinutes * 30;
-  const monthlyCostPerLocation = costPerMinute * monthlyMinutesPerLocation;
+  const monthlyUsageCostPerLocation = costPerMinute * monthlyMinutesPerLocation;
+  const monthlyCostPerLocation = BASE_MONTHLY_FEE_PER_LOCATION + monthlyUsageCostPerLocation;
   
   // Total calculations (across all locations)
   const totalMonthlyMinutes = monthlyMinutesPerLocation * locations;
-  const totalMonthlyCost = monthlyCostPerLocation * locations;
+  const totalBaseFee = BASE_MONTHLY_FEE_PER_LOCATION * locations;
+  const totalUsageCost = monthlyUsageCostPerLocation * locations;
+  const totalMonthlyCost = totalBaseFee + totalUsageCost;
   const totalCallsPerMonth = callsPerDay * 30 * locations;
   const costPerCall = costPerMinute * avgCallDuration;
-  const dailyCost = totalMonthlyCost / 30;
+  const dailyUsageCost = totalUsageCost / 30;
+  const dailyBaseCost = totalBaseFee / 30;
+  const dailyCost = dailyBaseCost + dailyUsageCost;
 
   return (
     <Card className="bg-gradient-to-br from-primary/10 via-primary/5 to-background border-primary/20">
@@ -199,30 +211,34 @@ export function PricingCalculator() {
           <div className="space-y-6">
             {/* Per-Location Breakdown */}
             <div className="rounded-lg border bg-card p-6 space-y-4">
+              {/* Base Subscription */}
               <div>
-                <div className="text-sm text-muted-foreground mb-1">Cost Per Minute</div>
+                <div className="text-sm text-muted-foreground mb-1">Base Subscription</div>
+                <div className="text-2xl font-bold" data-testid="base-fee">
+                  ${BASE_MONTHLY_FEE_PER_LOCATION}/month
+                </div>
+                <div className="text-xs text-muted-foreground">per location</div>
+              </div>
+
+              {/* Per Minute Rate */}
+              <div className="pt-4 border-t">
+                <div className="text-sm text-muted-foreground mb-1">Usage Rate</div>
                 <div className="text-2xl font-bold" data-testid="cost-per-minute">
-                  ${costPerMinute.toFixed(3)}
+                  ${costPerMinute.toFixed(2)}/min
                 </div>
               </div>
 
               <div className="space-y-2 pt-4 border-t">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">• LLM Cost</span>
-                  <span className="font-medium" data-testid="llm-cost">
-                    ${llmCost.toFixed(3)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">• Voice Engine Cost</span>
+                  <span className="text-muted-foreground">Voice</span>
                   <span className="font-medium" data-testid="voice-cost">
-                    ${voiceCost.toFixed(3)}
+                    ${voiceCost.toFixed(2)}/min
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">• Telephony Cost</span>
-                  <span className="font-medium" data-testid="telephony-cost">
-                    ${telephonyCost.toFixed(3)}
+                  <span className="text-muted-foreground">LLM ({llmOption.label})</span>
+                  <span className="font-medium" data-testid="llm-cost">
+                    ${llmCost.toFixed(2)}/min
                   </span>
                 </div>
               </div>
@@ -233,7 +249,7 @@ export function PricingCalculator() {
                   ${monthlyCostPerLocation.toFixed(2)}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  {monthlyMinutesPerLocation.toLocaleString()} min/month × ${costPerMinute.toFixed(3)}/min
+                  ${BASE_MONTHLY_FEE_PER_LOCATION} base + {monthlyMinutesPerLocation.toLocaleString()} min × ${costPerMinute.toFixed(2)}
                 </div>
               </div>
 
@@ -245,7 +261,7 @@ export function PricingCalculator() {
                   ${totalMonthlyCost.toFixed(2)}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  {totalMonthlyMinutes.toLocaleString()} total minutes
+                  ${totalBaseFee} base + ${totalUsageCost.toFixed(2)} usage
                 </div>
               </div>
             </div>

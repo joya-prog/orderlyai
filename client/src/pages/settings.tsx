@@ -3,8 +3,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
@@ -14,13 +12,11 @@ import {
   BarChart3,
   Bell,
   Check,
-  Sparkles,
   Loader2,
   ExternalLink,
   FileText,
   Phone,
   Clock,
-  AlertCircle,
   Download,
   Calendar,
 } from "lucide-react";
@@ -42,128 +38,9 @@ interface StripeConfig {
 
 type SettingsTab = "preferences" | "billing" | "security" | "usage" | "notifications";
 
-interface PricingTier {
-  name: string;
-  price: string;
-  period: string;
-  description: string;
-  isPopular?: boolean;
-  features: string[];
-  limits: {
-    minutes: string;
-    agents: string;
-    phoneNumbers: string;
-    integrations: string;
-  };
-}
-
-const pricingTiers: PricingTier[] = [
-  {
-    name: "Starter",
-    price: "$49",
-    period: "/month",
-    description: "Perfect for small restaurants testing voice AI",
-    features: [
-      "500 call minutes included",
-      "1 AI agent",
-      "1 phone number",
-      "Basic integrations",
-      "Email support",
-    ],
-    limits: {
-      minutes: "500",
-      agents: "1",
-      phoneNumbers: "1",
-      integrations: "Basic",
-    },
-  },
-  {
-    name: "Professional",
-    price: "$199",
-    period: "/month",
-    description: "Ideal for single-location restaurants",
-    isPopular: true,
-    features: [
-      "2,000 call minutes included",
-      "3 AI agents",
-      "3 phone numbers",
-      "All integrations (POS, Reservations)",
-      "Advanced analytics",
-      "Priority email support",
-    ],
-    limits: {
-      minutes: "2,000",
-      agents: "3",
-      phoneNumbers: "3",
-      integrations: "All",
-    },
-  },
-  {
-    name: "Business",
-    price: "$499",
-    period: "/month",
-    description: "For multi-location restaurants",
-    features: [
-      "10,000 call minutes included",
-      "Unlimited AI agents",
-      "10 phone numbers",
-      "All integrations + custom workflows",
-      "Advanced analytics + exports",
-      "Priority support",
-      "Custom voice training",
-    ],
-    limits: {
-      minutes: "10,000",
-      agents: "Unlimited",
-      phoneNumbers: "10",
-      integrations: "All + Custom",
-    },
-  },
-  {
-    name: "Enterprise",
-    price: "Custom",
-    period: "",
-    description: "For restaurant groups and chains",
-    features: [
-      "Custom call minutes",
-      "Unlimited everything",
-      "White-label options",
-      "Dedicated account manager",
-      "Custom integrations",
-      "SLA guarantee",
-      "24/7 phone support",
-    ],
-    limits: {
-      minutes: "Custom",
-      agents: "Unlimited",
-      phoneNumbers: "Unlimited",
-      integrations: "Custom",
-    },
-  },
-];
-
-const costStructure = [
-  { feature: "Call Minutes Included", starter: "500", pro: "2,000", business: "10,000", enterprise: "Custom" },
-  { feature: "Extra Minute Cost", starter: "$0.15", pro: "$0.12", business: "$0.10", enterprise: "Custom" },
-  { feature: "Concurrent Calls", starter: "2", pro: "5", business: "20", enterprise: "Unlimited" },
-  { feature: "AI Agents", starter: "1", pro: "3", business: "Unlimited", enterprise: "Unlimited" },
-  { feature: "Phone Numbers", starter: "1", pro: "3", business: "10", enterprise: "Unlimited" },
-  { feature: "Transcription", starter: true, pro: true, business: true, enterprise: true },
-  { feature: "LLM Agent", starter: true, pro: true, business: true, enterprise: true },
-  { feature: "Multi-language", starter: false, pro: true, business: true, enterprise: true },
-  { feature: "Rescheduling", starter: false, pro: true, business: true, enterprise: true },
-  { feature: "Batch Campaigns", starter: false, pro: false, business: true, enterprise: true },
-  { feature: "White Label Platform", starter: false, pro: false, business: false, enterprise: true },
-  { feature: "Custom Workflow Runs", starter: "5,000", pro: "42,000", business: "100,000", enterprise: "Custom" },
-  { feature: "POS Integrations", starter: false, pro: true, business: true, enterprise: true },
-  { feature: "Real-Time Booking", starter: false, pro: true, business: true, enterprise: true },
-  { feature: "Call Transfer", starter: false, pro: true, business: true, enterprise: true },
-  { feature: "Information Extractor", starter: false, pro: true, business: true, enterprise: true },
-  { feature: "Custom Actions", starter: false, pro: false, business: true, enterprise: true },
-  { feature: "HIPAA Compliance", starter: false, pro: false, business: false, enterprise: true },
-  { feature: "SOC2 Security", starter: false, pro: false, business: true, enterprise: true },
-  { feature: "GDPR", starter: true, pro: true, business: true, enterprise: true },
-];
+// Simple pricing model: $149/month per location + $0.29/minute usage
+const BASE_MONTHLY_FEE = 149;
+const USAGE_RATE_PER_MINUTE = 0.29;
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("billing");
@@ -268,15 +145,8 @@ export default function SettingsPage() {
     },
   });
 
-  const handleSubscribe = (planType: string) => {
-    if (planType === 'Enterprise') {
-      toast({
-        title: "Contact us",
-        description: "Please contact our sales team for Enterprise pricing.",
-      });
-      return;
-    }
-    createCheckoutSession.mutate({ planType: planType.toLowerCase() });
+  const handleSubscribe = () => {
+    createCheckoutSession.mutate({ planType: 'standard' });
   };
 
   const handleManageBilling = () => {
@@ -392,11 +262,11 @@ export default function SettingsPage() {
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                   </div>
                 ) : subscription ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                     <div>
-                      <div className="text-sm text-muted-foreground mb-1">Current Plan</div>
-                      <div className="font-semibold text-lg capitalize">
-                        {subscription.planType}
+                      <div className="text-sm text-muted-foreground mb-1">Subscription</div>
+                      <div className="font-semibold text-lg">
+                        ${BASE_MONTHLY_FEE}/month
                       </div>
                       <Badge variant={subscription.status === 'active' ? 'default' : 'secondary'} className="mt-1">
                         {subscription.status}
@@ -404,40 +274,29 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <div className="text-sm text-muted-foreground mb-1">Minutes This Period</div>
-                      <div className="font-semibold">
-                        {billingUsage ? Math.round(billingUsage.currentPeriodUsage) : usageMetrics?.minutesUsed || '0'} / {subscription.minutesLimit || '0'}
+                      <div className="font-semibold text-lg">
+                        {billingUsage ? Math.round(billingUsage.currentPeriodUsage) : usageMetrics?.minutesUsed || '0'}
                       </div>
-                      <Progress
-                        value={billingUsage?.percentUsed || (
-                          subscription.minutesLimit && parseInt(subscription.minutesLimit) > 0
-                            ? ((parseInt(usageMetrics?.minutesUsed || '0')) /
-                                parseInt(subscription.minutesLimit)) *
-                              100
-                            : 0
-                        )}
-                        className="mt-2"
-                      />
-                      {billingUsage?.percentUsed && billingUsage.percentUsed > 80 && (
-                        <div className="flex items-center gap-1 mt-1 text-xs text-amber-600">
-                          <AlertCircle className="h-3 w-3" />
-                          Approaching limit
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <div className="text-sm text-muted-foreground mb-1">Agents</div>
-                      <div className="font-semibold">
-                        {usageMetrics?.activeAgents || '0'} / {subscription.agentsLimit || '0'}
+                      <div className="text-xs text-muted-foreground mt-1">
+                        @ ${USAGE_RATE_PER_MINUTE}/min
                       </div>
                     </div>
                     <div>
-                      <div className="text-sm text-muted-foreground mb-1">Concurrent Calls</div>
-                      <div className="font-semibold">{subscription.concurrentCallsLimit || '0'} calls</div>
+                      <div className="text-sm text-muted-foreground mb-1">Usage Cost</div>
+                      <div className="font-semibold text-lg">
+                        ${((billingUsage?.currentPeriodUsage || parseInt(usageMetrics?.minutesUsed || '0')) * USAGE_RATE_PER_MINUTE).toFixed(2)}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        this billing period
+                      </div>
                     </div>
                     <div>
-                      <div className="text-sm text-muted-foreground mb-1">Phone Numbers</div>
-                      <div className="font-semibold">
-                        {usageMetrics?.activePhoneNumbers || '0'} / {subscription.phoneNumbersLimit || '0'}
+                      <div className="text-sm text-muted-foreground mb-1">Active Agents</div>
+                      <div className="font-semibold text-lg">
+                        {usageMetrics?.activeAgents || '0'}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {usageMetrics?.activePhoneNumbers || '0'} phone numbers
                       </div>
                     </div>
                   </div>
@@ -584,135 +443,64 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
 
+            {/* Pricing Summary Card */}
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle>Your Pricing</CardTitle>
+                <CardDescription>Simple, transparent pricing for your restaurant</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="p-6 rounded-xl bg-primary/5 border border-primary/10">
+                    <div className="text-sm text-muted-foreground mb-2">Base Subscription</div>
+                    <div className="text-4xl font-bold text-primary">${BASE_MONTHLY_FEE}</div>
+                    <div className="text-sm text-muted-foreground">per location / month</div>
+                  </div>
+                  <div className="p-6 rounded-xl bg-muted/50 border">
+                    <div className="text-sm text-muted-foreground mb-2">Usage Rate</div>
+                    <div className="text-4xl font-bold">${USAGE_RATE_PER_MINUTE}</div>
+                    <div className="text-sm text-muted-foreground">per minute</div>
+                  </div>
+                </div>
+                <div className="mt-6 pt-6 border-t">
+                  <h4 className="font-medium mb-3">What's Included</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {[
+                      "Unlimited AI agents",
+                      "All POS integrations",
+                      "Real-time analytics",
+                      "Phone number management",
+                      "Custom voice agents",
+                      "Priority support",
+                    ].map((feature, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-sm">
+                        <Check className="h-4 w-4 text-primary shrink-0" />
+                        <span>{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {!subscription && (
+                  <div className="mt-6 pt-6 border-t">
+                    <Button 
+                      className="w-full md:w-auto"
+                      onClick={handleSubscribe}
+                      disabled={createCheckoutSession.isPending}
+                      data-testid="button-subscribe"
+                    >
+                      {createCheckoutSession.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : null}
+                      Subscribe Now
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Pricing Calculator */}
             <div className="mb-8">
               <PricingCalculator />
-            </div>
-
-            {/* Pricing Tiers */}
-            <div className="mb-8">
-              <h2 className="text-2xl font-semibold mb-6">Discover More Plans</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                {pricingTiers.map((tier) => (
-                  <Card
-                    key={tier.name}
-                    className={`relative ${tier.isPopular ? "border-primary" : ""}`}
-                  >
-                    {tier.isPopular && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                        <Badge className="gap-1">
-                          <Sparkles className="h-3 w-3" />
-                          Most Popular
-                        </Badge>
-                      </div>
-                    )}
-                    <CardHeader>
-                      <CardTitle className="text-xl">{tier.name}</CardTitle>
-                      <div className="mt-2">
-                        <span className="text-3xl font-bold">{tier.price}</span>
-                        <span className="text-muted-foreground">{tier.period}</span>
-                      </div>
-                      <CardDescription className="mt-2">{tier.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <Button
-                        className="w-full"
-                        variant={tier.isPopular ? "default" : "outline"}
-                        onClick={() => handleSubscribe(tier.name)}
-                        disabled={createCheckoutSession.isPending || (subscription?.planType?.toLowerCase() === tier.name.toLowerCase())}
-                        data-testid={`button-subscribe-${tier.name.toLowerCase()}`}
-                      >
-                        {createCheckoutSession.isPending ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        ) : null}
-                        {subscription?.planType?.toLowerCase() === tier.name.toLowerCase() 
-                          ? "Current Plan" 
-                          : tier.name === "Enterprise" 
-                            ? "Contact Us" 
-                            : "Subscribe"}
-                      </Button>
-                      <Separator />
-                      <ul className="space-y-2.5">
-                        {tier.features.map((feature, idx) => (
-                          <li key={idx} className="flex items-start gap-2 text-sm">
-                            <Check className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                            <span>{feature}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-
-            {/* Cost Structure Table */}
-            <div>
-              <h2 className="text-2xl font-semibold mb-6">Costs Structure</h2>
-              <div className="overflow-x-auto rounded-3xl border border-card-border bg-card shadow-md">
-                <table className="w-full min-w-max">
-                      <thead>
-                        <tr className="border-b bg-muted/50">
-                          <th className="text-left p-4 font-medium text-sm">Feature</th>
-                          <th className="text-center p-4 font-medium text-sm">Starter</th>
-                          <th className="text-center p-4 font-medium text-sm">Professional</th>
-                          <th className="text-center p-4 font-medium text-sm">Business</th>
-                          <th className="text-center p-4 font-medium text-sm">Enterprise</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {costStructure.map((row, idx) => (
-                          <tr key={idx} className="border-b last:border-0">
-                            <td className="p-4 text-sm font-medium">{row.feature}</td>
-                            <td className="p-4 text-sm text-center">
-                              {typeof row.starter === "boolean" ? (
-                                row.starter ? (
-                                  <Check className="h-4 w-4 text-primary mx-auto" />
-                                ) : (
-                                  <span className="text-muted-foreground">—</span>
-                                )
-                              ) : (
-                                row.starter
-                              )}
-                            </td>
-                            <td className="p-4 text-sm text-center">
-                              {typeof row.pro === "boolean" ? (
-                                row.pro ? (
-                                  <Check className="h-4 w-4 text-primary mx-auto" />
-                                ) : (
-                                  <span className="text-muted-foreground">—</span>
-                                )
-                              ) : (
-                                row.pro
-                              )}
-                            </td>
-                            <td className="p-4 text-sm text-center">
-                              {typeof row.business === "boolean" ? (
-                                row.business ? (
-                                  <Check className="h-4 w-4 text-primary mx-auto" />
-                                ) : (
-                                  <span className="text-muted-foreground">—</span>
-                                )
-                              ) : (
-                                row.business
-                              )}
-                            </td>
-                            <td className="p-4 text-sm text-center">
-                              {typeof row.enterprise === "boolean" ? (
-                                row.enterprise ? (
-                                  <Check className="h-4 w-4 text-primary mx-auto" />
-                                ) : (
-                                  <span className="text-muted-foreground">—</span>
-                                )
-                              ) : (
-                                row.enterprise
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-              </div>
             </div>
           </div>
         )}

@@ -1411,8 +1411,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Valid plan types whitelist
-  const VALID_PLAN_TYPES = ['starter', 'professional', 'business', 'enterprise'] as const;
+  // Valid plan types whitelist - now just 'standard' with usage-based billing
+  const VALID_PLAN_TYPES = ['standard', 'starter', 'professional', 'business', 'enterprise'] as const;
   type ValidPlanType = typeof VALID_PLAN_TYPES[number];
 
   function isValidPlanType(plan: string): plan is ValidPlanType {
@@ -1468,6 +1468,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Price IDs for each plan tier (these would be your actual Stripe price IDs)
       // In production, these should be fetched from Stripe or stored in environment variables
       const priceTiers: Record<ValidPlanType, string> = {
+        standard: priceId || process.env.STRIPE_STANDARD_PRICE_ID || 'price_standard',
         starter: priceId || process.env.STRIPE_STARTER_PRICE_ID || 'price_starter',
         professional: priceId || process.env.STRIPE_PROFESSIONAL_PRICE_ID || 'price_pro',
         business: priceId || process.env.STRIPE_BUSINESS_PRICE_ID || 'price_business',
@@ -1689,7 +1690,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         periodStart,
         periodEnd,
         minutesUsed: durationMinutes.toString(),
-        callLogIds: [CallSid],
+        callLogId: CallSid,
       });
 
       // Report usage to Stripe if user has active subscription
@@ -1705,7 +1706,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             );
 
             if (meteredItem) {
-              await stripe.subscriptionItems.createUsageRecord(
+              // Use Stripe's usage record API - cast to any for SDK version compatibility
+              await (stripe.subscriptionItems as any).createUsageRecord(
                 meteredItem.id,
                 {
                   quantity: durationMinutes,

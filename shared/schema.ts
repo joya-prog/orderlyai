@@ -239,6 +239,13 @@ export const phoneNumbers = pgTable("phone_numbers", {
   providerId: varchar("provider_id"), // Provider's ID for this number (Twilio SID)
   status: text("status").notNull().default('active'), // 'active', 'inactive', 'pending'
   capabilities: jsonb("capabilities"), // {voice: true, sms: true}
+  // SIP Trunking fields
+  connectionType: text("connection_type").notNull().default('purchased'), // 'purchased' | 'sip_trunk'
+  sipDomain: text("sip_domain"), // SIP domain for trunk (e.g., mydomain.sip.twilio.com)
+  sipUri: text("sip_uri"), // Full SIP URI for routing
+  sipAuthType: text("sip_auth_type"), // 'credentials' | 'ip_acl'
+  trunkSid: varchar("trunk_sid"), // Twilio SIP trunk SID
+  originationUrl: text("origination_url"), // Where to send incoming calls
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

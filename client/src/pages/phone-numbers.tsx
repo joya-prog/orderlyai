@@ -17,6 +17,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -37,9 +38,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Phone, Plus, Trash2, Search } from "lucide-react";
+import { Phone, Plus, Trash2, Search, Link2, ShoppingCart } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const searchSchema = z.object({
@@ -52,6 +59,16 @@ const purchaseSchema = z.object({
   friendlyName: z.string().optional(),
 });
 
+const sipTrunkSchema = z.object({
+  phoneNumber: z.string().min(10, "Enter a valid phone number"),
+  friendlyName: z.string().optional(),
+  sipDomain: z.string().optional(),
+  sipAuthType: z.enum(["credentials", "ip_acl"]).default("credentials"),
+  sipUsername: z.string().optional(),
+  sipPassword: z.string().optional(),
+  ipAddresses: z.string().optional(),
+});
+
 interface AvailableNumber {
   phoneNumber: string;
   friendlyName: string;
@@ -59,7 +76,8 @@ interface AvailableNumber {
 }
 
 export default function PhoneNumbersPage() {
-  const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"purchase" | "sip">("purchase");
   const [deletingNumber, setDeletingNumber] = useState<PhoneNumber | null>(null);
   const [availableNumbers, setAvailableNumbers] = useState<AvailableNumber[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -86,6 +104,19 @@ export default function PhoneNumbersPage() {
     defaultValues: {
       phoneNumber: "",
       friendlyName: "",
+    },
+  });
+
+  const sipForm = useForm<z.infer<typeof sipTrunkSchema>>({
+    resolver: zodResolver(sipTrunkSchema),
+    defaultValues: {
+      phoneNumber: "",
+      friendlyName: "",
+      sipDomain: "",
+      sipAuthType: "credentials",
+      sipUsername: "",
+      sipPassword: "",
+      ipAddresses: "",
     },
   });
 
@@ -117,7 +148,7 @@ export default function PhoneNumbersPage() {
       apiRequest("POST", "/api/phone-numbers/purchase", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/phone-numbers"] });
-      setIsPurchaseDialogOpen(false);
+      setIsDialogOpen(false);
       setAvailableNumbers([]);
       searchForm.reset();
       purchaseForm.reset();
@@ -130,6 +161,27 @@ export default function PhoneNumbersPage() {
       toast({
         variant: "destructive",
         title: "Purchase failed",
+        description: error.message,
+      });
+    },
+  });
+
+  const sipTrunkMutation = useMutation({
+    mutationFn: (data: z.infer<typeof sipTrunkSchema>) => 
+      apiRequest("POST", "/api/phone-numbers/sip-trunk", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/phone-numbers"] });
+      setIsDialogOpen(false);
+      sipForm.reset();
+      toast({
+        title: "SIP trunk connected",
+        description: "Your phone number has been connected via SIP trunk",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Connection failed",
         description: error.message,
       });
     },
@@ -182,18 +234,26 @@ export default function PhoneNumbersPage() {
     purchaseMutation.mutate(values);
   };
 
+  const handleSipConnect = (values: z.infer<typeof sipTrunkSchema>) => {
+    sipTrunkMutation.mutate(values);
+  };
+
   const handleAssign = (phoneNumberId: string, agentId: string) => {
     const newAgentId = agentId === "unassigned" ? null : agentId;
     assignMutation.mutate({ id: phoneNumberId, agentId: newAgentId });
   };
 
-  const handleOpenPurchaseDialog = () => {
+  const handleOpenDialog = () => {
     searchForm.reset();
     purchaseForm.reset();
+    sipForm.reset();
     setAvailableNumbers([]);
     setIsSearching(false);
-    setIsPurchaseDialogOpen(true);
+    setActiveTab("purchase");
+    setIsDialogOpen(true);
   };
+
+  const sipAuthType = sipForm.watch("sipAuthType");
 
   return (
     <div className="p-8">
@@ -201,15 +261,15 @@ export default function PhoneNumbersPage() {
         <div>
           <h1 className="text-3xl font-semibold font-serif mb-2">Phone Numbers</h1>
           <p className="text-muted-foreground">
-            Manage Twilio phone numbers and assign them to agents
+            Manage phone numbers and assign them to agents
           </p>
         </div>
         <Button 
-          onClick={handleOpenPurchaseDialog}
-          data-testid="button-buy-number"
+          onClick={handleOpenDialog}
+          data-testid="button-add-number"
         >
           <Plus className="mr-2 h-4 w-4" />
-          Buy Number
+          Add Number
         </Button>
       </div>
 
@@ -224,11 +284,11 @@ export default function PhoneNumbersPage() {
           </div>
           <h3 className="text-lg font-semibold mb-2" data-testid="text-no-numbers">No phone numbers</h3>
           <p className="text-muted-foreground mb-4">
-            Get started by purchasing your first phone number
+            Buy a new number from Twilio or connect your existing number via SIP
           </p>
-          <Button onClick={handleOpenPurchaseDialog}>
+          <Button onClick={handleOpenDialog}>
             <Plus className="mr-2 h-4 w-4" />
-            Buy Number
+            Add Number
           </Button>
         </div>
       ) : (
@@ -236,6 +296,7 @@ export default function PhoneNumbersPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Phone Number</TableHead>
+              <TableHead>Connection</TableHead>
               <TableHead>Friendly Name</TableHead>
               <TableHead>Assigned Agent</TableHead>
               <TableHead>Status</TableHead>
@@ -246,6 +307,25 @@ export default function PhoneNumbersPage() {
             {phoneNumbers.map((phoneNumber) => (
               <TableRow key={phoneNumber.id} data-testid={`row-phone-${phoneNumber.id}`}>
                 <TableCell className="font-medium">{phoneNumber.number}</TableCell>
+                <TableCell>
+                  <Badge 
+                    variant={phoneNumber.connectionType === 'sip_trunk' ? 'outline' : 'secondary'}
+                    className="gap-1"
+                    data-testid={`connection-type-${phoneNumber.id}`}
+                  >
+                    {phoneNumber.connectionType === 'sip_trunk' ? (
+                      <>
+                        <Link2 className="h-3 w-3" />
+                        SIP Trunk
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart className="h-3 w-3" />
+                        Purchased
+                      </>
+                    )}
+                  </Badge>
+                </TableCell>
                 <TableCell>{phoneNumber.friendlyName || "-"}</TableCell>
                 <TableCell>
                   <Select
@@ -294,134 +374,322 @@ export default function PhoneNumbersPage() {
         </Table>
       )}
 
-      {/* Purchase Dialog */}
-      <Dialog open={isPurchaseDialogOpen} onOpenChange={setIsPurchaseDialogOpen}>
-        <DialogContent className="max-w-2xl" data-testid="dialog-purchase-phone">
+      {/* Add Number Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-2xl" data-testid="dialog-add-phone">
           <DialogHeader>
-            <DialogTitle>Buy Phone Number</DialogTitle>
+            <DialogTitle>Add Phone Number</DialogTitle>
             <DialogDescription>
-              Search for available phone numbers by area code
+              Buy a new number from Twilio or connect your existing number via SIP trunk
             </DialogDescription>
           </DialogHeader>
 
-          {availableNumbers.length === 0 ? (
-            <Form {...searchForm}>
-              <form onSubmit={searchForm.handleSubmit(handleSearch)} className="space-y-4">
-                <FormField
-                  control={searchForm.control}
-                  name="areaCode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Area Code</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="e.g., 415, 212, 310" 
-                          {...field}
-                          data-testid="input-area-code"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={searchForm.control}
-                  name="country"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Country</FormLabel>
-                      <Select 
-                        onValueChange={field.onChange} 
-                        defaultValue={field.value}
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "purchase" | "sip")} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="purchase" className="gap-2" data-testid="tab-purchase">
+                <ShoppingCart className="h-4 w-4" />
+                Buy New Number
+              </TabsTrigger>
+              <TabsTrigger value="sip" className="gap-2" data-testid="tab-sip">
+                <Link2 className="h-4 w-4" />
+                Connect via SIP
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="purchase" className="mt-4">
+              {availableNumbers.length === 0 ? (
+                <Form {...searchForm}>
+                  <form onSubmit={searchForm.handleSubmit(handleSearch)} className="space-y-4">
+                    <FormField
+                      control={searchForm.control}
+                      name="areaCode"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Area Code</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="e.g., 415, 212, 310" 
+                              {...field}
+                              data-testid="input-area-code"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={searchForm.control}
+                      name="country"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Country</FormLabel>
+                          <Select 
+                            onValueChange={field.onChange} 
+                            defaultValue={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger data-testid="select-country">
+                                <SelectValue placeholder="Select country" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="US">United States</SelectItem>
+                              <SelectItem value="CA">Canada</SelectItem>
+                              <SelectItem value="GB">United Kingdom</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <DialogFooter>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => setIsDialogOpen(false)}
+                        data-testid="button-cancel-search"
                       >
-                        <FormControl>
-                          <SelectTrigger data-testid="select-country">
-                            <SelectValue placeholder="Select country" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="US">United States</SelectItem>
-                          <SelectItem value="CA">Canada</SelectItem>
-                          <SelectItem value="GB">United Kingdom</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <DialogFooter>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => setIsPurchaseDialogOpen(false)}
-                    data-testid="button-cancel-search"
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    disabled={isSearching || searchMutation.isPending}
-                    data-testid="button-search-numbers"
-                  >
-                    <Search className="mr-2 h-4 w-4" />
-                    {isSearching ? "Searching..." : "Search Numbers"}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          ) : (
-            <div>
-              <div className="mb-4">
-                <p className="text-sm text-muted-foreground">
-                  Found {availableNumbers.length} available numbers
-                </p>
-              </div>
-              <div className="max-h-96 overflow-y-auto space-y-2">
-                {availableNumbers.map((num) => (
-                  <div
-                    key={num.phoneNumber}
-                    className="flex items-center justify-between p-3 border rounded hover:bg-muted cursor-pointer"
-                    onClick={() => {
-                      purchaseForm.setValue("phoneNumber", num.phoneNumber);
-                      purchaseForm.setValue("friendlyName", num.phoneNumber);
-                    }}
-                    data-testid={`available-number-${num.phoneNumber}`}
-                  >
-                    <div>
-                      <p className="font-medium">{num.phoneNumber}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Voice: {num.capabilities?.voice ? "✓" : "✗"} | 
-                        SMS: {num.capabilities?.sms ? "✓" : "✗"}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePurchase({
-                          phoneNumber: num.phoneNumber,
-                          friendlyName: num.phoneNumber,
-                        });
-                      }}
-                      disabled={purchaseMutation.isPending}
-                      data-testid={`button-purchase-${num.phoneNumber}`}
-                    >
-                      {purchaseMutation.isPending ? "Purchasing..." : "Purchase"}
-                    </Button>
+                        Cancel
+                      </Button>
+                      <Button 
+                        type="submit" 
+                        disabled={isSearching || searchMutation.isPending}
+                        data-testid="button-search-numbers"
+                      >
+                        <Search className="mr-2 h-4 w-4" />
+                        {isSearching ? "Searching..." : "Search Numbers"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </Form>
+              ) : (
+                <div>
+                  <div className="mb-4">
+                    <p className="text-sm text-muted-foreground">
+                      Found {availableNumbers.length} available numbers
+                    </p>
                   </div>
-                ))}
-              </div>
-              <DialogFooter className="mt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setAvailableNumbers([])}
-                  data-testid="button-back-to-search"
-                >
-                  Back to Search
-                </Button>
-              </DialogFooter>
-            </div>
-          )}
+                  <div className="max-h-96 overflow-y-auto space-y-2">
+                    {availableNumbers.map((num) => (
+                      <div
+                        key={num.phoneNumber}
+                        className="flex items-center justify-between p-3 border rounded-md hover-elevate cursor-pointer"
+                        onClick={() => {
+                          purchaseForm.setValue("phoneNumber", num.phoneNumber);
+                          purchaseForm.setValue("friendlyName", num.phoneNumber);
+                        }}
+                        data-testid={`available-number-${num.phoneNumber}`}
+                      >
+                        <div>
+                          <p className="font-medium">{num.phoneNumber}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Voice: {num.capabilities?.voice ? "Yes" : "No"} | 
+                            SMS: {num.capabilities?.sms ? "Yes" : "No"}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePurchase({
+                              phoneNumber: num.phoneNumber,
+                              friendlyName: num.phoneNumber,
+                            });
+                          }}
+                          disabled={purchaseMutation.isPending}
+                          data-testid={`button-purchase-${num.phoneNumber}`}
+                        >
+                          {purchaseMutation.isPending ? "Purchasing..." : "Purchase"}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <DialogFooter className="mt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setAvailableNumbers([])}
+                      data-testid="button-back-to-search"
+                    >
+                      Back to Search
+                    </Button>
+                  </DialogFooter>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="sip" className="mt-4">
+              <Form {...sipForm}>
+                <form onSubmit={sipForm.handleSubmit(handleSipConnect)} className="space-y-4">
+                  <FormField
+                    control={sipForm.control}
+                    name="phoneNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone Number</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="+1 (555) 123-4567" 
+                            {...field}
+                            data-testid="input-sip-phone"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Enter the phone number you want to connect via SIP
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={sipForm.control}
+                    name="friendlyName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Friendly Name (Optional)</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="e.g., Main Restaurant Line" 
+                            {...field}
+                            data-testid="input-sip-friendly-name"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={sipForm.control}
+                    name="sipDomain"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>SIP Domain (Optional)</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="myrestaurant.sip.twilio.com" 
+                            {...field}
+                            data-testid="input-sip-domain"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Leave empty to auto-generate a Twilio SIP domain
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={sipForm.control}
+                    name="sipAuthType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Authentication Method</FormLabel>
+                        <Select 
+                          onValueChange={field.onChange} 
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="select-sip-auth">
+                              <SelectValue placeholder="Select authentication method" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="credentials">Username & Password</SelectItem>
+                            <SelectItem value="ip_acl">IP Address Whitelist</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {sipAuthType === "credentials" && (
+                    <>
+                      <FormField
+                        control={sipForm.control}
+                        name="sipUsername"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>SIP Username</FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="sip_user" 
+                                {...field}
+                                data-testid="input-sip-username"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={sipForm.control}
+                        name="sipPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>SIP Password</FormLabel>
+                            <FormControl>
+                              <Input 
+                                type="password"
+                                placeholder="Enter password" 
+                                {...field}
+                                data-testid="input-sip-password"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  )}
+
+                  {sipAuthType === "ip_acl" && (
+                    <FormField
+                      control={sipForm.control}
+                      name="ipAddresses"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Allowed IP Addresses</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="192.168.1.1, 10.0.0.1" 
+                              {...field}
+                              data-testid="input-ip-addresses"
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Comma-separated list of IP addresses to whitelist
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  <DialogFooter>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setIsDialogOpen(false)}
+                      data-testid="button-cancel-sip"
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      disabled={sipTrunkMutation.isPending}
+                      data-testid="button-connect-sip"
+                    >
+                      <Link2 className="mr-2 h-4 w-4" />
+                      {sipTrunkMutation.isPending ? "Connecting..." : "Connect SIP Trunk"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 
@@ -429,9 +697,16 @@ export default function PhoneNumbersPage() {
       <Dialog open={!!deletingNumber} onOpenChange={() => setDeletingNumber(null)}>
         <DialogContent data-testid="dialog-delete-phone">
           <DialogHeader>
-            <DialogTitle>Release Phone Number</DialogTitle>
+            <DialogTitle>
+              {deletingNumber?.connectionType === 'sip_trunk' 
+                ? 'Disconnect SIP Trunk' 
+                : 'Release Phone Number'}
+            </DialogTitle>
             <DialogDescription>
-              Are you sure you want to release {deletingNumber?.number}? This action cannot be undone and the number will be returned to Twilio's pool.
+              {deletingNumber?.connectionType === 'sip_trunk'
+                ? `Are you sure you want to disconnect ${deletingNumber?.number} from SIP trunk? The trunk configuration will be removed.`
+                : `Are you sure you want to release ${deletingNumber?.number}? This action cannot be undone and the number will be returned to Twilio's pool.`
+              }
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -448,7 +723,10 @@ export default function PhoneNumbersPage() {
               disabled={deleteMutation.isPending}
               data-testid="button-confirm-delete"
             >
-              {deleteMutation.isPending ? "Releasing..." : "Release Number"}
+              {deleteMutation.isPending 
+                ? (deletingNumber?.connectionType === 'sip_trunk' ? "Disconnecting..." : "Releasing...") 
+                : (deletingNumber?.connectionType === 'sip_trunk' ? "Disconnect" : "Release Number")
+              }
             </Button>
           </DialogFooter>
         </DialogContent>

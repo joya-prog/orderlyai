@@ -882,6 +882,160 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // SIP Trunk connection endpoint
+  app.post("/api/phone-numbers/sip-trunk", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!twilioClient) {
+        return res.status(503).json({ message: "Twilio not configured" });
+      }
+
+      const userId = req.user.claims.sub;
+      const { 
+        phoneNumber, 
+        friendlyName, 
+        sipDomain,
+        sipAuthType = 'credentials',
+        sipUsername,
+        sipPassword,
+        ipAddresses 
+      } = req.body;
+
+      if (!phoneNumber) {
+        return res.status(400).json({ message: "Phone number is required" });
+      }
+
+      // Clean phone number (remove formatting)
+      const cleanNumber = phoneNumber.replace(/[^+\d]/g, '');
+      if (cleanNumber.length < 10) {
+        return res.status(400).json({ message: "Invalid phone number format" });
+      }
+
+      // Create or use existing SIP domain
+      let finalSipDomain = sipDomain;
+      let trunkSid: string | null = null;
+
+      try {
+        // Create a SIP trunk for this user if they don't have one
+        const trunkName = `orderly-${userId.substring(0, 8)}`;
+        
+        // Try to find existing trunk or create new one
+        const trunks = await twilioClient.trunking.v1.trunks.list({ limit: 50 });
+        let trunk = trunks.find(t => t.friendlyName === trunkName);
+        
+        if (!trunk) {
+          // Create new SIP trunk
+          trunk = await twilioClient.trunking.v1.trunks.create({
+            friendlyName: trunkName,
+            secure: true,
+          });
+        }
+        
+        trunkSid = trunk.sid;
+
+        // Generate domain if not provided
+        if (!finalSipDomain) {
+          finalSipDomain = `${trunkName}.sip.twilio.com`;
+        }
+
+        // Configure origination URI (where incoming calls are sent)
+        const originationUrl = `https://${process.env.REPL_SLUG || 'orderly'}.repl.co/api/voice/incoming`;
+        
+        // Add origination URI to trunk
+        try {
+          await twilioClient.trunking.v1.trunks(trunk.sid)
+            .originationUrls
+            .create({
+              friendlyName: `Origination for ${cleanNumber}`,
+              sipUrl: `sip:${cleanNumber}@${finalSipDomain}`,
+              weight: 1,
+              priority: 1,
+              enabled: true,
+            });
+        } catch (origError: any) {
+          // Origination might already exist, continue
+          if (!origError.message?.includes('already exists')) {
+            console.warn("Origination URL warning:", origError.message);
+          }
+        }
+
+        // Handle authentication based on type
+        if (sipAuthType === 'credentials' && sipUsername && sipPassword) {
+          // Create credential list
+          try {
+            const credList = await twilioClient.sip.credentialLists.create({
+              friendlyName: `Creds-${cleanNumber}`,
+            });
+            
+            await twilioClient.sip.credentialLists(credList.sid)
+              .credentials
+              .create({
+                username: sipUsername,
+                password: sipPassword,
+              });
+            
+            // Associate credential list with trunk
+            await twilioClient.trunking.v1.trunks(trunk.sid)
+              .credentialsLists
+              .create({ credentialListSid: credList.sid });
+          } catch (credError: any) {
+            console.warn("Credential setup warning:", credError.message);
+          }
+        } else if (sipAuthType === 'ip_acl' && ipAddresses) {
+          // Create IP ACL
+          try {
+            const aclList = await twilioClient.sip.ipAccessControlLists.create({
+              friendlyName: `ACL-${cleanNumber}`,
+            });
+            
+            // Add each IP address
+            const ips = ipAddresses.split(',').map((ip: string) => ip.trim()).filter(Boolean);
+            for (const ip of ips) {
+              await twilioClient.sip.ipAccessControlLists(aclList.sid)
+                .ipAddresses
+                .create({
+                  friendlyName: ip,
+                  ipAddress: ip,
+                });
+            }
+            
+            // Associate IP ACL with trunk
+            await twilioClient.trunking.v1.trunks(trunk.sid)
+              .ipAccessControlLists
+              .create({ ipAccessControlListSid: aclList.sid });
+          } catch (aclError: any) {
+            console.warn("IP ACL setup warning:", aclError.message);
+          }
+        }
+      } catch (trunkError: any) {
+        console.error("SIP trunk setup error:", trunkError);
+        // Continue anyway - we can still create the phone number record
+      }
+
+      // Create phone number record with SIP trunk info
+      const phoneNumberData = {
+        userId,
+        number: cleanNumber,
+        friendlyName: friendlyName?.trim() || cleanNumber,
+        provider: 'twilio',
+        providerId: null, // No Twilio phone number SID for SIP trunked numbers
+        status: 'active',
+        capabilities: { voice: true, sms: false },
+        connectionType: 'sip_trunk',
+        sipDomain: finalSipDomain,
+        sipUri: `sip:${cleanNumber}@${finalSipDomain}`,
+        sipAuthType,
+        trunkSid,
+        originationUrl: `https://${process.env.REPL_SLUG || 'orderly'}.repl.co/api/voice/incoming`,
+      };
+
+      const created = await storage.createPhoneNumber(phoneNumberData);
+      res.json(created);
+    } catch (error: any) {
+      console.error("Error creating SIP trunk connection:", error);
+      res.status(500).json({ message: error.message || "Failed to connect SIP trunk" });
+    }
+  });
+
   app.patch("/api/phone-numbers/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -925,13 +1079,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Phone number not found or access denied" });
       }
 
-      // Release from Twilio (only if client is configured)
-      if (twilioClient && phoneNumber.providerId) {
-        try {
-          await twilioClient.incomingPhoneNumbers(phoneNumber.providerId).remove();
-        } catch (twilioError) {
-          console.error("Error releasing from Twilio:", twilioError);
-          // Continue with database deletion even if Twilio fails
+      if (twilioClient) {
+        // Handle cleanup based on connection type
+        if (phoneNumber.connectionType === 'sip_trunk') {
+          // For SIP trunked numbers, we don't release from Twilio's incoming numbers
+          // The SIP trunk resources remain for other numbers that might use them
+          console.log(`Disconnecting SIP trunk for ${phoneNumber.number}`);
+        } else if (phoneNumber.providerId) {
+          // Release purchased number from Twilio
+          try {
+            await twilioClient.incomingPhoneNumbers(phoneNumber.providerId).remove();
+          } catch (twilioError) {
+            console.error("Error releasing from Twilio:", twilioError);
+            // Continue with database deletion even if Twilio fails
+          }
         }
       }
 

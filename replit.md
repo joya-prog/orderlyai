@@ -53,7 +53,7 @@ Preferred communication style: Simple, everyday language.
 
 ### Core Features
 
-- **Plan & Billing**: Settings page with pricing calculator, subscription management, and usage tracking.
+- **Plan & Billing**: Settings page with pricing calculator, subscription management, usage tracking, invoice history, and Stripe billing portal integration.
 - **Phone Numbers Management**: Search, purchase, assign, and release Twilio phone numbers.
 - **Contacts Management**: Full CRUD, search, filter, and tag operations for contacts.
 - **POS Integrations**: OAuth 2.0 flows for Square and Toast POS, with automatic token refresh.
@@ -61,6 +61,20 @@ Preferred communication style: Simple, everyday language.
 - **Workflow Builder**: Integrated into the agent editor with drag-and-drop interface for creating agent flows.
 - **Test Center**: Integrated into the agent editor with text and voice testing modes (using OpenAI GPT-5, Whisper, TTS) for conversational agents.
 - **Integrations Page**: Displays available and upcoming integrations (Square, Toast, Twilio, Resy, Tock, Yelp).
+
+### Billing Infrastructure
+
+- **Stripe Integration**: Uses `stripe-replit-sync` for automatic webhook management and schema sync.
+- **Twilio Webhooks**: Secure call status tracking with X-Twilio-Signature validation (mandatory in production).
+- **Metered Billing**: Call minutes automatically reported to Stripe metered billing after call completion.
+- **Database Tables**:
+    - `callLogs`: Individual call records with duration tracking and billing status.
+    - `usageLedger`: Aggregated usage records per billing period.
+    - `invoices`: Synced invoice data from Stripe.
+- **Security**: 
+    - Twilio webhook signature validation (hard-fail in production).
+    - Plan type whitelist validation for checkout sessions.
+    - Tenant-scoped storage queries for billing data isolation.
 
 ## External Dependencies
 

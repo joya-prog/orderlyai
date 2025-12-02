@@ -15,6 +15,9 @@ import {
   oauthStates,
   subscriptions,
   usageMetrics,
+  usageLedger,
+  invoices,
+  callLogs,
   type User,
   type UpsertUser,
   type Agent,
@@ -46,6 +49,12 @@ import {
   type InsertSubscription,
   type UsageMetric,
   type InsertUsageMetric,
+  type UsageLedger,
+  type InsertUsageLedger,
+  type Invoice,
+  type InsertInvoice,
+  type CallLog,
+  type InsertCallLog,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, like, or, sql } from "drizzle-orm";
@@ -142,6 +151,29 @@ export interface IStorage {
   getCurrentUsageMetrics(userId: string): Promise<UsageMetric | null>;
   createUsageMetrics(metrics: InsertUsageMetric): Promise<UsageMetric>;
   updateUsageMetrics(userId: string, metrics: Partial<InsertUsageMetric>): Promise<UsageMetric | null>;
+
+  // Usage ledger operations (for Stripe metered billing)
+  createUsageLedgerEntry(entry: InsertUsageLedger): Promise<UsageLedger>;
+  getUnreportedUsageEntries(userId: string): Promise<UsageLedger[]>;
+  markUsageReported(id: string, stripeUsageRecordId: string): Promise<UsageLedger | null>;
+  getTotalUsageForPeriod(userId: string, periodStart: Date, periodEnd: Date): Promise<number>;
+
+  // Invoice operations
+  createInvoice(invoice: InsertInvoice): Promise<Invoice>;
+  getInvoices(userId: string): Promise<Invoice[]>;
+  getInvoiceByStripeId(stripeInvoiceId: string): Promise<Invoice | null>;
+  updateInvoice(stripeInvoiceId: string, invoice: Partial<InsertInvoice>): Promise<Invoice | null>;
+
+  // Call log operations for billing
+  createCallLog(callLog: InsertCallLog): Promise<CallLog>;
+  getCallLogByCallSid(callSid: string): Promise<CallLog | null>;
+  updateCallLog(id: string, callLog: Partial<InsertCallLog>): Promise<CallLog | null>;
+  getCallLogsForUser(userId: string, startDate?: Date, endDate?: Date): Promise<CallLog[]>;
+
+  // Get user by Stripe customer ID
+  getUserByStripeCustomerId(stripeCustomerId: string): Promise<User | null>;
+  getSubscriptionByStripeId(stripeSubscriptionId: string): Promise<Subscription | null>;
+  getSubscriptionByStripeCustomerId(stripeCustomerId: string): Promise<Subscription | null>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -696,6 +728,147 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return updated || null;
+  }
+
+  // Usage ledger operations (for Stripe metered billing)
+  async createUsageLedgerEntry(entry: InsertUsageLedger): Promise<UsageLedger> {
+    const [created] = await db.insert(usageLedger).values(entry).returning();
+    return created;
+  }
+
+  async getUnreportedUsageEntries(userId: string): Promise<UsageLedger[]> {
+    return await db
+      .select()
+      .from(usageLedger)
+      .where(and(
+        eq(usageLedger.userId, userId),
+        sql`${usageLedger.reportedToStripeAt} IS NULL`
+      ));
+  }
+
+  async markUsageReported(id: string, stripeUsageRecordId: string): Promise<UsageLedger | null> {
+    const [updated] = await db
+      .update(usageLedger)
+      .set({ 
+        reportedToStripeAt: new Date(),
+        stripeUsageRecordId,
+      })
+      .where(eq(usageLedger.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async getTotalUsageForPeriod(userId: string, periodStart: Date, periodEnd: Date): Promise<number> {
+    const entries = await db
+      .select()
+      .from(usageLedger)
+      .where(and(
+        eq(usageLedger.userId, userId),
+        sql`${usageLedger.periodStart} >= ${periodStart}`,
+        sql`${usageLedger.periodEnd} <= ${periodEnd}`
+      ));
+    
+    return entries.reduce((sum, entry) => sum + parseFloat(entry.minutesUsed || '0'), 0);
+  }
+
+  // Invoice operations
+  async createInvoice(invoice: InsertInvoice): Promise<Invoice> {
+    const [created] = await db.insert(invoices).values(invoice).returning();
+    return created;
+  }
+
+  async getInvoices(userId: string): Promise<Invoice[]> {
+    return await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.userId, userId))
+      .orderBy(sql`${invoices.createdAt} DESC`);
+  }
+
+  async getInvoiceByStripeId(stripeInvoiceId: string): Promise<Invoice | null> {
+    const [invoice] = await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.stripeInvoiceId, stripeInvoiceId));
+    return invoice || null;
+  }
+
+  async updateInvoice(stripeInvoiceId: string, invoice: Partial<InsertInvoice>): Promise<Invoice | null> {
+    const [updated] = await db
+      .update(invoices)
+      .set({ ...invoice, updatedAt: new Date() })
+      .where(eq(invoices.stripeInvoiceId, stripeInvoiceId))
+      .returning();
+    return updated || null;
+  }
+
+  // Call log operations for billing
+  async createCallLog(callLog: InsertCallLog): Promise<CallLog> {
+    const [created] = await db.insert(callLogs).values(callLog).returning();
+    return created;
+  }
+
+  async getCallLogByCallSid(callSid: string): Promise<CallLog | null> {
+    const [log] = await db
+      .select()
+      .from(callLogs)
+      .where(eq(callLogs.callSid, callSid));
+    return log || null;
+  }
+
+  async updateCallLog(id: string, callLog: Partial<InsertCallLog>): Promise<CallLog | null> {
+    const [updated] = await db
+      .update(callLogs)
+      .set(callLog)
+      .where(eq(callLogs.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async getCallLogsForUser(userId: string, startDate?: Date, endDate?: Date): Promise<CallLog[]> {
+    const conditions = [eq(callLogs.userId, userId)];
+    
+    if (startDate) {
+      conditions.push(sql`${callLogs.createdAt} >= ${startDate}` as any);
+    }
+    if (endDate) {
+      conditions.push(sql`${callLogs.createdAt} <= ${endDate}` as any);
+    }
+    
+    return await db
+      .select()
+      .from(callLogs)
+      .where(and(...conditions))
+      .orderBy(sql`${callLogs.createdAt} DESC`);
+  }
+
+  // Get user by Stripe customer ID
+  async getUserByStripeCustomerId(stripeCustomerId: string): Promise<User | null> {
+    const [subscription] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.stripeCustomerId, stripeCustomerId));
+    
+    if (!subscription) return null;
+    
+    const user = await this.getUser(subscription.userId);
+    return user || null;
+  }
+
+  async getSubscriptionByStripeId(stripeSubscriptionId: string): Promise<Subscription | null> {
+    const [subscription] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId));
+    return subscription || null;
+  }
+
+  async getSubscriptionByStripeCustomerId(stripeCustomerId: string): Promise<Subscription | null> {
+    const [subscription] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.stripeCustomerId, stripeCustomerId));
+    return subscription || null;
   }
 }
 

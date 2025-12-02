@@ -10,8 +10,12 @@ const upload = multer({ storage: multer.memoryStorage() });
 import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertActionSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema, insertIntegrationConfigSchema, insertAnalyticsEventSchema } from "@shared/schema";
 import twilio from "twilio";
 import crypto from "crypto";
+import { getTwilioClient, getTwilioAccountSid, getTwilioAuthToken } from "./twilioClient";
+import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 
-// Initialize Twilio client
+// Initialize Twilio client - but prefer the Replit connection integration
 const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
 const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioClient = twilioAccountSid && twilioAuthToken 
@@ -1390,6 +1394,363 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch usage metrics" });
     }
   });
+
+  // ==================== BILLING & WEBHOOKS ====================
+
+  // Get Stripe publishable key for frontend
+  app.get("/api/billing/stripe-config", async (req, res) => {
+    try {
+      const publishableKey = getStripePublishableKey();
+      res.json({ 
+        publishableKey,
+        hasStripeConnection: !!publishableKey 
+      });
+    } catch (error) {
+      console.error("Error getting Stripe config:", error);
+      res.status(500).json({ message: "Failed to get Stripe configuration" });
+    }
+  });
+
+  // Valid plan types whitelist
+  const VALID_PLAN_TYPES = ['starter', 'professional', 'business', 'enterprise'] as const;
+  type ValidPlanType = typeof VALID_PLAN_TYPES[number];
+
+  function isValidPlanType(plan: string): plan is ValidPlanType {
+    return VALID_PLAN_TYPES.includes(plan as ValidPlanType);
+  }
+
+  // Create Stripe checkout session for subscription
+  app.post("/api/billing/create-checkout-session", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { planType, priceId } = req.body;
+
+      // Validate planType against whitelist
+      if (!planType || typeof planType !== 'string') {
+        return res.status(400).json({ message: "planType is required" });
+      }
+
+      const normalizedPlan = planType.toLowerCase().trim();
+      if (!isValidPlanType(normalizedPlan)) {
+        return res.status(400).json({ 
+          message: `Invalid plan type. Valid options: ${VALID_PLAN_TYPES.join(', ')}` 
+        });
+      }
+
+      if (normalizedPlan === 'enterprise') {
+        return res.status(400).json({ message: "Please contact sales for Enterprise plans" });
+      }
+
+      const stripe = await getUncachableStripeClient();
+      if (!stripe) {
+        return res.status(503).json({ message: "Stripe is not configured" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Check if user already has a Stripe customer ID
+      let subscription = await storage.getSubscription(userId);
+      let customerId = subscription?.stripeCustomerId;
+
+      // Create customer if needed
+      if (!customerId) {
+        const customer = await stripe.customers.create({
+          email: user.email || undefined,
+          name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || undefined,
+          metadata: { userId },
+        });
+        customerId = customer.id;
+      }
+
+      // Price IDs for each plan tier (these would be your actual Stripe price IDs)
+      // In production, these should be fetched from Stripe or stored in environment variables
+      const priceTiers: Record<ValidPlanType, string> = {
+        starter: priceId || process.env.STRIPE_STARTER_PRICE_ID || 'price_starter',
+        professional: priceId || process.env.STRIPE_PROFESSIONAL_PRICE_ID || 'price_pro',
+        business: priceId || process.env.STRIPE_BUSINESS_PRICE_ID || 'price_business',
+        enterprise: priceId || process.env.STRIPE_ENTERPRISE_PRICE_ID || 'price_enterprise',
+      };
+
+      const selectedPrice = priceTiers[normalizedPlan];
+
+      // Create checkout session
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        mode: 'subscription',
+        line_items: [{ price: selectedPrice, quantity: 1 }],
+        success_url: `${req.headers.origin || process.env.REPLIT_DEV_DOMAIN || 'http://localhost:5000'}/settings?checkout=success`,
+        cancel_url: `${req.headers.origin || process.env.REPLIT_DEV_DOMAIN || 'http://localhost:5000'}/settings?checkout=canceled`,
+        metadata: { userId, planType },
+        subscription_data: {
+          metadata: { userId, planType },
+        },
+      });
+
+      res.json({ sessionId: session.id, url: session.url });
+    } catch (error: any) {
+      console.error("Error creating checkout session:", error);
+      res.status(500).json({ message: error.message || "Failed to create checkout session" });
+    }
+  });
+
+  // Create Stripe portal session for subscription management
+  app.post("/api/billing/create-portal-session", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const stripe = await getUncachableStripeClient();
+      if (!stripe) {
+        return res.status(503).json({ message: "Stripe is not configured" });
+      }
+
+      const subscription = await storage.getSubscription(userId);
+      if (!subscription?.stripeCustomerId) {
+        return res.status(400).json({ message: "No Stripe customer found" });
+      }
+
+      const session = await stripe.billingPortal.sessions.create({
+        customer: subscription.stripeCustomerId,
+        return_url: `${req.headers.origin || process.env.REPLIT_DEV_DOMAIN || 'http://localhost:5000'}/settings`,
+      });
+
+      res.json({ url: session.url });
+    } catch (error: any) {
+      console.error("Error creating portal session:", error);
+      res.status(500).json({ message: error.message || "Failed to create portal session" });
+    }
+  });
+
+  // Get invoices for user
+  app.get("/api/billing/invoices", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const invoices = await storage.getInvoices(userId);
+      res.json(invoices);
+    } catch (error) {
+      console.error("Error fetching invoices:", error);
+      res.status(500).json({ message: "Failed to fetch invoices" });
+    }
+  });
+
+  // Get usage ledger entries for billing display
+  app.get("/api/billing/usage", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const subscription = await storage.getSubscription(userId);
+      
+      if (!subscription) {
+        return res.json({ 
+          currentPeriodUsage: 0,
+          usageLimit: 0,
+          percentUsed: 0,
+        });
+      }
+
+      // Get current billing period usage
+      const periodStart = subscription.currentPeriodStart || new Date(new Date().setDate(1));
+      const periodEnd = subscription.currentPeriodEnd || new Date();
+      
+      const totalMinutes = await storage.getTotalUsageForPeriod(userId, periodStart, periodEnd);
+      const limitMinutes = parseFloat(subscription.minutesLimit || '500');
+      
+      res.json({
+        currentPeriodUsage: totalMinutes,
+        usageLimit: limitMinutes,
+        percentUsed: limitMinutes > 0 ? (totalMinutes / limitMinutes) * 100 : 0,
+        periodStart,
+        periodEnd,
+      });
+    } catch (error) {
+      console.error("Error fetching usage:", error);
+      res.status(500).json({ message: "Failed to fetch usage" });
+    }
+  });
+
+  // Get call logs for billing/analytics
+  app.get("/api/billing/call-logs", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { startDate, endDate } = req.query;
+      
+      const logs = await storage.getCallLogsForUser(
+        userId,
+        startDate ? new Date(startDate as string) : undefined,
+        endDate ? new Date(endDate as string) : undefined
+      );
+      
+      res.json(logs);
+    } catch (error) {
+      console.error("Error fetching call logs:", error);
+      res.status(500).json({ message: "Failed to fetch call logs" });
+    }
+  });
+
+  // ==================== TWILIO WEBHOOK ====================
+
+  // Twilio call status webhook - called when a call ends
+  // This endpoint must be configured in Twilio's webhook settings
+  app.post("/api/webhooks/twilio/call-status", async (req, res) => {
+    try {
+      // Validate Twilio webhook signature
+      const twilioSig = req.headers['x-twilio-signature'] as string | undefined;
+      const authToken = await getTwilioAuthToken();
+      const isProduction = process.env.NODE_ENV === 'production';
+      
+      // In production, ALWAYS require signature validation
+      if (isProduction) {
+        if (!authToken) {
+          console.error("CRITICAL: Twilio auth token not configured in production");
+          return res.status(503).send('Service unavailable - Twilio not configured');
+        }
+        
+        if (!twilioSig) {
+          console.warn("Missing Twilio signature in production - rejecting webhook");
+          return res.status(403).send('Forbidden - Missing signature');
+        }
+        
+        const webhookUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+        const isValid = twilio.validateRequest(authToken, twilioSig, webhookUrl, req.body);
+        
+        if (!isValid) {
+          console.warn("Invalid Twilio signature - rejecting webhook");
+          return res.status(403).send('Forbidden - Invalid signature');
+        }
+      } else {
+        // In development, validate signature if available but allow unsigned requests
+        if (authToken && twilioSig) {
+          const webhookUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+          const isValid = twilio.validateRequest(authToken, twilioSig, webhookUrl, req.body);
+          
+          if (!isValid) {
+            console.warn("Invalid Twilio signature in dev - allowing for testing");
+          }
+        }
+      }
+
+      const {
+        CallSid,
+        CallStatus,
+        CallDuration,
+        From,
+        To,
+        Direction,
+        AccountSid,
+      } = req.body;
+
+      console.log(`Twilio call webhook: ${CallSid} - Status: ${CallStatus}`);
+
+      // Only process completed calls for billing
+      if (CallStatus !== 'completed') {
+        return res.status(200).send('OK');
+      }
+
+      const durationSeconds = parseInt(CallDuration || '0', 10);
+      const durationMinutes = Math.ceil(durationSeconds / 60); // Round up to nearest minute
+
+      // Find the phone number this call was made to/from to identify the user
+      const phoneNumbers = await db.execute(sql`
+        SELECT * FROM phone_numbers WHERE phone_number = ${To} OR phone_number = ${From}
+      `);
+
+      if (!phoneNumbers.rows || phoneNumbers.rows.length === 0) {
+        console.log(`No matching phone number found for call ${CallSid}`);
+        return res.status(200).send('OK');
+      }
+
+      const phoneNumber = phoneNumbers.rows[0] as any;
+      const userId = phoneNumber.user_id;
+
+      // Create call log entry
+      await storage.createCallLog({
+        userId,
+        callSid: CallSid,
+        phoneNumberId: phoneNumber.id,
+        agentId: phoneNumber.agent_id,
+        direction: Direction?.toLowerCase() || 'inbound',
+        fromNumber: From,
+        toNumber: To,
+        duration: durationSeconds.toString(),
+        durationSeconds: durationSeconds.toString(),
+        durationMinutes: durationMinutes.toString(),
+        status: CallStatus,
+        billingStatus: 'pending',
+      });
+
+      // Create usage ledger entry for this call
+      const now = new Date();
+      const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+      await storage.createUsageLedgerEntry({
+        userId,
+        periodStart,
+        periodEnd,
+        minutesUsed: durationMinutes.toString(),
+        callLogIds: [CallSid],
+      });
+
+      // Report usage to Stripe if user has active subscription
+      const subscription = await storage.getSubscription(userId);
+      if (subscription?.stripeSubscriptionId) {
+        const stripe = await getUncachableStripeClient();
+        if (stripe) {
+          try {
+            // Get the subscription item ID for metered billing
+            const stripeSub = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
+            const meteredItem = stripeSub.items.data.find((item: any) => 
+              item.price.recurring?.usage_type === 'metered'
+            );
+
+            if (meteredItem) {
+              await stripe.subscriptionItems.createUsageRecord(
+                meteredItem.id,
+                {
+                  quantity: durationMinutes,
+                  timestamp: Math.floor(Date.now() / 1000),
+                  action: 'increment',
+                }
+              );
+              console.log(`Reported ${durationMinutes} minutes to Stripe for user ${userId}`);
+            }
+          } catch (stripeError: any) {
+            console.error("Error reporting usage to Stripe:", stripeError.message);
+          }
+        }
+      }
+
+      res.status(200).send('OK');
+    } catch (error: any) {
+      console.error("Error processing Twilio webhook:", error);
+      res.status(500).send('Error');
+    }
+  });
+
+  // Validate Twilio webhook signature (optional middleware for security)
+  async function validateTwilioSignature(req: any, res: any, next: any) {
+    const twilioSig = req.headers['x-twilio-signature'];
+    const authToken = await getTwilioAuthToken();
+    
+    if (!twilioSig || !authToken) {
+      console.warn("Missing Twilio signature or auth token");
+      if (process.env.NODE_ENV === 'production') {
+        return res.status(403).send('Forbidden');
+      }
+      return next(); // Continue without validation in dev
+    }
+
+    const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+    const valid = twilio.validateRequest(authToken, twilioSig, url, req.body);
+    
+    if (!valid) {
+      console.warn("Invalid Twilio signature");
+      return res.status(403).send('Forbidden');
+    }
+    
+    next();
+  }
 
   const httpServer = createServer(app);
   return httpServer;

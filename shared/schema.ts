@@ -375,8 +375,11 @@ export const callLogs = pgTable("call_logs", {
   direction: text("direction").notNull(), // 'inbound', 'outbound'
   fromNumber: varchar("from_number"),
   toNumber: varchar("to_number"),
-  duration: text("duration"), // Duration in seconds
+  duration: text("duration"), // Duration in seconds (legacy field)
+  durationSeconds: text("duration_seconds"), // Duration in seconds
+  durationMinutes: text("duration_minutes"), // Duration in minutes (for billing)
   status: text("status").notNull(), // 'completed', 'busy', 'no-answer', 'failed'
+  billingStatus: text("billing_status").default('pending'), // 'pending', 'reported', 'billed'
   transcript: text("transcript"),
   recordingUrl: text("recording_url"),
   metadata: jsonb("metadata"), // Additional call data
@@ -495,3 +498,70 @@ export const insertUsageMetricSchema = createInsertSchema(usageMetrics).omit({
 
 export type InsertUsageMetric = z.infer<typeof insertUsageMetricSchema>;
 export type UsageMetric = typeof usageMetrics.$inferSelect;
+
+// Usage ledger for tracking call minutes per billing period (for Stripe metered billing)
+export const usageLedger = pgTable("usage_ledger", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  agentId: varchar("agent_id").references(() => agents.id, { onDelete: 'set null' }),
+  callLogId: varchar("call_log_id").references(() => callLogs.id, { onDelete: 'set null' }),
+  
+  // Billing period
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  
+  // Usage tracking
+  minutesUsed: text("minutes_used").notNull().default('0'),
+  
+  // Stripe reporting
+  reportedToStripeAt: timestamp("reported_to_stripe_at"),
+  stripeUsageRecordId: varchar("stripe_usage_record_id"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertUsageLedgerSchema = createInsertSchema(usageLedger).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertUsageLedger = z.infer<typeof insertUsageLedgerSchema>;
+export type UsageLedger = typeof usageLedger.$inferSelect;
+
+// Invoices table for tracking Stripe invoices
+export const invoices = pgTable("invoices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  stripeInvoiceId: varchar("stripe_invoice_id").unique(),
+  
+  // Invoice details
+  status: text("status").notNull().default('draft'), // 'draft', 'open', 'paid', 'uncollectible', 'void'
+  amountDue: text("amount_due").notNull().default('0'), // In cents
+  amountPaid: text("amount_paid").notNull().default('0'),
+  currency: text("currency").notNull().default('usd'),
+  
+  // Period info
+  periodStart: timestamp("period_start"),
+  periodEnd: timestamp("period_end"),
+  dueDate: timestamp("due_date"),
+  paidAt: timestamp("paid_at"),
+  
+  // PDF
+  hostedInvoiceUrl: text("hosted_invoice_url"),
+  invoicePdfUrl: text("invoice_pdf_url"),
+  
+  // Line items summary
+  lineItemsSummary: jsonb("line_items_summary"), // [{description, amount}]
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertInvoiceSchema = createInsertSchema(invoices).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
+export type Invoice = typeof invoices.$inferSelect;

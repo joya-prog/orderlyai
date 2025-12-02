@@ -1086,29 +1086,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`Disconnecting SIP trunk for ${phoneNumber.number}`);
           try {
             const trunkSid = phoneNumber.trunkSid;
+            const trunkContext = twilioClient.trunking.v1.trunks(trunkSid);
             
             // Remove origination URLs associated with this number
-            const originationUrls = await twilioClient.trunking.v1.trunks(trunkSid)
-              .originationUrls.list();
+            const originationUrls = await trunkContext.originationUrls.list();
             
             for (const origUrl of originationUrls) {
               if (origUrl.sipUrl?.includes(phoneNumber.number)) {
-                await twilioClient.trunking.v1.trunks(trunkSid)
-                  .originationUrls(origUrl.sid).remove();
+                await trunkContext.originationUrls(origUrl.sid).remove();
                 console.log(`Removed origination URL: ${origUrl.sid}`);
               }
             }
             
             // Check if trunk has any remaining origination URLs
-            const remainingUrls = await twilioClient.trunking.v1.trunks(trunkSid)
-              .originationUrls.list();
+            const remainingUrls = await trunkContext.originationUrls.list();
             
-            // If no other numbers using this trunk, we could delete it
-            // But for now, keep the trunk for potential future use
+            // If no other numbers using this trunk, delete the entire trunk and its resources
             if (remainingUrls.length === 0) {
-              console.log(`Trunk ${trunkSid} has no more origination URLs`);
-              // Optionally delete the trunk:
-              // await twilioClient.trunking.v1.trunks(trunkSid).remove();
+              console.log(`Trunk ${trunkSid} has no more origination URLs, cleaning up...`);
+              
+              // Remove credential list associations from trunk (cast to any for SDK type compatibility)
+              try {
+                const credLists = await (trunkContext as any).credentialLists.list();
+                for (const credList of credLists) {
+                  await (trunkContext as any).credentialLists(credList.sid).remove();
+                  console.log(`Removed credential list association: ${credList.sid}`);
+                }
+              } catch (credError: any) {
+                console.warn("Credential list cleanup warning:", credError.message);
+              }
+              
+              // Remove IP ACL associations from trunk
+              try {
+                const ipAcls = await (trunkContext as any).ipAccessControlLists.list();
+                for (const ipAcl of ipAcls) {
+                  await (trunkContext as any).ipAccessControlLists(ipAcl.sid).remove();
+                  console.log(`Removed IP ACL association: ${ipAcl.sid}`);
+                }
+              } catch (ipAclError: any) {
+                console.warn("IP ACL cleanup warning:", ipAclError.message);
+              }
+              
+              // Delete the trunk itself
+              try {
+                await trunkContext.remove();
+                console.log(`Deleted SIP trunk: ${trunkSid}`);
+              } catch (trunkDeleteError: any) {
+                console.warn("Trunk deletion warning:", trunkDeleteError.message);
+              }
             }
           } catch (sipError: any) {
             console.error("Error cleaning up SIP trunk:", sipError.message);

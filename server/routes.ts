@@ -973,9 +973,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 password: sipPassword,
               });
             
-            // Associate credential list with trunk
-            await twilioClient.trunking.v1.trunks(trunk.sid)
-              .credentialsLists
+            // Associate credential list with trunk (use any to bypass SDK type issues)
+            await (twilioClient.trunking.v1.trunks(trunk.sid) as any)
+              .credentialLists
               .create({ credentialListSid: credList.sid });
           } catch (credError: any) {
             console.warn("Credential setup warning:", credError.message);
@@ -1081,10 +1081,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (twilioClient) {
         // Handle cleanup based on connection type
-        if (phoneNumber.connectionType === 'sip_trunk') {
-          // For SIP trunked numbers, we don't release from Twilio's incoming numbers
-          // The SIP trunk resources remain for other numbers that might use them
+        if (phoneNumber.connectionType === 'sip_trunk' && phoneNumber.trunkSid) {
+          // Clean up SIP trunk resources
           console.log(`Disconnecting SIP trunk for ${phoneNumber.number}`);
+          try {
+            const trunkSid = phoneNumber.trunkSid;
+            
+            // Remove origination URLs associated with this number
+            const originationUrls = await twilioClient.trunking.v1.trunks(trunkSid)
+              .originationUrls.list();
+            
+            for (const origUrl of originationUrls) {
+              if (origUrl.sipUrl?.includes(phoneNumber.number)) {
+                await twilioClient.trunking.v1.trunks(trunkSid)
+                  .originationUrls(origUrl.sid).remove();
+                console.log(`Removed origination URL: ${origUrl.sid}`);
+              }
+            }
+            
+            // Check if trunk has any remaining origination URLs
+            const remainingUrls = await twilioClient.trunking.v1.trunks(trunkSid)
+              .originationUrls.list();
+            
+            // If no other numbers using this trunk, we could delete it
+            // But for now, keep the trunk for potential future use
+            if (remainingUrls.length === 0) {
+              console.log(`Trunk ${trunkSid} has no more origination URLs`);
+              // Optionally delete the trunk:
+              // await twilioClient.trunking.v1.trunks(trunkSid).remove();
+            }
+          } catch (sipError: any) {
+            console.error("Error cleaning up SIP trunk:", sipError.message);
+            // Continue with database deletion even if cleanup fails
+          }
         } else if (phoneNumber.providerId) {
           // Release purchased number from Twilio
           try {

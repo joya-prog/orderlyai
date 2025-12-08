@@ -57,6 +57,15 @@ Preferred communication style: Simple, everyday language.
 - **Phone Numbers Management**: Search, purchase, assign, and release Twilio phone numbers.
 - **Contacts Management**: Full CRUD, search, filter, and tag operations for contacts.
 - **POS Integrations**: OAuth 2.0 flows for Square and Toast POS, with automatic token refresh.
+- **Square API Proxy Endpoints**: Server-side endpoints that use stored OAuth tokens to access Square APIs on behalf of connected restaurants:
+    - `GET /api/square/catalog` - Fetch live menu items, categories, and modifiers
+    - `GET /api/square/locations` - Get restaurant location IDs
+    - `POST /api/square/customers/search` - Search for customers
+    - `POST /api/square/customers` - Create new customers
+    - `POST /api/square/orders` - Create orders in Square POS
+    - `POST /api/square/payment-links` - Generate payment links for "pay now" flow
+    - `POST /api/square/payments` - Process payments directly
+- **Live Menu Integration**: AI agents automatically access real-time Square menu data (items, prices, variations, modifiers) during conversations when Square is connected.
 - **Analytics Dashboard**: Real-time tracking for calls, orders, reservations, with KPI cards and Recharts visualizations.
 - **Workflow Builder**: Integrated into the agent editor with drag-and-drop interface for creating agent flows.
 - **Test Center**: Integrated into the agent editor with text and voice testing modes (using OpenAI GPT-5, Whisper, TTS) for conversational agents.

@@ -1233,7 +1233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       service: 'square',
     });
 
-    const scopes = ['MERCHANT_PROFILE_READ', 'ITEMS_READ', 'ORDERS_READ', 'ORDERS_WRITE'].join(' ');
+    const scopes = ['MERCHANT_PROFILE_READ', 'ITEMS_READ', 'ORDERS_READ', 'ORDERS_WRITE', 'PAYMENTS_WRITE', 'CUSTOMERS_WRITE'].join(' ');
     const authUrl = `https://connect.squareup.com/oauth2/authorize?client_id=${clientId}&scope=${encodeURIComponent(scopes)}&state=${nonce}&redirect_uri=${encodeURIComponent(redirectUri)}`;
     
     res.redirect(authUrl);

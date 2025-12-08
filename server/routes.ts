@@ -1318,6 +1318,316 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Square API helper function - gets valid access token with auto-refresh
+  async function getSquareAccessToken(userId: string): Promise<{ accessToken: string; merchantId: string } | null> {
+    const integrations = await storage.getIntegrations(userId);
+    const squareIntegration = integrations.find(i => i.service === 'square' && i.status === 'active');
+    
+    if (!squareIntegration || !squareIntegration.credentials) {
+      return null;
+    }
+
+    const credentials = squareIntegration.credentials as {
+      access_token: string;
+      refresh_token: string;
+      expires_at: string;
+      merchant_id: string;
+    };
+
+    // Check if token is expired or will expire in next 5 minutes
+    const expiresAt = new Date(credentials.expires_at).getTime();
+    const now = Date.now();
+    const fiveMinutes = 5 * 60 * 1000;
+
+    if (expiresAt - now < fiveMinutes) {
+      // Token needs refresh
+      const clientId = process.env.SQUARE_CLIENT_ID;
+      const clientSecret = process.env.SQUARE_CLIENT_SECRET;
+
+      if (!clientId || !clientSecret) {
+        console.error('Square OAuth not configured for token refresh');
+        return null;
+      }
+
+      try {
+        const refreshResponse = await fetch('https://connect.squareup.com/oauth2/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            client_id: clientId,
+            client_secret: clientSecret,
+            grant_type: 'refresh_token',
+            refresh_token: credentials.refresh_token,
+          }),
+        });
+
+        if (!refreshResponse.ok) {
+          console.error('Square token refresh failed:', await refreshResponse.text());
+          return null;
+        }
+
+        const newTokens = await refreshResponse.json();
+        
+        // Square refresh response doesn't include expires_at - compute 30 days from now
+        const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        const newExpiresAt = newTokens.expires_at || thirtyDaysFromNow;
+        const newMerchantId = newTokens.merchant_id || credentials.merchant_id;
+        
+        // Update stored credentials
+        await storage.updateIntegration(squareIntegration.id, userId, {
+          credentials: {
+            access_token: newTokens.access_token,
+            refresh_token: newTokens.refresh_token || credentials.refresh_token,
+            expires_at: newExpiresAt,
+            merchant_id: newMerchantId,
+          },
+        });
+
+        return { accessToken: newTokens.access_token, merchantId: newMerchantId };
+      } catch (error) {
+        console.error('Square token refresh error:', error);
+        return null;
+      }
+    }
+
+    return { accessToken: credentials.access_token, merchantId: credentials.merchant_id };
+  }
+
+  // Square API Proxy Endpoints
+
+  // Get catalog/menu items
+  app.get("/api/square/catalog", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const tokenInfo = await getSquareAccessToken(userId);
+
+      if (!tokenInfo) {
+        return res.status(401).json({ message: "Square not connected or token expired. Please reconnect." });
+      }
+
+      const response = await fetch('https://connect.squareup.com/v2/catalog/list?types=ITEM,CATEGORY,MODIFIER_LIST', {
+        headers: {
+          'Authorization': `Bearer ${tokenInfo.accessToken}`,
+          'Square-Version': '2024-01-18',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Square catalog error:', error);
+        return res.status(response.status).json({ message: "Failed to fetch catalog", error });
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error('Square catalog error:', error);
+      res.status(500).json({ message: "Failed to fetch Square catalog" });
+    }
+  });
+
+  // Get locations
+  app.get("/api/square/locations", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const tokenInfo = await getSquareAccessToken(userId);
+
+      if (!tokenInfo) {
+        return res.status(401).json({ message: "Square not connected or token expired. Please reconnect." });
+      }
+
+      const response = await fetch('https://connect.squareup.com/v2/locations', {
+        headers: {
+          'Authorization': `Bearer ${tokenInfo.accessToken}`,
+          'Square-Version': '2024-01-18',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Square locations error:', error);
+        return res.status(response.status).json({ message: "Failed to fetch locations", error });
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error('Square locations error:', error);
+      res.status(500).json({ message: "Failed to fetch Square locations" });
+    }
+  });
+
+  // Search/create customers
+  app.post("/api/square/customers/search", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const tokenInfo = await getSquareAccessToken(userId);
+
+      if (!tokenInfo) {
+        return res.status(401).json({ message: "Square not connected or token expired. Please reconnect." });
+      }
+
+      const response = await fetch('https://connect.squareup.com/v2/customers/search', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tokenInfo.accessToken}`,
+          'Square-Version': '2024-01-18',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(req.body),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Square customer search error:', error);
+        return res.status(response.status).json({ message: "Failed to search customers", error });
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error('Square customer search error:', error);
+      res.status(500).json({ message: "Failed to search Square customers" });
+    }
+  });
+
+  app.post("/api/square/customers", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const tokenInfo = await getSquareAccessToken(userId);
+
+      if (!tokenInfo) {
+        return res.status(401).json({ message: "Square not connected or token expired. Please reconnect." });
+      }
+
+      const response = await fetch('https://connect.squareup.com/v2/customers', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tokenInfo.accessToken}`,
+          'Square-Version': '2024-01-18',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(req.body),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Square customer create error:', error);
+        return res.status(response.status).json({ message: "Failed to create customer", error });
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error('Square customer create error:', error);
+      res.status(500).json({ message: "Failed to create Square customer" });
+    }
+  });
+
+  // Create order
+  app.post("/api/square/orders", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const tokenInfo = await getSquareAccessToken(userId);
+
+      if (!tokenInfo) {
+        return res.status(401).json({ message: "Square not connected or token expired. Please reconnect." });
+      }
+
+      const response = await fetch('https://connect.squareup.com/v2/orders', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tokenInfo.accessToken}`,
+          'Square-Version': '2024-01-18',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(req.body),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Square order create error:', error);
+        return res.status(response.status).json({ message: "Failed to create order", error });
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error('Square order create error:', error);
+      res.status(500).json({ message: "Failed to create Square order" });
+    }
+  });
+
+  // Create payment link (for "pay now" flow)
+  app.post("/api/square/payment-links", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const tokenInfo = await getSquareAccessToken(userId);
+
+      if (!tokenInfo) {
+        return res.status(401).json({ message: "Square not connected or token expired. Please reconnect." });
+      }
+
+      const response = await fetch('https://connect.squareup.com/v2/online-checkout/payment-links', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tokenInfo.accessToken}`,
+          'Square-Version': '2024-01-18',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(req.body),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Square payment link error:', error);
+        return res.status(response.status).json({ message: "Failed to create payment link", error });
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error('Square payment link error:', error);
+      res.status(500).json({ message: "Failed to create Square payment link" });
+    }
+  });
+
+  // Process payment directly
+  app.post("/api/square/payments", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const tokenInfo = await getSquareAccessToken(userId);
+
+      if (!tokenInfo) {
+        return res.status(401).json({ message: "Square not connected or token expired. Please reconnect." });
+      }
+
+      const response = await fetch('https://connect.squareup.com/v2/payments', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tokenInfo.accessToken}`,
+          'Square-Version': '2024-01-18',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(req.body),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Square payment error:', error);
+        return res.status(response.status).json({ message: "Failed to process payment", error });
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error('Square payment error:', error);
+      res.status(500).json({ message: "Failed to process Square payment" });
+    }
+  });
+
   // Toast OAuth routes
   app.get("/api/integrations/toast/oauth/init", isAuthenticated, async (req: any, res) => {
     const userId = req.user.claims.sub;

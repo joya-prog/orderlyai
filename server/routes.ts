@@ -233,6 +233,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function to format Square catalog for AI context
+  async function getSquareMenuContext(userId: string): Promise<string> {
+    try {
+      const tokenInfo = await getSquareAccessToken(userId);
+      if (!tokenInfo) {
+        return ""; // Square not connected
+      }
+
+      const response = await fetch('https://connect.squareup.com/v2/catalog/list?types=ITEM,CATEGORY,MODIFIER_LIST', {
+        headers: {
+          'Authorization': `Bearer ${tokenInfo.accessToken}`,
+          'Square-Version': '2024-01-18',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const status = response.status;
+        if (status === 401 || status === 403) {
+          console.error('Square token expired or invalid - user should reconnect Square');
+        } else {
+          console.error('Failed to fetch Square catalog for AI context, status:', status);
+        }
+        return "";
+      }
+
+      const data = await response.json();
+      const objects = data.objects || [];
+      
+      // Build category map
+      const categories: Record<string, string> = {};
+      objects.filter((obj: any) => obj.type === 'CATEGORY').forEach((cat: any) => {
+        categories[cat.id] = cat.category_data?.name || 'Uncategorized';
+      });
+
+      // Build modifier map
+      const modifiers: Record<string, string[]> = {};
+      objects.filter((obj: any) => obj.type === 'MODIFIER_LIST').forEach((mod: any) => {
+        const modData = mod.modifier_list_data;
+        if (modData?.modifiers) {
+          modifiers[mod.id] = modData.modifiers.map((m: any) => {
+            const modName = m.modifier_data?.name || '';
+            const modPrice = m.modifier_data?.price_money;
+            if (modPrice) {
+              return `${modName} (+$${(modPrice.amount / 100).toFixed(2)})`;
+            }
+            return modName;
+          });
+        }
+      });
+
+      // Format menu items with all variations and modifiers
+      const menuItems = objects.filter((obj: any) => obj.type === 'ITEM').map((item: any) => {
+        const itemData = item.item_data;
+        const name = itemData?.name || 'Unknown Item';
+        const description = itemData?.description || '';
+        const category = itemData?.category_id ? categories[itemData.category_id] : 'Menu';
+        
+        // Get all variations with sizes/prices
+        const variations = itemData?.variations || [];
+        let priceInfo: string[] = [];
+        let hasVariablePricing = false;
+        
+        variations.forEach((v: any) => {
+          const varData = v.item_variation_data;
+          const varName = varData?.name || '';
+          const priceMoney = varData?.price_money;
+          
+          if (priceMoney) {
+            const price = `$${(priceMoney.amount / 100).toFixed(2)}`;
+            if (variations.length > 1 && varName) {
+              priceInfo.push(`${varName}: ${price}`);
+            } else {
+              priceInfo.push(price);
+            }
+          } else if (varData?.pricing_type === 'VARIABLE') {
+            hasVariablePricing = true;
+          }
+        });
+        
+        let priceStr = '';
+        if (priceInfo.length > 0) {
+          priceStr = priceInfo.length > 1 ? ` (${priceInfo.join(', ')})` : ` - ${priceInfo[0]}`;
+        } else if (hasVariablePricing) {
+          priceStr = ' - Price varies';
+        }
+
+        // Check for modifiers/customizations
+        const itemModifierIds = itemData?.modifier_list_info?.map((m: any) => m.modifier_list_id) || [];
+        let modifierNote = '';
+        if (itemModifierIds.length > 0) {
+          const allMods: string[] = [];
+          itemModifierIds.forEach((modId: string) => {
+            if (modifiers[modId]) {
+              allMods.push(...modifiers[modId]);
+            }
+          });
+          if (allMods.length > 0) {
+            modifierNote = ` | Customizations: ${allMods.slice(0, 5).join(', ')}${allMods.length > 5 ? '...' : ''}`;
+          }
+        }
+        
+        return `- ${name}${priceStr}${description ? ` - ${description}` : ''}${modifierNote} [${category}]`;
+      });
+
+      if (menuItems.length === 0) {
+        return "";
+      }
+
+      return `\n\nLIVE MENU FROM SQUARE POS:\n${menuItems.join('\n')}\n\nNote: Prices and availability are real-time from the restaurant's POS system. Ask about customizations and modifications.`;
+    } catch (error) {
+      console.error('Error fetching Square menu for AI:', error);
+      return "";
+    }
+  }
+
   // Agent testing route
   app.post("/api/agents/:id/test", isAuthenticated, async (req: any, res) => {
     try {
@@ -253,12 +369,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .map((item) => `Q: ${item.question}\nA: ${item.answer}`)
         .join("\n\n");
 
+      // Get live Square menu data if connected
+      const squareMenuContext = await getSquareMenuContext(userId);
+      const fullKnowledgeContext = knowledgeContext + squareMenuContext;
+
       // Generate response using OpenAI
       const response = await generateAgentResponse(
         agent.systemPrompt,
         agent.greetingMessage,
         agent.personality,
-        knowledgeContext,
+        fullKnowledgeContext,
         history,
         message
       );

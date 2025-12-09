@@ -578,10 +578,14 @@ interface BrowserTestSession {
   userId: string;
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
   isProcessing: boolean;
+  isSpeaking: boolean;
   ws: WebSocket;
   callStartTime: number;
   knowledgeContext: string;
   squareMenuContext: string;
+  audioBuffer: Buffer[];
+  silenceTimer: NodeJS.Timeout | null;
+  lastAudioTime: number;
 }
 
 const browserTestSessions = new Map<string, BrowserTestSession>();
@@ -619,10 +623,14 @@ export async function handleBrowserTestWebSocket(ws: WebSocket, agentId: string,
     userId,
     conversationHistory: [],
     isProcessing: false,
+    isSpeaking: false,
     ws,
     callStartTime: Date.now(),
     knowledgeContext,
     squareMenuContext,
+    audioBuffer: [],
+    silenceTimer: null,
+    lastAudioTime: 0,
   };
   
   browserTestSessions.set(callSid, session);
@@ -639,12 +647,51 @@ export async function handleBrowserTestWebSocket(ws: WebSocket, agentId: string,
     }
   }, 300);
   
+  const SILENCE_THRESHOLD_MS = 1500; // Process audio after 1.5 seconds of silence
+  const MIN_AUDIO_LENGTH = 16000 * 2 * 0.5; // At least 0.5 seconds of 16kHz 16-bit audio
+  
   ws.on('message', async (data: Buffer) => {
     try {
       const message = JSON.parse(data.toString());
       
       switch (message.type) {
+        case 'audio_chunk':
+          // Streaming audio chunks from browser microphone
+          const chunkData = Buffer.from(message.audio, 'base64');
+          session.audioBuffer.push(chunkData);
+          session.lastAudioTime = Date.now();
+          
+          // If agent is speaking and we detect voice, this could trigger interrupt
+          // For now, just buffer audio
+          
+          // Reset silence timer
+          if (session.silenceTimer) {
+            clearTimeout(session.silenceTimer);
+          }
+          
+          // Set new silence timer to process audio after pause
+          if (!session.isProcessing) {
+            session.silenceTimer = setTimeout(async () => {
+              const totalBuffer = Buffer.concat(session.audioBuffer);
+              
+              if (totalBuffer.length >= MIN_AUDIO_LENGTH) {
+                console.log(`[BrowserTest ${callSid}] Processing ${totalBuffer.length} bytes of audio`);
+                session.audioBuffer = [];
+                await processBrowserAudio(session, totalBuffer);
+              } else {
+                console.log(`[BrowserTest ${callSid}] Audio too short, skipping (${totalBuffer.length} bytes)`);
+                session.audioBuffer = [];
+                // Stay in listening state
+                if (session.ws.readyState === WebSocket.OPEN) {
+                  session.ws.send(JSON.stringify({ type: 'state', state: 'listening' }));
+                }
+              }
+            }, SILENCE_THRESHOLD_MS);
+          }
+          break;
+          
         case 'audio':
+          // Legacy: Complete audio blob (for compatibility)
           if (session.isProcessing) break;
           
           const audioData = Buffer.from(message.audio, 'base64');
@@ -658,6 +705,9 @@ export async function handleBrowserTestWebSocket(ws: WebSocket, agentId: string,
           
         case 'end':
           console.log(`[BrowserTest] Test call ended: ${callSid}`);
+          if (session.silenceTimer) {
+            clearTimeout(session.silenceTimer);
+          }
           browserTestSessions.delete(callSid);
           ws.close();
           break;
@@ -670,6 +720,9 @@ export async function handleBrowserTestWebSocket(ws: WebSocket, agentId: string,
   
   ws.on('close', () => {
     console.log(`[BrowserTest] Session closed: ${callSid}`);
+    if (session.silenceTimer) {
+      clearTimeout(session.silenceTimer);
+    }
     browserTestSessions.delete(callSid);
   });
   

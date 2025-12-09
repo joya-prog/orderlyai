@@ -500,7 +500,8 @@ export default function AgentEditor() {
           const pcmData = new Int16Array(event.data.audio);
           if (wsReady && ws.readyState === WebSocket.OPEN) {
             // Send audio chunk as base64
-            const base64 = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)));
+            const bytes = new Uint8Array(pcmData.buffer);
+            const base64 = btoa(Array.from(bytes).map(b => String.fromCharCode(b)).join(''));
             ws.send(JSON.stringify({ type: 'audio_chunk', audio: base64 }));
           } else {
             audioBuffer.push(pcmData);
@@ -513,7 +514,8 @@ export default function AgentEditor() {
         wsReady = true;
         // Send any buffered audio
         audioBuffer.forEach(chunk => {
-          const base64 = btoa(String.fromCharCode(...new Uint8Array(chunk.buffer)));
+          const bytes = new Uint8Array(chunk.buffer);
+          const base64 = btoa(Array.from(bytes).map(b => String.fromCharCode(b)).join(''));
           ws.send(JSON.stringify({ type: 'audio_chunk', audio: base64 }));
         });
         audioBuffer = [];

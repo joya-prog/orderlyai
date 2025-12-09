@@ -1,9 +1,11 @@
 // Reference: javascript_log_in_with_replit blueprint
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketServer } from "ws";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { generateAgentResponse, transcribeAudio, synthesizeSpeech, listOpenAIVoices, VoiceConfig } from "./openai";
+import { handleTwilioWebSocket, generateTwiML, getActiveCalls } from "./voiceCallHandler";
 import multer from "multer";
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -2399,6 +2401,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   }
 
+  // Twilio Voice Webhook - handles incoming calls and routes to AI agent
+  app.post("/api/voice/incoming", async (req, res) => {
+    try {
+      const { To, From, CallSid } = req.body;
+      console.log(`[Voice] Incoming call from ${From} to ${To}, CallSid: ${CallSid}`);
+
+      // Find the phone number and its assigned agent
+      const phoneNumber = await storage.getPhoneNumberByNumber(To);
+      if (!phoneNumber || !phoneNumber.agentId) {
+        console.log(`[Voice] No agent assigned to ${To}, rejecting call`);
+        res.type('text/xml');
+        res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>Sorry, this number is not configured to receive calls. Please try again later.</Say>
+  <Hangup />
+</Response>`);
+        return;
+      }
+
+      // Get the base URL for WebSocket connection
+      const baseUrl = `https://${req.get('host')}`;
+      const twiml = generateTwiML(phoneNumber.agentId, phoneNumber.id, baseUrl);
+
+      console.log(`[Voice] Routing call to agent ${phoneNumber.agentId}`);
+      res.type('text/xml');
+      res.send(twiml);
+    } catch (error) {
+      console.error("[Voice] Error handling incoming call:", error);
+      res.type('text/xml');
+      res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>Sorry, an error occurred. Please try again later.</Say>
+  <Hangup />
+</Response>`);
+    }
+  });
+
+  // Get active calls for monitoring
+  app.get("/api/voice/calls/active", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const activeCalls = getActiveCalls();
+      
+      // Filter to only show calls for this user's agents
+      const userCalls = Array.from(activeCalls.values())
+        .filter(call => call.userId === userId)
+        .map(call => ({
+          callSid: call.callSid,
+          agentId: call.agent.id,
+          agentName: call.agent.name,
+          fromNumber: call.fromNumber,
+          toNumber: call.toNumber,
+          startTime: call.callStartTime,
+          duration: Math.floor((Date.now() - call.callStartTime) / 1000),
+        }));
+
+      res.json(userCalls);
+    } catch (error) {
+      console.error("Error fetching active calls:", error);
+      res.status(500).json({ message: "Failed to fetch active calls" });
+    }
+  });
+
   const httpServer = createServer(app);
+
+  // Set up WebSocket server for Twilio Media Streams
+  const wss = new WebSocketServer({ server: httpServer, path: '/voice-stream' });
+  
+  wss.on('connection', (ws, req) => {
+    console.log('[Voice] WebSocket connection established');
+    handleTwilioWebSocket(ws, req);
+  });
+
+  wss.on('error', (error) => {
+    console.error('[Voice] WebSocket server error:', error);
+  });
+
+  console.log('[Voice] WebSocket server initialized on /voice-stream');
+
   return httpServer;
 }

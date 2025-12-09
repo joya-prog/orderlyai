@@ -118,6 +118,7 @@ export interface IStorage {
   // Phone number operations
   getPhoneNumbers(userId: string): Promise<PhoneNumber[]>;
   getPhoneNumber(id: string): Promise<PhoneNumber | undefined>;
+  getPhoneNumberByNumber(number: string): Promise<PhoneNumber | undefined>;
   createPhoneNumber(phoneNumber: InsertPhoneNumber): Promise<PhoneNumber>;
   updatePhoneNumber(id: string, userId: string, phoneNumber: Partial<InsertPhoneNumber>): Promise<PhoneNumber | null>;
   deletePhoneNumber(id: string, userId: string): Promise<boolean>;
@@ -507,6 +508,11 @@ export class DatabaseStorage implements IStorage {
 
   async getPhoneNumber(id: string): Promise<PhoneNumber | undefined> {
     const [phoneNumber] = await db.select().from(phoneNumbers).where(eq(phoneNumbers.id, id));
+    return phoneNumber;
+  }
+
+  async getPhoneNumberByNumber(number: string): Promise<PhoneNumber | undefined> {
+    const [phoneNumber] = await db.select().from(phoneNumbers).where(eq(phoneNumbers.number, number));
     return phoneNumber;
   }
 

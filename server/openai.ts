@@ -5,6 +5,19 @@ import { Readable } from "stream";
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// Default values for agents without custom configuration
+const DEFAULT_SYSTEM_PROMPT = `You are a friendly and helpful AI assistant for a restaurant. Your job is to:
+- Answer questions about the menu, hours, and services
+- Help customers with reservations and orders
+- Provide information about specials and promotions
+- Be warm, professional, and conversational
+
+Always be helpful and provide accurate information based on what you know.`;
+
+const DEFAULT_PERSONALITY = "Warm, friendly, and professional. Speak naturally like a helpful restaurant host.";
+
+const DEFAULT_GREETING = "Hello! Thank you for calling. How can I help you today?";
+
 export async function generateAgentResponse(
   systemPrompt: string,
   greetingMessage: string,
@@ -14,14 +27,20 @@ export async function generateAgentResponse(
   userMessage: string
 ): Promise<string> {
   try {
-    const fullSystemPrompt = `${systemPrompt}
+    // Use defaults for empty or missing values
+    const effectiveSystemPrompt = systemPrompt?.trim() || DEFAULT_SYSTEM_PROMPT;
+    const effectivePersonality = personality?.trim() || DEFAULT_PERSONALITY;
+    const effectiveGreeting = greetingMessage?.trim() || DEFAULT_GREETING;
+    const effectiveKnowledge = knowledgeContext?.trim() || "No specific knowledge base configured yet.";
+    
+    const fullSystemPrompt = `${effectiveSystemPrompt}
 
-PERSONALITY: ${personality}
+PERSONALITY: ${effectivePersonality}
 
-GREETING: When starting a conversation, use this greeting: "${greetingMessage}"
+GREETING: When starting a conversation, use this greeting: "${effectiveGreeting}"
 
 KNOWLEDGE BASE:
-${knowledgeContext}
+${effectiveKnowledge}
 
 You are a helpful restaurant AI assistant. Use the knowledge base to answer questions accurately. Be conversational and helpful.`;
 
@@ -32,7 +51,7 @@ You are a helpful restaurant AI assistant. Use the knowledge base to answer ques
     // Add conversation history
     if (conversationHistory.length === 0) {
       // First message - include greeting
-      messages.push({ role: "assistant", content: greetingMessage });
+      messages.push({ role: "assistant", content: effectiveGreeting });
     } else {
       conversationHistory.forEach((msg) => {
         messages.push({ role: msg.role, content: msg.content });

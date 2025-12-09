@@ -768,11 +768,15 @@ async function sendBrowserGreeting(session: BrowserTestSession): Promise<void> {
       audioBuffer = await synthesizeSpeech(session.agent.greetingMessage, voiceConfig);
     }
     
+    console.log(`[BrowserTest ${session.callSid}] Generated greeting audio: ${audioBuffer.length} bytes`);
+    
     session.ws.send(JSON.stringify({
       type: 'audio',
       audio: audioBuffer.toString('base64'),
       text: session.agent.greetingMessage,
     }));
+    
+    console.log(`[BrowserTest ${session.callSid}] Greeting audio sent to client`);
     
     session.conversationHistory.push({
       role: 'assistant',
@@ -903,11 +907,15 @@ async function generateAndSendResponse(session: BrowserTestSession, userInput: s
     audioBuffer = await synthesizeSpeech(response, voiceConfig);
   }
   
+  console.log(`[BrowserTest ${session.callSid}] Generated audio: ${audioBuffer.length} bytes`);
+  
   session.ws.send(JSON.stringify({
     type: 'audio',
     audio: audioBuffer.toString('base64'),
     text: response,
   }));
+  
+  console.log(`[BrowserTest ${session.callSid}] Audio sent to client`);
   
   session.ws.send(JSON.stringify({ 
     type: 'state', 

@@ -52,6 +52,7 @@ export default function AgentEditor() {
   const [micStream, setMicStream] = useState<MediaStream | null>(null);
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [audioWorkletNode, setAudioWorkletNode] = useState<AudioWorkletNode | null>(null);
+  const [useMicFallback, setUseMicFallback] = useState(false); // True when mic not available, use text input
 
   const { data: agent, isLoading } = useQuery<Agent>({
     queryKey: ["/api/agents", id],
@@ -595,21 +596,115 @@ export default function AgentEditor() {
     } catch (error: any) {
       console.error("[TestCall] Error starting test call:", error);
       
-      if (error.name === 'NotAllowedError') {
-        toast({
-          title: "Microphone Access Required",
-          description: "Please allow microphone access to use voice calls",
-          variant: "destructive",
-        });
+      // If microphone failed, fall back to text-based call
+      if (error.name === 'NotAllowedError' || error.name === 'NotFoundError' || error.name === 'NotReadableError') {
+        console.log("[TestCall] Microphone not available, falling back to text mode");
+        setUseMicFallback(true);
+        await startTextOnlyCall();
       } else {
         toast({
           title: "Error",
           description: "Failed to start test call",
           variant: "destructive",
         });
+        cleanupAudio();
+        setCallState("idle");
       }
-      cleanupAudio();
+    }
+  };
+  
+  // Start a text-only call when microphone is not available
+  const startTextOnlyCall = async () => {
+    if (!id || !user?.id) return;
+    
+    try {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${window.location.host}/test-call?agentId=${id}&userId=${user.id}`;
+      console.log("[TestCall] Starting text-only call:", wsUrl);
+      
+      const ws = new WebSocket(wsUrl);
+      
+      ws.onopen = () => {
+        console.log("[TestCall] Text-only call connected");
+      };
+      
+      ws.onmessage = async (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          
+          switch (message.type) {
+            case "connected":
+              console.log("[TestCall] Session started:", message.callSid);
+              setCallState("greeting");
+              break;
+              
+            case "state":
+              setCallState(message.state);
+              break;
+              
+            case "audio":
+              const audioData = Uint8Array.from(atob(message.audio), c => c.charCodeAt(0));
+              const audioBlob = new Blob([audioData], { type: "audio/mpeg" });
+              const audioUrl = URL.createObjectURL(audioBlob);
+              const audio = new Audio(audioUrl);
+              setTestCallAudio(audio);
+              audio.onended = () => {
+                URL.revokeObjectURL(audioUrl);
+              };
+              await audio.play();
+              
+              if (message.text) {
+                setMessages(prev => [...prev, { role: "assistant", content: message.text }]);
+              }
+              break;
+              
+            case "transcript":
+              setMessages(prev => [...prev, { role: message.role, content: message.text }]);
+              break;
+              
+            case "error":
+              console.error("[TestCall] Error:", message.message);
+              toast({
+                title: "Call Error",
+                description: message.message,
+                variant: "destructive",
+              });
+              endTestCall();
+              break;
+          }
+        } catch (error) {
+          console.error("[TestCall] Error parsing message:", error);
+        }
+      };
+      
+      ws.onerror = (error) => {
+        console.error("[TestCall] WebSocket error:", error);
+        toast({
+          title: "Connection Error",
+          description: "Failed to connect to test call",
+          variant: "destructive",
+        });
+        setCallState("idle");
+      };
+      
+      ws.onclose = () => {
+        console.log("[TestCall] WebSocket closed");
+        setCallState("idle");
+        setTestCallWs(null);
+        setUseMicFallback(false);
+      };
+      
+      setTestCallWs(ws);
+      
+    } catch (error) {
+      console.error("[TestCall] Error starting text-only call:", error);
+      toast({
+        title: "Error",
+        description: "Failed to start test call",
+        variant: "destructive",
+      });
       setCallState("idle");
+      setUseMicFallback(false);
     }
   };
   
@@ -641,6 +736,7 @@ export default function AgentEditor() {
     }
     setCallState("idle");
     setIsMicMuted(false);
+    setUseMicFallback(false);
   };
   
   const toggleMicMute = () => {
@@ -1596,29 +1692,50 @@ export default function AgentEditor() {
                             <span className="text-sm font-medium capitalize">
                               {callState === "connecting" ? "Connecting..." :
                                callState === "speaking" ? "Agent Speaking" :
-                               callState === "listening" ? "Listening..." :
+                               callState === "listening" ? (useMicFallback ? "Your Turn" : "Listening...") :
                                callState === "processing" ? "Processing..." :
                                callState === "greeting" ? "Starting Call..." :
                                "In Call"}
                             </span>
                           </div>
                           
+                          {useMicFallback && callState === "listening" && (
+                            <div className="flex gap-2">
+                              <Input
+                                placeholder="Type what you would say..."
+                                value={testInput}
+                                onChange={(e) => setTestInput(e.target.value)}
+                                onKeyPress={(e) => e.key === "Enter" && sendTestCallText(testInput)}
+                                data-testid="input-call-message"
+                              />
+                              <Button
+                                onClick={() => sendTestCallText(testInput)}
+                                disabled={!testInput.trim()}
+                                data-testid="button-send-call-message"
+                              >
+                                <Send className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
+                          
                           <div className="flex justify-center items-center gap-4">
-                            <Button
-                              size="lg"
-                              variant={isMicMuted ? "outline" : "default"}
-                              className={`h-14 w-14 rounded-full ${
-                                isMicMuted ? "bg-muted" : "bg-primary"
-                              }`}
-                              onClick={toggleMicMute}
-                              data-testid="button-toggle-mute"
-                            >
-                              {isMicMuted ? (
-                                <MicOff className="h-5 w-5" />
-                              ) : (
-                                <Mic className="h-5 w-5" />
-                              )}
-                            </Button>
+                            {!useMicFallback && (
+                              <Button
+                                size="lg"
+                                variant={isMicMuted ? "outline" : "default"}
+                                className={`h-14 w-14 rounded-full ${
+                                  isMicMuted ? "bg-muted" : "bg-primary"
+                                }`}
+                                onClick={toggleMicMute}
+                                data-testid="button-toggle-mute"
+                              >
+                                {isMicMuted ? (
+                                  <MicOff className="h-5 w-5" />
+                                ) : (
+                                  <Mic className="h-5 w-5" />
+                                )}
+                              </Button>
+                            )}
                             
                             <Button
                               size="lg"
@@ -1632,7 +1749,15 @@ export default function AgentEditor() {
                           </div>
                           
                           <p className="text-xs text-muted-foreground text-center">
-                            {isMicMuted 
+                            {useMicFallback
+                              ? (callState === "listening" 
+                                ? "Type a message to simulate what you would say"
+                                : callState === "speaking" 
+                                ? "Agent is responding..."
+                                : callState === "processing"
+                                ? "Processing..."
+                                : "Call in progress (text mode)")
+                              : (isMicMuted 
                               ? "Microphone is muted"
                               : callState === "listening" 
                               ? "Speak now - your voice is being recorded"
@@ -1640,7 +1765,7 @@ export default function AgentEditor() {
                               ? "Agent is responding..."
                               : callState === "processing"
                               ? "Processing your speech..."
-                              : "Call in progress"}
+                              : "Call in progress")}
                           </p>
                         </div>
                       )}

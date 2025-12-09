@@ -48,6 +48,10 @@ export default function AgentEditor() {
   const [selectedVoiceName, setSelectedVoiceName] = useState("");
   const [testCallWs, setTestCallWs] = useState<WebSocket | null>(null);
   const [testCallAudio, setTestCallAudio] = useState<HTMLAudioElement | null>(null);
+  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  const [micStream, setMicStream] = useState<MediaStream | null>(null);
+  const [isMicMuted, setIsMicMuted] = useState(false);
+  const [audioWorkletNode, setAudioWorkletNode] = useState<AudioWorkletNode | null>(null);
 
   const { data: agent, isLoading } = useQuery<Agent>({
     queryKey: ["/api/agents", id],
@@ -454,16 +458,65 @@ export default function AgentEditor() {
     
     setCallState("connecting");
     setMessages([]);
+    setIsMicMuted(false);
     
     try {
+      // Request microphone permission
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 16000,
+        } 
+      });
+      setMicStream(stream);
+      
+      // Create AudioContext at 16kHz for Whisper
+      const ctx = new AudioContext({ sampleRate: 16000 });
+      setAudioContext(ctx);
+      
+      // Load AudioWorklet processor
+      await ctx.audioWorklet.addModule('/audio-processor.js');
+      
+      const source = ctx.createMediaStreamSource(stream);
+      const workletNode = new AudioWorkletNode(ctx, 'audio-recorder-processor');
+      setAudioWorkletNode(workletNode);
+      
+      source.connect(workletNode);
+      // Don't connect to destination - we don't want local playback
+      
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const wsUrl = `${protocol}//${window.location.host}/test-call?agentId=${id}&userId=${user.id}`;
       console.log("[TestCall] Connecting to:", wsUrl);
       
       const ws = new WebSocket(wsUrl);
       
+      // Buffer audio chunks until WebSocket is ready
+      let audioBuffer: Int16Array[] = [];
+      let wsReady = false;
+      
+      workletNode.port.onmessage = (event) => {
+        if (event.data.type === 'audio') {
+          const pcmData = new Int16Array(event.data.audio);
+          if (wsReady && ws.readyState === WebSocket.OPEN) {
+            // Send audio chunk as base64
+            const base64 = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)));
+            ws.send(JSON.stringify({ type: 'audio_chunk', audio: base64 }));
+          } else {
+            audioBuffer.push(pcmData);
+          }
+        }
+      };
+      
       ws.onopen = () => {
         console.log("[TestCall] Connected to test call WebSocket");
+        wsReady = true;
+        // Send any buffered audio
+        audioBuffer.forEach(chunk => {
+          const base64 = btoa(String.fromCharCode(...new Uint8Array(chunk.buffer)));
+          ws.send(JSON.stringify({ type: 'audio_chunk', audio: base64 }));
+        });
+        audioBuffer = [];
       };
       
       ws.onmessage = async (event) => {
@@ -524,29 +577,57 @@ export default function AgentEditor() {
           description: "Failed to connect to test call",
           variant: "destructive",
         });
+        cleanupAudio();
         setCallState("idle");
       };
       
       ws.onclose = () => {
         console.log("[TestCall] WebSocket closed");
+        cleanupAudio();
         setCallState("idle");
         setTestCallWs(null);
       };
       
       setTestCallWs(ws);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("[TestCall] Error starting test call:", error);
-      toast({
-        title: "Error",
-        description: "Failed to start test call",
-        variant: "destructive",
-      });
+      
+      if (error.name === 'NotAllowedError') {
+        toast({
+          title: "Microphone Access Required",
+          description: "Please allow microphone access to use voice calls",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to start test call",
+          variant: "destructive",
+        });
+      }
+      cleanupAudio();
       setCallState("idle");
     }
   };
   
+  const cleanupAudio = () => {
+    if (micStream) {
+      micStream.getTracks().forEach(track => track.stop());
+      setMicStream(null);
+    }
+    if (audioWorkletNode) {
+      audioWorkletNode.disconnect();
+      setAudioWorkletNode(null);
+    }
+    if (audioContext) {
+      audioContext.close();
+      setAudioContext(null);
+    }
+  };
+  
   const endTestCall = () => {
+    cleanupAudio();
     if (testCallWs) {
       testCallWs.send(JSON.stringify({ type: "end" }));
       testCallWs.close();
@@ -557,6 +638,16 @@ export default function AgentEditor() {
       setTestCallAudio(null);
     }
     setCallState("idle");
+    setIsMicMuted(false);
+  };
+  
+  const toggleMicMute = () => {
+    if (micStream) {
+      micStream.getAudioTracks().forEach(track => {
+        track.enabled = isMicMuted;
+      });
+      setIsMicMuted(!isMicMuted);
+    }
   };
   
   const sendTestCallText = (text: string) => {
@@ -1487,7 +1578,7 @@ export default function AgentEditor() {
                             <Phone className="h-8 w-8" />
                           </Button>
                           <p className="text-sm text-muted-foreground mt-4">
-                            Start a simulated phone call with your agent
+                            Start a voice call with your agent using your microphone
                           </p>
                         </div>
                       ) : (
@@ -1503,33 +1594,30 @@ export default function AgentEditor() {
                             <span className="text-sm font-medium capitalize">
                               {callState === "connecting" ? "Connecting..." :
                                callState === "speaking" ? "Agent Speaking" :
-                               callState === "listening" ? "Your Turn" :
+                               callState === "listening" ? "Listening..." :
                                callState === "processing" ? "Processing..." :
                                callState === "greeting" ? "Starting Call..." :
                                "In Call"}
                             </span>
                           </div>
                           
-                          {callState === "listening" && (
-                            <div className="flex gap-2">
-                              <Input
-                                placeholder="Type what you would say..."
-                                value={testInput}
-                                onChange={(e) => setTestInput(e.target.value)}
-                                onKeyPress={(e) => e.key === "Enter" && sendTestCallText(testInput)}
-                                data-testid="input-call-message"
-                              />
-                              <Button
-                                onClick={() => sendTestCallText(testInput)}
-                                disabled={!testInput.trim()}
-                                data-testid="button-send-call-message"
-                              >
-                                <Send className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          )}
-                          
-                          <div className="flex justify-center">
+                          <div className="flex justify-center items-center gap-4">
+                            <Button
+                              size="lg"
+                              variant={isMicMuted ? "outline" : "default"}
+                              className={`h-14 w-14 rounded-full ${
+                                isMicMuted ? "bg-muted" : "bg-primary"
+                              }`}
+                              onClick={toggleMicMute}
+                              data-testid="button-toggle-mute"
+                            >
+                              {isMicMuted ? (
+                                <MicOff className="h-5 w-5" />
+                              ) : (
+                                <Mic className="h-5 w-5" />
+                              )}
+                            </Button>
+                            
                             <Button
                               size="lg"
                               variant="destructive"
@@ -1542,13 +1630,15 @@ export default function AgentEditor() {
                           </div>
                           
                           <p className="text-xs text-muted-foreground text-center">
-                            {callState === "listening" 
-                              ? "Type a message to simulate what a caller would say"
+                            {isMicMuted 
+                              ? "Microphone is muted"
+                              : callState === "listening" 
+                              ? "Speak now - your voice is being recorded"
                               : callState === "speaking" 
-                              ? "Agent is responding with voice..."
+                              ? "Agent is responding..."
                               : callState === "processing"
-                              ? "Processing your message..."
-                              : ""}
+                              ? "Processing your speech..."
+                              : "Call in progress"}
                           </p>
                         </div>
                       )}

@@ -37,15 +37,17 @@ export default function AgentEditor() {
   const [settingsTab, setSettingsTab] = useState("general");
   const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [testInput, setTestInput] = useState("");
-  const [testMode, setTestMode] = useState<"text" | "voice">("text");
+  const [testMode, setTestMode] = useState<"text" | "voice" | "call">("text");
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [customVocabInput, setCustomVocabInput] = useState("");
   const [filterWordInput, setFilterWordInput] = useState("");
-  const [callState, setCallState] = useState<"idle" | "greeting" | "listening" | "processing" | "speaking">("idle");
+  const [callState, setCallState] = useState<"idle" | "connecting" | "greeting" | "listening" | "processing" | "speaking">("idle");
   const [voiceSelectorOpen, setVoiceSelectorOpen] = useState(false);
   const [selectedVoiceName, setSelectedVoiceName] = useState("");
+  const [testCallWs, setTestCallWs] = useState<WebSocket | null>(null);
+  const [testCallAudio, setTestCallAudio] = useState<HTMLAudioElement | null>(null);
 
   const { data: agent, isLoading } = useQuery<Agent>({
     queryKey: ["/api/agents", id],
@@ -438,6 +440,129 @@ export default function AgentEditor() {
     } else {
       startRecording();
     }
+  };
+
+  const startTestCall = async () => {
+    if (!id || !user?.id) {
+      toast({
+        title: "Error",
+        description: "Missing agent or user information",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setCallState("connecting");
+    setMessages([]);
+    
+    try {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${window.location.host}/test-call?agentId=${id}&userId=${user.id}`;
+      console.log("[TestCall] Connecting to:", wsUrl);
+      
+      const ws = new WebSocket(wsUrl);
+      
+      ws.onopen = () => {
+        console.log("[TestCall] Connected to test call WebSocket");
+      };
+      
+      ws.onmessage = async (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          
+          switch (message.type) {
+            case "connected":
+              console.log("[TestCall] Session started:", message.callSid);
+              setCallState("greeting");
+              break;
+              
+            case "state":
+              setCallState(message.state);
+              break;
+              
+            case "audio":
+              // Play the audio response
+              const audioData = Uint8Array.from(atob(message.audio), c => c.charCodeAt(0));
+              const audioBlob = new Blob([audioData], { type: "audio/mpeg" });
+              const audioUrl = URL.createObjectURL(audioBlob);
+              const audio = new Audio(audioUrl);
+              setTestCallAudio(audio);
+              audio.onended = () => {
+                URL.revokeObjectURL(audioUrl);
+              };
+              await audio.play();
+              
+              // Add the message to conversation
+              if (message.text) {
+                setMessages(prev => [...prev, { role: "assistant", content: message.text }]);
+              }
+              break;
+              
+            case "transcript":
+              setMessages(prev => [...prev, { role: message.role, content: message.text }]);
+              break;
+              
+            case "error":
+              console.error("[TestCall] Error:", message.message);
+              toast({
+                title: "Call Error",
+                description: message.message,
+                variant: "destructive",
+              });
+              endTestCall();
+              break;
+          }
+        } catch (error) {
+          console.error("[TestCall] Error parsing message:", error);
+        }
+      };
+      
+      ws.onerror = (error) => {
+        console.error("[TestCall] WebSocket error:", error);
+        toast({
+          title: "Connection Error",
+          description: "Failed to connect to test call",
+          variant: "destructive",
+        });
+        setCallState("idle");
+      };
+      
+      ws.onclose = () => {
+        console.log("[TestCall] WebSocket closed");
+        setCallState("idle");
+        setTestCallWs(null);
+      };
+      
+      setTestCallWs(ws);
+      
+    } catch (error) {
+      console.error("[TestCall] Error starting test call:", error);
+      toast({
+        title: "Error",
+        description: "Failed to start test call",
+        variant: "destructive",
+      });
+      setCallState("idle");
+    }
+  };
+  
+  const endTestCall = () => {
+    if (testCallWs) {
+      testCallWs.send(JSON.stringify({ type: "end" }));
+      testCallWs.close();
+      setTestCallWs(null);
+    }
+    if (testCallAudio) {
+      testCallAudio.pause();
+      setTestCallAudio(null);
+    }
+    setCallState("idle");
+  };
+  
+  const sendTestCallText = (text: string) => {
+    if (!testCallWs || !text.trim()) return;
+    testCallWs.send(JSON.stringify({ type: "text", text: text.trim() }));
+    setTestInput("");
   };
 
   if (!isNew && (authLoading || isLoading)) {
@@ -1236,14 +1361,16 @@ export default function AgentEditor() {
                     <CardDescription>
                       {testMode === "text" 
                         ? "Have a text conversation with your agent to test its responses"
-                        : "Have a voice conversation with your agent like a real phone call"
+                        : testMode === "voice"
+                        ? "Record voice messages and hear the agent respond"
+                        : "Simulate a real phone call with your AI agent"
                       }
                     </CardDescription>
                   </div>
                   <ToggleGroup 
                     type="single" 
                     value={testMode} 
-                    onValueChange={(value) => value && setTestMode(value as "text" | "voice")}
+                    onValueChange={(value) => value && setTestMode(value as "text" | "voice" | "call")}
                     data-testid="toggle-test-mode"
                   >
                     <ToggleGroupItem value="text" aria-label="Text mode" data-testid="toggle-text-mode">
@@ -1251,8 +1378,12 @@ export default function AgentEditor() {
                       Text
                     </ToggleGroupItem>
                     <ToggleGroupItem value="voice" aria-label="Voice mode" data-testid="toggle-voice-mode">
-                      <Phone className="h-4 w-4 mr-2" />
+                      <Mic className="h-4 w-4 mr-2" />
                       Voice
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="call" aria-label="Call mode" data-testid="toggle-call-mode">
+                      <Phone className="h-4 w-4 mr-2" />
+                      Call
                     </ToggleGroupItem>
                   </ToggleGroup>
                 </div>
@@ -1318,7 +1449,7 @@ export default function AgentEditor() {
                         <Send className="h-4 w-4" />
                       </Button>
                     </div>
-                  ) : (
+                  ) : testMode === "voice" ? (
                     <div className="flex flex-col items-center gap-4">
                       <Button
                         size="lg"
@@ -1342,6 +1473,85 @@ export default function AgentEditor() {
                           : "Tap to start speaking"
                         }
                       </p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-6 py-4">
+                      {callState === "idle" ? (
+                        <div className="text-center">
+                          <Button
+                            size="lg"
+                            className="h-20 w-20 rounded-full bg-green-600 hover:bg-green-700"
+                            onClick={startTestCall}
+                            data-testid="button-start-call"
+                          >
+                            <Phone className="h-8 w-8" />
+                          </Button>
+                          <p className="text-sm text-muted-foreground mt-4">
+                            Start a simulated phone call with your agent
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="w-full space-y-4">
+                          <div className="flex items-center justify-center gap-3">
+                            <div className={`h-3 w-3 rounded-full ${
+                              callState === "connecting" ? "bg-yellow-500 animate-pulse" :
+                              callState === "speaking" ? "bg-green-500 animate-pulse" :
+                              callState === "listening" ? "bg-blue-500 animate-pulse" :
+                              callState === "processing" ? "bg-orange-500 animate-pulse" :
+                              "bg-green-500"
+                            }`} />
+                            <span className="text-sm font-medium capitalize">
+                              {callState === "connecting" ? "Connecting..." :
+                               callState === "speaking" ? "Agent Speaking" :
+                               callState === "listening" ? "Your Turn" :
+                               callState === "processing" ? "Processing..." :
+                               callState === "greeting" ? "Starting Call..." :
+                               "In Call"}
+                            </span>
+                          </div>
+                          
+                          {callState === "listening" && (
+                            <div className="flex gap-2">
+                              <Input
+                                placeholder="Type what you would say..."
+                                value={testInput}
+                                onChange={(e) => setTestInput(e.target.value)}
+                                onKeyPress={(e) => e.key === "Enter" && sendTestCallText(testInput)}
+                                data-testid="input-call-message"
+                              />
+                              <Button
+                                onClick={() => sendTestCallText(testInput)}
+                                disabled={!testInput.trim()}
+                                data-testid="button-send-call-message"
+                              >
+                                <Send className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
+                          
+                          <div className="flex justify-center">
+                            <Button
+                              size="lg"
+                              variant="destructive"
+                              className="h-14 w-14 rounded-full"
+                              onClick={endTestCall}
+                              data-testid="button-end-call"
+                            >
+                              <X className="h-5 w-5" />
+                            </Button>
+                          </div>
+                          
+                          <p className="text-xs text-muted-foreground text-center">
+                            {callState === "listening" 
+                              ? "Type a message to simulate what a caller would say"
+                              : callState === "speaking" 
+                              ? "Agent is responding with voice..."
+                              : callState === "processing"
+                              ? "Processing your message..."
+                              : ""}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
 

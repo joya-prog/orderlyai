@@ -5,7 +5,7 @@ import { WebSocketServer } from "ws";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { generateAgentResponse, transcribeAudio, synthesizeSpeech, listOpenAIVoices, VoiceConfig } from "./openai";
-import { handleTwilioWebSocket, generateTwiML, getActiveCalls } from "./voiceCallHandler";
+import { handleTwilioWebSocket, generateTwiML, getActiveCalls, handleBrowserTestWebSocket } from "./voiceCallHandler";
 import multer from "multer";
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -2466,8 +2466,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
 
-  // Set up WebSocket server for Twilio Media Streams
-  const wss = new WebSocketServer({ server: httpServer, path: '/voice-stream' });
+  // Set up WebSocket servers in noServer mode for manual upgrade handling
+  const wss = new WebSocketServer({ noServer: true });
+  const testWss = new WebSocketServer({ noServer: true });
   
   wss.on('connection', (ws, req) => {
     console.log('[Voice] WebSocket connection established');
@@ -2478,7 +2479,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error('[Voice] WebSocket server error:', error);
   });
 
+  testWss.on('connection', (ws, req) => {
+    console.log('[TestCall] WebSocket connection established');
+    
+    // Parse URL to get agentId and userId from query parameters
+    const url = new URL(req.url || '', `http://${req.headers.host}`);
+    const agentId = url.searchParams.get('agentId');
+    const userId = url.searchParams.get('userId');
+    
+    if (!agentId || !userId) {
+      console.error('[TestCall] Missing agentId or userId');
+      ws.send(JSON.stringify({ type: 'error', message: 'Missing agentId or userId' }));
+      ws.close();
+      return;
+    }
+    
+    handleBrowserTestWebSocket(ws, agentId, userId);
+  });
+
+  testWss.on('error', (error) => {
+    console.error('[TestCall] WebSocket server error:', error);
+  });
+
+  // Handle upgrade requests manually to ensure our WebSocket paths are handled
+  // before Vite's HMR WebSocket can intercept them
+  httpServer.on('upgrade', (request, socket, head) => {
+    const pathname = new URL(request.url || '', `http://${request.headers.host}`).pathname;
+    
+    if (pathname === '/voice-stream') {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    } else if (pathname === '/test-call') {
+      testWss.handleUpgrade(request, socket, head, (ws) => {
+        testWss.emit('connection', ws, request);
+      });
+    }
+    // For other paths (like Vite HMR), let them fall through to other handlers
+  });
+
   console.log('[Voice] WebSocket server initialized on /voice-stream');
+  console.log('[TestCall] WebSocket server initialized on /test-call');
 
   return httpServer;
 }

@@ -17,6 +17,9 @@ interface CallSession {
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
   audioBuffer: Buffer[];
   isProcessing: boolean;
+  isSpeaking: boolean;
+  isInterrupted: boolean;
+  currentResponseAbortController: AbortController | null;
   silenceStart: number | null;
   lastActivityTime: number;
   ws: WebSocket;
@@ -219,6 +222,11 @@ function createWavBuffer(audioData: Buffer, sampleRate: number, channels: number
 }
 
 async function streamResponseToCall(session: CallSession, text: string): Promise<void> {
+  const abortController = new AbortController();
+  session.currentResponseAbortController = abortController;
+  session.isSpeaking = true;
+  session.isInterrupted = false;
+  
   try {
     const voiceConfig: VoiceConfig = {
       provider: session.agent.voiceProvider || 'openai',
@@ -243,6 +251,10 @@ async function streamResponseToCall(session: CallSession, text: string): Promise
       
       const chunks: Buffer[] = [];
       for await (const chunk of stream) {
+        if (abortController.signal.aborted) {
+          console.log(`[Call ${session.callSid}] TTS generation interrupted`);
+          break;
+        }
         chunks.push(chunk);
       }
       audioBuffer = Buffer.concat(chunks);
@@ -250,10 +262,19 @@ async function streamResponseToCall(session: CallSession, text: string): Promise
       audioBuffer = await synthesizeSpeech(text, voiceConfig);
     }
     
+    if (abortController.signal.aborted) {
+      console.log(`[Call ${session.callSid}] Response playback aborted before streaming`);
+      return;
+    }
+    
     const chunkSize = 640;
     
     for (let i = 0; i < audioBuffer.length; i += chunkSize) {
-      if (session.ws.readyState !== WebSocket.OPEN) {
+      if (session.ws.readyState !== WebSocket.OPEN || abortController.signal.aborted) {
+        if (abortController.signal.aborted) {
+          console.log(`[Call ${session.callSid}] Response interrupted by caller`);
+          sendClearMessage(session);
+        }
         break;
       }
       
@@ -273,17 +294,48 @@ async function streamResponseToCall(session: CallSession, text: string): Promise
       await new Promise(resolve => setTimeout(resolve, 20));
     }
     
-    const markMessage = {
-      event: 'mark',
-      streamSid: session.streamSid,
-      mark: {
-        name: 'response_complete',
-      },
-    };
-    session.ws.send(JSON.stringify(markMessage));
+    if (!abortController.signal.aborted) {
+      const markMessage = {
+        event: 'mark',
+        streamSid: session.streamSid,
+        mark: {
+          name: 'response_complete',
+        },
+      };
+      session.ws.send(JSON.stringify(markMessage));
+    }
     
   } catch (error) {
     console.error(`[Call ${session.callSid}] Error streaming response:`, error);
+  } finally {
+    session.isSpeaking = false;
+    session.currentResponseAbortController = null;
+  }
+}
+
+function sendClearMessage(session: CallSession): void {
+  try {
+    const clearMessage = {
+      event: 'clear',
+      streamSid: session.streamSid,
+    };
+    session.ws.send(JSON.stringify(clearMessage));
+    console.log(`[Call ${session.callSid}] Sent clear message to stop audio playback`);
+  } catch (error) {
+    console.error(`[Call ${session.callSid}] Error sending clear message:`, error);
+  }
+}
+
+function handleInterrupt(session: CallSession): void {
+  if (session.isSpeaking && session.currentResponseAbortController) {
+    const interruptionSensitivity = parseInt(session.agent.interruptionSensitivity || '5', 10);
+    
+    if (interruptionSensitivity >= 5 || session.audioBuffer.length > 3) {
+      console.log(`[Call ${session.callSid}] Interrupting response (sensitivity: ${interruptionSensitivity})`);
+      session.isInterrupted = true;
+      session.currentResponseAbortController.abort();
+      sendClearMessage(session);
+    }
   }
 }
 
@@ -388,6 +440,9 @@ export async function handleTwilioWebSocket(ws: WebSocket, req: any): Promise<vo
             conversationHistory: [],
             audioBuffer: [],
             isProcessing: false,
+            isSpeaking: false,
+            isInterrupted: false,
+            currentResponseAbortController: null,
             silenceStart: null,
             lastActivityTime: Date.now(),
             ws,
@@ -424,12 +479,16 @@ export async function handleTwilioWebSocket(ws: WebSocket, req: any): Promise<vo
           const audioPayload = Buffer.from(message.media.payload, 'base64');
           session.audioBuffer.push(audioPayload);
           
+          if (session.isSpeaking) {
+            handleInterrupt(session);
+          }
+          
           if (silenceTimer) {
             clearTimeout(silenceTimer);
           }
           
           silenceTimer = setTimeout(() => {
-            if (session && !session.isProcessing) {
+            if (session && !session.isProcessing && !session.isSpeaking) {
               processAudioAndRespond(session);
             }
           }, 1000);
@@ -511,4 +570,294 @@ export function generateTwiML(agentId: string, phoneNumberId: string | null, bas
     </Stream>
   </Connect>
 </Response>`;
+}
+
+interface BrowserTestSession {
+  callSid: string;
+  agent: Agent;
+  userId: string;
+  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
+  isProcessing: boolean;
+  ws: WebSocket;
+  callStartTime: number;
+  knowledgeContext: string;
+  squareMenuContext: string;
+}
+
+const browserTestSessions = new Map<string, BrowserTestSession>();
+
+export async function handleBrowserTestWebSocket(ws: WebSocket, agentId: string, userId: string): Promise<void> {
+  console.log(`[BrowserTest] New test call session for agent ${agentId}`);
+  
+  const agent = await storage.getAgent(agentId);
+  if (!agent) {
+    console.error('[BrowserTest] Agent not found:', agentId);
+    ws.send(JSON.stringify({ type: 'error', message: 'Agent not found' }));
+    ws.close();
+    return;
+  }
+  
+  if (agent.userId !== userId) {
+    console.error('[BrowserTest] Agent does not belong to user');
+    ws.send(JSON.stringify({ type: 'error', message: 'Unauthorized' }));
+    ws.close();
+    return;
+  }
+  
+  const knowledgeItems = await storage.getKnowledgeBase(agentId, userId);
+  const knowledgeContext = knowledgeItems
+    .map((item) => `Q: ${item.question}\nA: ${item.answer}`)
+    .join('\n\n');
+  
+  const squareMenuContext = await getSquareMenuContext(userId);
+  
+  const callSid = `test-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+  
+  const session: BrowserTestSession = {
+    callSid,
+    agent,
+    userId,
+    conversationHistory: [],
+    isProcessing: false,
+    ws,
+    callStartTime: Date.now(),
+    knowledgeContext,
+    squareMenuContext,
+  };
+  
+  browserTestSessions.set(callSid, session);
+  
+  ws.send(JSON.stringify({ 
+    type: 'connected', 
+    callSid,
+    agentName: agent.name 
+  }));
+  
+  setTimeout(async () => {
+    if (session.ws.readyState === WebSocket.OPEN) {
+      await sendBrowserGreeting(session);
+    }
+  }, 300);
+  
+  ws.on('message', async (data: Buffer) => {
+    try {
+      const message = JSON.parse(data.toString());
+      
+      switch (message.type) {
+        case 'audio':
+          if (session.isProcessing) break;
+          
+          const audioData = Buffer.from(message.audio, 'base64');
+          await processBrowserAudio(session, audioData);
+          break;
+          
+        case 'text':
+          if (session.isProcessing) break;
+          await processBrowserText(session, message.text);
+          break;
+          
+        case 'end':
+          console.log(`[BrowserTest] Test call ended: ${callSid}`);
+          browserTestSessions.delete(callSid);
+          ws.close();
+          break;
+      }
+    } catch (error) {
+      console.error('[BrowserTest] Error processing message:', error);
+      ws.send(JSON.stringify({ type: 'error', message: 'Processing error' }));
+    }
+  });
+  
+  ws.on('close', () => {
+    console.log(`[BrowserTest] Session closed: ${callSid}`);
+    browserTestSessions.delete(callSid);
+  });
+  
+  ws.on('error', (error) => {
+    console.error('[BrowserTest] WebSocket error:', error);
+  });
+}
+
+async function sendBrowserGreeting(session: BrowserTestSession): Promise<void> {
+  try {
+    session.ws.send(JSON.stringify({ 
+      type: 'state', 
+      state: 'speaking' 
+    }));
+    
+    const voiceConfig: VoiceConfig = {
+      provider: session.agent.voiceProvider || 'openai',
+      voiceId: session.agent.voiceId || 'nova',
+      speed: session.agent.voiceSpeed || '1.0',
+      volume: session.agent.voiceVolume || '100',
+    };
+    
+    let audioBuffer: Buffer;
+    
+    if (voiceConfig.provider === 'elevenlabs') {
+      const stability = parseFloat(session.agent.stability || '50') / 100;
+      const similarity = parseFloat(session.agent.similarity || '75') / 100;
+      const style = parseFloat(session.agent.styleExaggeration || '0') / 100;
+      
+      const stream = await synthesizeElevenLabsSpeech(voiceConfig.voiceId, session.agent.greetingMessage, {
+        stability,
+        similarityBoost: similarity,
+        style,
+        speakerBoost: session.agent.speakerBoost || false,
+      });
+      
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      audioBuffer = Buffer.concat(chunks);
+    } else {
+      audioBuffer = await synthesizeSpeech(session.agent.greetingMessage, voiceConfig);
+    }
+    
+    session.ws.send(JSON.stringify({
+      type: 'audio',
+      audio: audioBuffer.toString('base64'),
+      text: session.agent.greetingMessage,
+    }));
+    
+    session.conversationHistory.push({
+      role: 'assistant',
+      content: session.agent.greetingMessage,
+    });
+    
+    session.ws.send(JSON.stringify({ 
+      type: 'state', 
+      state: 'listening' 
+    }));
+    
+  } catch (error) {
+    console.error('[BrowserTest] Error sending greeting:', error);
+  }
+}
+
+async function processBrowserAudio(session: BrowserTestSession, audioData: Buffer): Promise<void> {
+  session.isProcessing = true;
+  
+  try {
+    session.ws.send(JSON.stringify({ 
+      type: 'state', 
+      state: 'processing' 
+    }));
+    
+    const wavBuffer = createWavBuffer(audioData, 16000, 1, 16);
+    const transcript = await transcribeAudio(wavBuffer);
+    
+    if (!transcript || transcript.trim().length === 0) {
+      session.isProcessing = false;
+      session.ws.send(JSON.stringify({ 
+        type: 'state', 
+        state: 'listening' 
+      }));
+      return;
+    }
+    
+    console.log(`[BrowserTest ${session.callSid}] User said: "${transcript}"`);
+    
+    session.ws.send(JSON.stringify({
+      type: 'transcript',
+      text: transcript,
+      role: 'user',
+    }));
+    
+    await generateAndSendResponse(session, transcript);
+    
+  } catch (error) {
+    console.error('[BrowserTest] Error processing audio:', error);
+    session.ws.send(JSON.stringify({ type: 'error', message: 'Audio processing failed' }));
+  } finally {
+    session.isProcessing = false;
+  }
+}
+
+async function processBrowserText(session: BrowserTestSession, text: string): Promise<void> {
+  session.isProcessing = true;
+  
+  try {
+    session.ws.send(JSON.stringify({ 
+      type: 'state', 
+      state: 'processing' 
+    }));
+    
+    console.log(`[BrowserTest ${session.callSid}] User typed: "${text}"`);
+    
+    await generateAndSendResponse(session, text);
+    
+  } catch (error) {
+    console.error('[BrowserTest] Error processing text:', error);
+    session.ws.send(JSON.stringify({ type: 'error', message: 'Text processing failed' }));
+  } finally {
+    session.isProcessing = false;
+  }
+}
+
+async function generateAndSendResponse(session: BrowserTestSession, userInput: string): Promise<void> {
+  const fullKnowledgeContext = session.knowledgeContext + session.squareMenuContext;
+  
+  const response = await generateAgentResponse(
+    session.agent.systemPrompt,
+    session.agent.greetingMessage,
+    session.agent.personality,
+    fullKnowledgeContext,
+    session.conversationHistory,
+    userInput
+  );
+  
+  console.log(`[BrowserTest ${session.callSid}] Agent response: "${response}"`);
+  
+  session.conversationHistory.push(
+    { role: 'user', content: userInput },
+    { role: 'assistant', content: response }
+  );
+  
+  session.ws.send(JSON.stringify({ 
+    type: 'state', 
+    state: 'speaking' 
+  }));
+  
+  const voiceConfig: VoiceConfig = {
+    provider: session.agent.voiceProvider || 'openai',
+    voiceId: session.agent.voiceId || 'nova',
+    speed: session.agent.voiceSpeed || '1.0',
+    volume: session.agent.voiceVolume || '100',
+  };
+  
+  let audioBuffer: Buffer;
+  
+  if (voiceConfig.provider === 'elevenlabs') {
+    const stability = parseFloat(session.agent.stability || '50') / 100;
+    const similarity = parseFloat(session.agent.similarity || '75') / 100;
+    const style = parseFloat(session.agent.styleExaggeration || '0') / 100;
+    
+    const stream = await synthesizeElevenLabsSpeech(voiceConfig.voiceId, response, {
+      stability,
+      similarityBoost: similarity,
+      style,
+      speakerBoost: session.agent.speakerBoost || false,
+    });
+    
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    audioBuffer = Buffer.concat(chunks);
+  } else {
+    audioBuffer = await synthesizeSpeech(response, voiceConfig);
+  }
+  
+  session.ws.send(JSON.stringify({
+    type: 'audio',
+    audio: audioBuffer.toString('base64'),
+    text: response,
+  }));
+  
+  session.ws.send(JSON.stringify({ 
+    type: 'state', 
+    state: 'listening' 
+  }));
 }

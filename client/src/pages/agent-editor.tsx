@@ -320,6 +320,20 @@ export default function AgentEditor() {
     testMutation.mutate({ message: testInput, history: updatedMessages });
   };
 
+  // Start test chat with agent greeting first
+  const handleStartTestChat = async () => {
+    try {
+      // Fetch the agent's greeting and add it as the first message
+      const response = await apiRequest("POST", `/api/agents/${id}/start-chat`);
+      const greeting = response.greeting || "Hello! Thank you for calling. How can I help you today?";
+      setMessages([{ role: "assistant", content: greeting }]);
+    } catch (error) {
+      console.error("Error starting test chat:", error);
+      // Fallback: just show default greeting
+      setMessages([{ role: "assistant", content: "Hello! Thank you for calling. How can I help you today?" }]);
+    }
+  };
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1581,14 +1595,24 @@ export default function AgentEditor() {
                 <div className="space-y-4">
                   <div className="border rounded-2xl p-4 min-h-[400px] max-h-[500px] overflow-y-auto bg-muted/30">
                     {messages.length === 0 ? (
-                      <div className="flex items-center justify-center h-full text-muted-foreground">
-                        <div className="text-center">
-                          <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                          <p>Start a conversation to test your agent</p>
-                          <p className="text-sm mt-2">
-                            The agent will use the greeting, personality, and knowledge you've configured
-                          </p>
-                        </div>
+                      <div className="flex items-center justify-center h-full min-h-[350px]">
+                        <Button
+                          size="lg"
+                          onClick={() => {
+                            if (testMode === "call") {
+                              startTestCall();
+                            } else {
+                              // For text/voice modes, trigger agent greeting first
+                              handleStartTestChat();
+                            }
+                          }}
+                          disabled={testMutation.isPending || callState !== "idle"}
+                          className="gap-2 px-8 py-6 text-lg rounded-full"
+                          data-testid="button-start-test-chat"
+                        >
+                          <MessageSquare className="h-5 w-5" />
+                          Start Test Agent Chat
+                        </Button>
                       </div>
                     ) : (
                       <div className="space-y-4">

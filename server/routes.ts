@@ -398,6 +398,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Start chat - returns agent greeting
+  app.post("/api/agents/:id/start-chat", isAuthenticated, async (req: any, res) => {
+    try {
+      const agent = await storage.getAgent(req.params.id);
+      if (!agent) {
+        return res.status(404).json({ message: "Agent not found" });
+      }
+      if (agent.userId !== req.user.claims.sub) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Return the agent's greeting (with fallback default)
+      const greeting = agent.greetingMessage?.trim() || "Hello! Thank you for calling. How can I help you today?";
+      res.json({ greeting });
+    } catch (error) {
+      console.error("Error starting chat:", error);
+      res.status(500).json({ message: "Failed to start chat" });
+    }
+  });
+
   // Voice transcription route
   app.post("/api/agents/:id/transcribe", isAuthenticated, upload.single("audio"), async (req: any, res) => {
     try {

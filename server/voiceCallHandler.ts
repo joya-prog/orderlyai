@@ -644,11 +644,10 @@ export async function handleBrowserTestWebSocket(ws: WebSocket, agentId: string,
     agentName: agent.name 
   }));
   
-  setTimeout(async () => {
-    if (session.ws.readyState === WebSocket.OPEN) {
-      await sendBrowserGreeting(session);
-    }
-  }, 300);
+  // Send greeting immediately - no delay needed
+  sendBrowserGreeting(session).catch(err => {
+    console.error('[BrowserTest] Error sending greeting:', err);
+  });
   
   const SILENCE_THRESHOLD_MS = 1500; // Process audio after 1.5 seconds of silence
   const MIN_AUDIO_LENGTH = 16000 * 2 * 0.5; // At least 0.5 seconds of 16kHz 16-bit audio

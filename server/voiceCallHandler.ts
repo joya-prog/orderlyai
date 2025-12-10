@@ -590,6 +590,9 @@ interface BrowserTestSession {
 
 const browserTestSessions = new Map<string, BrowserTestSession>();
 
+// Default greeting for agents without custom greeting configured
+const DEFAULT_GREETING = "Hello! Thank you for calling. How can I help you today?";
+
 export async function handleBrowserTestWebSocket(ws: WebSocket, agentId: string, userId: string): Promise<void> {
   console.log(`[BrowserTest] New test call session for agent ${agentId}`);
   
@@ -738,6 +741,9 @@ async function sendBrowserGreeting(session: BrowserTestSession): Promise<void> {
       state: 'speaking' 
     }));
     
+    // Use default greeting if agent doesn't have one configured
+    const greetingText = session.agent.greetingMessage?.trim() || DEFAULT_GREETING;
+    
     const voiceConfig: VoiceConfig = {
       provider: session.agent.voiceProvider || 'openai',
       voiceId: session.agent.voiceId || 'nova',
@@ -752,7 +758,7 @@ async function sendBrowserGreeting(session: BrowserTestSession): Promise<void> {
       const similarity = parseFloat(session.agent.similarity || '75') / 100;
       const style = parseFloat(session.agent.styleExaggeration || '0') / 100;
       
-      const stream = await synthesizeElevenLabsSpeech(voiceConfig.voiceId, session.agent.greetingMessage, {
+      const stream = await synthesizeElevenLabsSpeech(voiceConfig.voiceId, greetingText, {
         stability,
         similarityBoost: similarity,
         style,
@@ -765,7 +771,7 @@ async function sendBrowserGreeting(session: BrowserTestSession): Promise<void> {
       }
       audioBuffer = Buffer.concat(chunks);
     } else {
-      audioBuffer = await synthesizeSpeech(session.agent.greetingMessage, voiceConfig);
+      audioBuffer = await synthesizeSpeech(greetingText, voiceConfig);
     }
     
     console.log(`[BrowserTest ${session.callSid}] Generated greeting audio: ${audioBuffer.length} bytes`);
@@ -773,14 +779,14 @@ async function sendBrowserGreeting(session: BrowserTestSession): Promise<void> {
     session.ws.send(JSON.stringify({
       type: 'audio',
       audio: audioBuffer.toString('base64'),
-      text: session.agent.greetingMessage,
+      text: greetingText,
     }));
     
     console.log(`[BrowserTest ${session.callSid}] Greeting audio sent to client`);
     
     session.conversationHistory.push({
       role: 'assistant',
-      content: session.agent.greetingMessage,
+      content: greetingText,
     });
     
     session.ws.send(JSON.stringify({ 

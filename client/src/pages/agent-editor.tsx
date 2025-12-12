@@ -1184,6 +1184,28 @@ export default function AgentEditor() {
                           </FormItem>
                         )}
                       />
+
+                      <FormField
+                        control={form.control}
+                        name="repeatCustomerRecognition"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 bg-primary/5">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-base">Repeat Customer Recognition</FormLabel>
+                              <FormDescription>
+                                Recognize returning callers by phone number and offer to reorder their previous items
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value ?? true}
+                                onCheckedChange={field.onChange}
+                                data-testid="switch-repeat-customer"
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
                     </form>
                   </Form>
                 </TabsContent>

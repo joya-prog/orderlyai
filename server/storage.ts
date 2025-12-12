@@ -18,6 +18,7 @@ import {
   usageLedger,
   invoices,
   callLogs,
+  orders,
   type User,
   type UpsertUser,
   type Agent,
@@ -55,6 +56,7 @@ import {
   type InsertInvoice,
   type CallLog,
   type InsertCallLog,
+  type Order,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, like, or, sql } from "drizzle-orm";
@@ -111,9 +113,13 @@ export interface IStorage {
   // Contact operations
   getContacts(userId: string, searchQuery?: string): Promise<Contact[]>;
   getContact(id: string): Promise<Contact | undefined>;
+  getContactByPhone(phone: string, userId: string): Promise<Contact | null>;
   createContact(contact: InsertContact): Promise<Contact>;
   updateContact(id: string, userId: string, contact: Partial<InsertContact>): Promise<Contact | null>;
   deleteContact(id: string, userId: string): Promise<boolean>;
+
+  // Order operations (for repeat customer recognition)
+  getOrdersForContact(contactId: string, limit?: number): Promise<Order[]>;
 
   // Phone number operations
   getPhoneNumbers(userId: string): Promise<PhoneNumber[]>;
@@ -468,6 +474,36 @@ export class DatabaseStorage implements IStorage {
   async getContact(id: string): Promise<Contact | undefined> {
     const [contact] = await db.select().from(contacts).where(eq(contacts.id, id));
     return contact;
+  }
+
+  async getContactByPhone(phone: string, userId: string): Promise<Contact | null> {
+    // Normalize phone number for comparison (remove non-digits except +)
+    const normalizedPhone = phone.replace(/[^\d+]/g, '');
+    
+    // Try exact match first
+    const [contact] = await db
+      .select()
+      .from(contacts)
+      .where(and(eq(contacts.userId, userId), eq(contacts.phone, phone)));
+    
+    if (contact) return contact;
+    
+    // Try with normalized phone if no exact match
+    const [contactNormalized] = await db
+      .select()
+      .from(contacts)
+      .where(and(eq(contacts.userId, userId), eq(contacts.phone, normalizedPhone)));
+    
+    return contactNormalized || null;
+  }
+
+  async getOrdersForContact(contactId: string, limit: number = 5): Promise<Order[]> {
+    return await db
+      .select()
+      .from(orders)
+      .where(eq(orders.contactId, contactId))
+      .orderBy(sql`${orders.createdAt} DESC`)
+      .limit(limit);
   }
 
   async createContact(contact: InsertContact): Promise<Contact> {

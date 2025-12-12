@@ -86,6 +86,9 @@ export const agents = pgTable("agents", {
   enableTranscripts: boolean("enable_transcripts").default(true),
   limitDataRetention: boolean("limit_data_retention").default(false),
   
+  // Repeat Customer Recognition
+  repeatCustomerRecognition: boolean("repeat_customer_recognition").default(true),
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

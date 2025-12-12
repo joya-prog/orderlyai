@@ -173,6 +173,7 @@ export interface IStorage {
 
   // Call log operations for billing
   createCallLog(callLog: InsertCallLog): Promise<CallLog>;
+  getCallLogById(id: string): Promise<CallLog | null>;
   getCallLogByCallSid(callSid: string): Promise<CallLog | null>;
   updateCallLog(id: string, callLog: Partial<InsertCallLog>): Promise<CallLog | null>;
   getCallLogsForUser(userId: string, startDate?: Date, endDate?: Date): Promise<CallLog[]>;
@@ -848,6 +849,14 @@ export class DatabaseStorage implements IStorage {
   async createCallLog(callLog: InsertCallLog): Promise<CallLog> {
     const [created] = await db.insert(callLogs).values(callLog).returning();
     return created;
+  }
+
+  async getCallLogById(id: string): Promise<CallLog | null> {
+    const [log] = await db
+      .select()
+      .from(callLogs)
+      .where(eq(callLogs.id, id));
+    return log || null;
   }
 
   async getCallLogByCallSid(callSid: string): Promise<CallLog | null> {

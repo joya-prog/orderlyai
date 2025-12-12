@@ -1740,6 +1740,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Call logs routes
+  app.get("/api/call-logs", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { startDate, endDate } = req.query;
+      
+      const start = startDate ? new Date(startDate as string) : undefined;
+      const end = endDate ? new Date(endDate as string) : undefined;
+      
+      const logs = await storage.getCallLogsForUser(userId, start, end);
+      res.json(logs);
+    } catch (error) {
+      console.error("Error fetching call logs:", error);
+      res.status(500).json({ message: "Failed to fetch call logs" });
+    }
+  });
+
+  app.get("/api/call-logs/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const log = await storage.getCallLogById(req.params.id);
+      
+      if (!log) {
+        return res.status(404).json({ message: "Call log not found" });
+      }
+      if (log.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      
+      res.json(log);
+    } catch (error) {
+      console.error("Error fetching call log:", error);
+      res.status(500).json({ message: "Failed to fetch call log" });
+    }
+  });
+
   // Subscription routes
   app.get("/api/subscription", isAuthenticated, async (req: any, res) => {
     try {

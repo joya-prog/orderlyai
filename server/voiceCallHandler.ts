@@ -44,6 +44,49 @@ interface CallSession {
 
 const activeCalls = new Map<string, CallSession>();
 
+interface ConversationAnalysis {
+  sentiment: 'positive' | 'negative' | 'neutral';
+  outcome: 'order_placed' | 'reservation_made' | 'info_provided' | 'transferred' | 'callback_scheduled' | 'no_resolution';
+}
+
+function analyzeConversation(history: Array<{ role: 'user' | 'assistant'; content: string }>): ConversationAnalysis {
+  const fullText = history.map(m => m.content.toLowerCase()).join(' ');
+  
+  // Detect outcome based on keywords
+  let outcome: ConversationAnalysis['outcome'] = 'no_resolution';
+  
+  if (/order (placed|confirmed|complete|ready)|your order|total (is|comes to)|added to (your )?order/i.test(fullText)) {
+    outcome = 'order_placed';
+  } else if (/reservation (made|confirmed|booked)|table (for|reserved)|booked for/i.test(fullText)) {
+    outcome = 'reservation_made';
+  } else if (/transfer|connect you|hold please|connecting/i.test(fullText)) {
+    outcome = 'transferred';
+  } else if (/call (you )?back|callback|reach you later/i.test(fullText)) {
+    outcome = 'callback_scheduled';
+  } else if (history.length >= 4) {
+    // If there was meaningful back-and-forth, likely info was provided
+    outcome = 'info_provided';
+  }
+  
+  // Detect sentiment based on user messages
+  const userMessages = history.filter(m => m.role === 'user').map(m => m.content.toLowerCase()).join(' ');
+  
+  const positiveWords = ['thank', 'thanks', 'great', 'perfect', 'wonderful', 'excellent', 'awesome', 'appreciate', 'love', 'helpful', 'amazing', 'fantastic'];
+  const negativeWords = ['angry', 'upset', 'frustrated', 'terrible', 'awful', 'horrible', 'worst', 'hate', 'disgusting', 'unacceptable', 'ridiculous', 'never again'];
+  
+  const positiveCount = positiveWords.filter(w => userMessages.includes(w)).length;
+  const negativeCount = negativeWords.filter(w => userMessages.includes(w)).length;
+  
+  let sentiment: ConversationAnalysis['sentiment'] = 'neutral';
+  if (positiveCount > negativeCount && positiveCount >= 1) {
+    sentiment = 'positive';
+  } else if (negativeCount > positiveCount && negativeCount >= 1) {
+    sentiment = 'negative';
+  }
+  
+  return { sentiment, outcome };
+}
+
 export function mulawToLinear16(mulawBuffer: Buffer): Buffer {
   const linearBuffer = Buffer.alloc(mulawBuffer.length * 2);
   const MULAW_DECODE_TABLE = [
@@ -618,6 +661,12 @@ export async function handleTwilioWebSocket(ws: WebSocket, req: any): Promise<vo
             const callDuration = Math.floor((Date.now() - session.callStartTime) / 1000);
             const durationMinutes = (callDuration / 60).toFixed(2);
             
+            // Analyze conversation for sentiment and outcome
+            const analysis = analyzeConversation(session.conversationHistory);
+            
+            // Calculate cost: $0.29/minute
+            const costCents = Math.ceil((callDuration / 60) * 29);
+            
             await storage.createCallLog({
               userId: session.userId,
               agentId: session.agent.id,
@@ -630,6 +679,10 @@ export async function handleTwilioWebSocket(ws: WebSocket, req: any): Promise<vo
               durationMinutes,
               status: 'completed',
               transcript: session.conversationHistory.map(m => `${m.role}: ${m.content}`).join('\n'),
+              sentiment: analysis.sentiment,
+              endReason: 'customer_hangup',
+              callOutcome: analysis.outcome,
+              costCents: costCents.toString(),
               metadata: { provider: 'orderly' },
             });
             
@@ -638,7 +691,7 @@ export async function handleTwilioWebSocket(ws: WebSocket, req: any): Promise<vo
               agentId: session.agent.id,
               eventType: 'call_ended',
               duration: callDuration.toString(),
-              eventData: { callSid: session.callSid, durationSeconds: callDuration },
+              eventData: { callSid: session.callSid, durationSeconds: callDuration, sentiment: analysis.sentiment, outcome: analysis.outcome },
               metadata: { provider: 'orderly' },
             });
             

@@ -392,6 +392,10 @@ export const callLogs = pgTable("call_logs", {
   billingStatus: text("billing_status").default('pending'), // 'pending', 'reported', 'billed'
   transcript: text("transcript"),
   recordingUrl: text("recording_url"),
+  sentiment: text("sentiment"), // 'positive', 'neutral', 'negative'
+  endReason: text("end_reason"), // 'customer_hangup', 'agent_hangup', 'transfer', 'voicemail', 'timeout', 'error'
+  callOutcome: text("call_outcome"), // 'order_placed', 'reservation_made', 'info_provided', 'transferred', 'no_resolution', 'callback_scheduled'
+  costCents: text("cost_cents"), // Cost in cents (e.g., "87" for $0.87)
   metadata: jsonb("metadata"), // Additional call data
   createdAt: timestamp("created_at").defaultNow(),
 });

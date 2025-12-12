@@ -47,11 +47,6 @@ const mainItems = [
     icon: BookOpen,
   },
   {
-    title: "Actions",
-    url: "/actions",
-    icon: Zap,
-  },
-  {
     title: "Contacts",
     url: "/contacts",
     icon: Users,

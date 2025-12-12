@@ -18,7 +18,6 @@ import Templates from "@/pages/templates";
 import KnowledgeBase from "@/pages/knowledge-base";
 import TestCenter from "@/pages/test-center";
 import Analytics from "@/pages/analytics";
-import Actions from "@/pages/actions";
 import Contacts from "@/pages/contacts";
 import PhoneNumbers from "@/pages/phone-numbers";
 import Integrations from "@/pages/integrations";
@@ -43,7 +42,6 @@ function Router() {
           <Route path="/agents/:id" component={AgentEditor} />
           <Route path="/analytics" component={Analytics} />
           <Route path="/knowledge-base" component={KnowledgeBase} />
-          <Route path="/actions" component={Actions} />
           <Route path="/test-center" component={TestCenter} />
           <Route path="/contacts" component={Contacts} />
           <Route path="/phone-numbers" component={PhoneNumbers} />

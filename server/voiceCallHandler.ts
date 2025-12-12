@@ -8,6 +8,17 @@ import { Agent } from '@shared/schema';
 const MULAW_RATE = 8000;
 const CHUNK_SIZE = 320;
 
+interface CallerContext {
+  isRepeatCustomer: boolean;
+  customerName: string | null;
+  contactId: string | null;
+  lastOrders: Array<{
+    items: string;
+    total: string;
+    date: string;
+  }>;
+}
+
 interface CallSession {
   callSid: string;
   streamSid: string;
@@ -28,6 +39,7 @@ interface CallSession {
   toNumber: string;
   knowledgeContext: string;
   squareMenuContext: string;
+  callerContext: CallerContext | null;
 }
 
 const activeCalls = new Map<string, CallSession>();
@@ -172,7 +184,11 @@ async function processAudioAndRespond(session: CallSession): Promise<void> {
     
     console.log(`[Call ${session.callSid}] User said: "${transcript}"`);
     
-    const fullKnowledgeContext = session.knowledgeContext + session.squareMenuContext;
+    // Build full knowledge context including caller recognition
+    let fullKnowledgeContext = session.knowledgeContext + session.squareMenuContext;
+    if (session.callerContext) {
+      fullKnowledgeContext += buildCallerContextPrompt(session.callerContext);
+    }
     
     const response = await generateAgentResponse(
       session.agent.systemPrompt,
@@ -387,6 +403,86 @@ async function getSquareMenuContext(userId: string): Promise<string> {
   }
 }
 
+async function getCallerContext(fromNumber: string, userId: string, agent: Agent): Promise<CallerContext | null> {
+  // Check if repeat customer recognition is enabled for this agent
+  if (!agent.repeatCustomerRecognition) {
+    return null;
+  }
+
+  try {
+    // Look up contact by phone number
+    const contact = await storage.getContactByPhone(fromNumber, userId);
+    
+    if (!contact) {
+      return null;
+    }
+
+    // Get their recent orders
+    const recentOrders = await storage.getOrdersForContact(contact.id, 3);
+    
+    if (recentOrders.length === 0) {
+      // Contact exists but no orders - still recognize them by name
+      return {
+        isRepeatCustomer: true,
+        customerName: contact.name,
+        contactId: contact.id,
+        lastOrders: []
+      };
+    }
+
+    // Format orders for AI context
+    const lastOrders = recentOrders.map(order => {
+      const items = order.items as Array<{ name: string; quantity: number }>;
+      const itemSummary = items.map(i => `${i.quantity}x ${i.name}`).join(', ');
+      const orderDate = order.createdAt 
+        ? new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        : 'Recent';
+      
+      return {
+        items: itemSummary,
+        total: order.total,
+        date: orderDate
+      };
+    });
+
+    console.log(`[Voice] Recognized repeat customer: ${contact.name} with ${recentOrders.length} previous orders`);
+
+    return {
+      isRepeatCustomer: true,
+      customerName: contact.name,
+      contactId: contact.id,
+      lastOrders
+    };
+  } catch (error) {
+    console.error('Error getting caller context:', error);
+    return null;
+  }
+}
+
+function buildCallerContextPrompt(callerContext: CallerContext): string {
+  if (!callerContext.isRepeatCustomer) {
+    return '';
+  }
+
+  let prompt = `\n\nREPEAT CUSTOMER RECOGNITION:`;
+  prompt += `\nThis caller is a returning customer named "${callerContext.customerName}".`;
+  
+  if (callerContext.lastOrders.length > 0) {
+    prompt += `\n\nTheir previous orders:`;
+    callerContext.lastOrders.forEach((order, index) => {
+      prompt += `\n${index + 1}. ${order.items} ($${order.total}) on ${order.date}`;
+    });
+    
+    const mostRecent = callerContext.lastOrders[0];
+    prompt += `\n\nIMPORTANT: Warmly greet them by name and offer to reorder their most recent order: "${mostRecent.items}" for $${mostRecent.total}.`;
+    prompt += `\nExample: "Welcome back, ${callerContext.customerName}! Great to hear from you again. Would you like to order your usual - ${mostRecent.items}?"`;
+  } else {
+    prompt += `\nGreet them warmly by name: "Welcome back, ${callerContext.customerName}! How can I help you today?"`;
+  }
+
+  return prompt;
+}
+
 export async function handleTwilioWebSocket(ws: WebSocket, req: any): Promise<void> {
   console.log('[Voice] New WebSocket connection from Twilio');
   
@@ -431,6 +527,9 @@ export async function handleTwilioWebSocket(ws: WebSocket, req: any): Promise<vo
           
           const squareMenuContext = await getSquareMenuContext(agent.userId);
           
+          // Get caller context for repeat customer recognition
+          const callerContext = await getCallerContext(fromNumber, agent.userId, agent);
+          
           session = {
             callSid,
             streamSid,
@@ -451,6 +550,7 @@ export async function handleTwilioWebSocket(ws: WebSocket, req: any): Promise<vo
             toNumber,
             knowledgeContext,
             squareMenuContext,
+            callerContext,
           };
           
           activeCalls.set(callSid, session);
@@ -463,9 +563,21 @@ export async function handleTwilioWebSocket(ws: WebSocket, req: any): Promise<vo
             metadata: { provider: 'orderly' },
           });
           
+          // Generate personalized greeting for repeat customers
+          let greeting = agent.greetingMessage;
+          if (callerContext && callerContext.isRepeatCustomer && callerContext.customerName) {
+            if (callerContext.lastOrders.length > 0) {
+              const lastOrder = callerContext.lastOrders[0];
+              greeting = `Welcome back, ${callerContext.customerName}! Great to hear from you again. Would you like to order your usual - ${lastOrder.items}?`;
+            } else {
+              greeting = `Welcome back, ${callerContext.customerName}! It's great to hear from you. How can I help you today?`;
+            }
+            console.log(`[Voice] Using personalized greeting for repeat customer: ${callerContext.customerName}`);
+          }
+          
           setTimeout(async () => {
             if (session && session.ws.readyState === WebSocket.OPEN) {
-              await streamResponseToCall(session, agent.greetingMessage);
+              await streamResponseToCall(session, greeting);
             }
           }, 500);
           

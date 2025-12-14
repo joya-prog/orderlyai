@@ -38,10 +38,10 @@ interface StripeConfig {
 
 type SettingsTab = "preferences" | "billing" | "security" | "usage" | "notifications";
 
-// Simple pricing model: $149/month per location + usage rate varies by LLM/Voice selection
+// Simple pricing model: $149/month per location + all-in usage rate
 const BASE_MONTHLY_FEE = 149;
-// Typical usage rate: GPT-4o mini ($0.02) + ElevenLabs ($0.26) = $0.28/min
-const USAGE_RATE_PER_MINUTE = 0.28;
+// Default usage rate: GPT-5 nano tier (AI + Voice included)
+const USAGE_RATE_PER_MINUTE = 0.29;
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("billing");
@@ -279,7 +279,7 @@ export default function SettingsPage() {
                         {billingUsage ? Math.round(billingUsage.currentPeriodUsage) : usageMetrics?.minutesUsed || '0'}
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        rate varies by LLM + Voice
+                        at ${USAGE_RATE_PER_MINUTE}/min
                       </div>
                     </div>
                     <div>
@@ -459,8 +459,8 @@ export default function SettingsPage() {
                   </div>
                   <div className="p-6 rounded-xl bg-muted/50 border">
                     <div className="text-sm text-muted-foreground mb-2">Usage Rate</div>
-                    <div className="text-4xl font-bold">from $0.03</div>
-                    <div className="text-sm text-muted-foreground">per minute (varies by LLM + Voice)</div>
+                    <div className="text-4xl font-bold">from $0.29</div>
+                    <div className="text-sm text-muted-foreground">per minute (AI + Voice included)</div>
                   </div>
                 </div>
                 <div className="mt-6 pt-6 border-t">

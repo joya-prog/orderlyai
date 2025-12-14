@@ -2,68 +2,76 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
+import { Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-// Pricing data structure - CLIENT PRICING (with 73% profit margin)
 // Base subscription: $149/month per location
-// Formula: Cost / 0.27 = Selling Price (73% margin)
 const BASE_MONTHLY_FEE_PER_LOCATION = 149;
 
-interface PricingOption {
+interface AITier {
   id: string;
   label: string;
   costPerMinute: number;
+  description: string;
+  whyPriced: string;
+  isDefault?: boolean;
 }
 
-// LLM costs with 73% profit margin (cost / 0.27, rounded to 2 decimals)
-// Formula: Selling Price = Cost / 0.27
-const LLM_MODELS: PricingOption[] = [
-  { id: "gpt-5", label: "GPT 5", costPerMinute: 0.15 },              // $0.04 / 0.27 = $0.148 → $0.15
-  { id: "gpt-5-mini", label: "GPT 5 mini", costPerMinute: 0.04 },    // $0.012 / 0.27 = $0.044 → $0.04
-  { id: "gpt-5-nano", label: "GPT 5 nano", costPerMinute: 0.01 },    // $0.003 / 0.27 = $0.011 → $0.01
-  { id: "gpt-4.1", label: "GPT 4.1", costPerMinute: 0.17 },          // $0.045 / 0.27 = $0.167 → $0.17
-  { id: "gpt-4.1-mini", label: "GPT 4.1 mini", costPerMinute: 0.06 }, // $0.016 / 0.27 = $0.059 → $0.06
-  { id: "gpt-4.1-nano", label: "GPT 4.1 nano", costPerMinute: 0.01 }, // $0.004 / 0.27 = $0.015 → $0.01
-  { id: "gpt-4o", label: "GPT 4o", costPerMinute: 0.19 },            // $0.05 / 0.27 = $0.185 → $0.19
-  { id: "gpt-4o-mini", label: "GPT 4o mini", costPerMinute: 0.02 },  // $0.006 / 0.27 = $0.022 → $0.02
-  { id: "claude-4.5-sonnet", label: "Claude 4.5 sonnet", costPerMinute: 0.30 }, // $0.08 / 0.27 = $0.296 → $0.30
-  { id: "claude-4.5-haiku", label: "Claude 4.5 haiku", costPerMinute: 0.09 },   // $0.025 / 0.27 = $0.093 → $0.09
-  { id: "claude-3.7-sonnet", label: "Claude 3.7 sonnet", costPerMinute: 0.22 }, // $0.06 / 0.27 = $0.222 → $0.22
-  { id: "claude-3.5-haiku", label: "Claude 3.5 haiku", costPerMinute: 0.07 },   // $0.02 / 0.27 = $0.074 → $0.07
-  { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash", costPerMinute: 0.02 },   // $0.006 / 0.27 = $0.022 → $0.02
-  { id: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite", costPerMinute: 0.01 }, // $0.003 / 0.27 = $0.011 → $0.01
-  { id: "custom", label: "Custom LLM", costPerMinute: 0.00 },
-];
-
-// Voice engine costs with 73% profit margin (cost / 0.27, rounded)
-const VOICE_ENGINES: PricingOption[] = [
-  { id: "elevenlabs-cartesia", label: "ElevenLabs/Cartesia Voices", costPerMinute: 0.26 }, // cost: $0.07
-  { id: "openai", label: "OpenAI Voices", costPerMinute: 0.30 },     // cost: $0.08
-];
-
-const TELEPHONY_PROVIDERS: PricingOption[] = [
-  { id: "custom", label: "Custom Telephony", costPerMinute: 0.00 },
+// Simplified all-in pricing tiers (LLM + Voice combined)
+const AI_TIERS: AITier[] = [
+  { 
+    id: "gpt-5-nano", 
+    label: "GPT-5 nano", 
+    costPerMinute: 0.29,
+    description: "Best speed/cost balance for orders & reservations",
+    whyPriced: "Fast, efficient model optimized for restaurant workflows. Includes premium voice synthesis.",
+    isDefault: true,
+  },
+  { 
+    id: "gpt-4.1-mini", 
+    label: "GPT-4.1 mini", 
+    costPerMinute: 0.34,
+    description: "Better reasoning for complex menus",
+    whyPriced: "Enhanced reasoning for detailed menu modifications, dietary restrictions, and multi-item orders.",
+  },
+  { 
+    id: "claude-3.5-haiku", 
+    label: "Claude 3.5 Haiku", 
+    costPerMinute: 0.35,
+    description: "Natural tone, great for hospitality",
+    whyPriced: "Warm, conversational style that feels more human. Perfect for upscale dining experiences.",
+  },
+  { 
+    id: "gpt-4.1", 
+    label: "GPT-4.1", 
+    costPerMinute: 0.45,
+    description: "Enterprise accuracy & upsell logic",
+    whyPriced: "Advanced reasoning for complex scenarios, upselling, and handling edge cases with high accuracy.",
+  },
+  { 
+    id: "claude-sonnet", 
+    label: "Claude Sonnet", 
+    costPerMinute: 0.49,
+    description: "Enterprise accuracy & premium voice",
+    whyPriced: "Top-tier intelligence for fine dining, complex reservations, and VIP guest handling.",
+  },
 ];
 
 export function PricingCalculator() {
   // Restaurant-focused inputs
-  const [callsPerDay, setCallsPerDay] = useState(50); // Default: 50 calls/day
-  const [avgCallDuration, setAvgCallDuration] = useState(5); // Default: 5 minutes per call
-  const [locations, setLocations] = useState(1); // Default: 1 location
+  const [callsPerDay, setCallsPerDay] = useState(50);
+  const [avgCallDuration, setAvgCallDuration] = useState(5);
+  const [locations, setLocations] = useState(1);
   
-  const [selectedLLM, setSelectedLLM] = useState("gpt-4o-mini");
-  const [selectedVoice, setSelectedVoice] = useState("elevenlabs-cartesia");
-  const [selectedTelephony] = useState("custom"); // Fixed to custom
+  const [selectedTier, setSelectedTier] = useState("gpt-5-nano");
 
-  // Find selected options
-  const llmOption = LLM_MODELS.find((m) => m.id === selectedLLM) || LLM_MODELS[0];
-  const voiceOption = VOICE_ENGINES.find((v) => v.id === selectedVoice) || VOICE_ENGINES[0];
-  const telephonyOption = TELEPHONY_PROVIDERS.find((t) => t.id === selectedTelephony) || TELEPHONY_PROVIDERS[0];
-
-  // Calculate costs per minute (LLM + voice engine + telephony)
-  const llmCost = llmOption.costPerMinute;
-  const voiceCost = voiceOption.costPerMinute;
-  const telephonyCost = telephonyOption.costPerMinute;
-  const costPerMinute = llmCost + voiceCost + telephonyCost;
+  // Find selected tier
+  const tierOption = AI_TIERS.find((t) => t.id === selectedTier) || AI_TIERS[0];
+  const costPerMinute = tierOption.costPerMinute;
   
   // Per-location calculations
   const dailyMinutes = callsPerDay * avgCallDuration;
@@ -72,7 +80,6 @@ export function PricingCalculator() {
   const monthlyCostPerLocation = BASE_MONTHLY_FEE_PER_LOCATION + monthlyUsageCostPerLocation;
   
   // Total calculations (across all locations)
-  const totalMonthlyMinutes = monthlyMinutesPerLocation * locations;
   const totalBaseFee = BASE_MONTHLY_FEE_PER_LOCATION * locations;
   const totalUsageCost = monthlyUsageCostPerLocation * locations;
   const totalMonthlyCost = totalBaseFee + totalUsageCost;
@@ -87,7 +94,7 @@ export function PricingCalculator() {
       <CardHeader>
         <CardTitle>Pricing Calculator</CardTitle>
         <CardDescription>
-          Estimate your monthly costs based on usage and provider selection
+          Estimate your monthly costs based on call volume and AI tier
         </CardDescription>
       </CardHeader>
       <CardContent className="p-4 md:p-6">
@@ -96,7 +103,7 @@ export function PricingCalculator() {
           <div className="lg:col-span-2 space-y-6 md:space-y-8">
             {/* Calls Per Day Slider */}
             <div>
-              <div className="flex items-baseline justify-between mb-4">
+              <div className="flex items-baseline justify-between gap-2 mb-4">
                 <label className="text-sm font-medium">
                   How many calls does your restaurant have per day?
                 </label>
@@ -124,7 +131,7 @@ export function PricingCalculator() {
 
             {/* Average Call Duration Slider */}
             <div>
-              <div className="flex items-baseline justify-between mb-4">
+              <div className="flex items-baseline justify-between gap-2 mb-4">
                 <label className="text-sm font-medium">
                   How long is the duration of each call?
                 </label>
@@ -149,7 +156,7 @@ export function PricingCalculator() {
 
             {/* Locations Slider */}
             <div>
-              <div className="flex items-baseline justify-between mb-4">
+              <div className="flex items-baseline justify-between gap-2 mb-4">
                 <label className="text-sm font-medium">
                   How many locations do you have?
                 </label>
@@ -172,38 +179,55 @@ export function PricingCalculator() {
               </div>
             </div>
 
-            {/* LLM Agent Selection */}
+            {/* AI Tier Selection */}
             <div>
-              <label className="text-sm font-medium mb-3 block">LLM Agent</label>
-              <div className="flex flex-wrap gap-2">
-                {LLM_MODELS.map((model) => (
-                  <Badge
-                    key={model.id}
-                    variant={selectedLLM === model.id ? "default" : "outline"}
-                    className="cursor-pointer hover-elevate px-3 py-1.5 text-xs"
-                    onClick={() => setSelectedLLM(model.id)}
-                    data-testid={`llm-${model.id}`}
-                  >
-                    {model.label}
-                  </Badge>
-                ))}
+              <div className="flex items-center gap-2 mb-3">
+                <label className="text-sm font-medium">AI Tier</label>
+                <span className="text-xs text-muted-foreground">(includes voice)</span>
               </div>
-            </div>
-
-            {/* Voice Engine Selection */}
-            <div>
-              <label className="text-sm font-medium mb-3 block">Voice Engine</label>
-              <div className="flex flex-wrap gap-2">
-                {VOICE_ENGINES.map((engine) => (
-                  <Badge
-                    key={engine.id}
-                    variant={selectedVoice === engine.id ? "default" : "outline"}
-                    className="cursor-pointer hover-elevate px-3 py-1.5 text-xs"
-                    onClick={() => setSelectedVoice(engine.id)}
-                    data-testid={`voice-${engine.id}`}
+              <div className="space-y-2">
+                {AI_TIERS.map((tier) => (
+                  <div
+                    key={tier.id}
+                    className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                      selectedTier === tier.id 
+                        ? "border-primary bg-primary/5" 
+                        : "border-border hover-elevate"
+                    }`}
+                    onClick={() => setSelectedTier(tier.id)}
+                    data-testid={`tier-${tier.id}`}
                   >
-                    {engine.label}
-                  </Badge>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        selectedTier === tier.id ? "border-primary" : "border-muted-foreground"
+                      }`}>
+                        {selectedTier === tier.id && (
+                          <div className="w-2 h-2 rounded-full bg-primary" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">{tier.label}</span>
+                          {tier.isDefault && (
+                            <Badge variant="secondary" className="text-xs">Recommended</Badge>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground">{tier.description}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm">${tier.costPerMinute.toFixed(2)}/min</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="left" className="max-w-xs">
+                          <p className="text-xs font-medium mb-1">Why it's priced this way:</p>
+                          <p className="text-xs">{tier.whyPriced}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -224,24 +248,12 @@ export function PricingCalculator() {
 
               {/* Per Minute Rate */}
               <div className="pt-4 border-t">
-                <div className="text-sm text-muted-foreground mb-1">Usage Rate</div>
+                <div className="text-sm text-muted-foreground mb-1">All-in Usage Rate</div>
                 <div className="text-2xl font-bold" data-testid="cost-per-minute">
                   ${costPerMinute.toFixed(2)}/min
                 </div>
-              </div>
-
-              <div className="space-y-2 pt-4 border-t">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Voice</span>
-                  <span className="font-medium" data-testid="voice-cost">
-                    ${voiceCost.toFixed(2)}/min
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">LLM ({llmOption.label})</span>
-                  <span className="font-medium" data-testid="llm-cost">
-                    ${llmCost.toFixed(2)}/min
-                  </span>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {tierOption.label} (AI + Voice included)
                 </div>
               </div>
 

@@ -3,11 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 
-// Pricing data structure - CLIENT PRICING (with ~77% margin / 4x markup from wholesale)
+// Pricing data structure - CLIENT PRICING (with 73% profit margin)
 // Base subscription: $149/month per location
-// Voice rate: $0.29/minute
+// Formula: Cost / 0.27 = Selling Price (73% margin)
 const BASE_MONTHLY_FEE_PER_LOCATION = 149;
-const VOICE_RATE_PER_MINUTE = 0.29;
 
 interface PricingOption {
   id: string;
@@ -15,27 +14,29 @@ interface PricingOption {
   costPerMinute: number;
 }
 
-// LLM costs with 4x markup for 77% margin (wholesale × 4)
+// LLM costs with 73% profit margin (cost / 0.27, rounded to clean numbers)
 const LLM_MODELS: PricingOption[] = [
-  { id: "gpt-5", label: "GPT 5", costPerMinute: 0.32 },           // $0.08 × 4
-  { id: "gpt-5-mini", label: "GPT 5mini", costPerMinute: 0.16 },   // $0.04 × 4
-  { id: "gpt-5-nano", label: "GPT 5 nano", costPerMinute: 0.08 },  // $0.02 × 4
-  { id: "gpt-4.1", label: "GPT 4.1", costPerMinute: 0.28 },        // $0.07 × 4
-  { id: "gpt-4.1-mini", label: "GPT 4.1 mini", costPerMinute: 0.14 }, // $0.035 × 4
-  { id: "gpt-4o", label: "GPT 4o", costPerMinute: 0.20 },          // $0.05 × 4
-  { id: "gpt-4o-mini", label: "GPT 4o mini", costPerMinute: 0.10 }, // $0.025 × 4
-  { id: "gpt-4.1-nano", label: "GPT 4.1 nano", costPerMinute: 0.06 }, // $0.015 × 4
-  { id: "claude-3.7-sonnet", label: "Claude 3.7 sonnet", costPerMinute: 0.24 }, // $0.06 × 4
-  { id: "claude-3.5-haiku", label: "Claude 3.5 haiku", costPerMinute: 0.12 },   // $0.03 × 4
-  { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash", costPerMinute: 0.18 },   // $0.045 × 4
-  { id: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite", costPerMinute: 0.09 }, // $0.022 × 4
+  { id: "gpt-5", label: "GPT 5", costPerMinute: 0.15 },              // cost: $0.04
+  { id: "gpt-5-mini", label: "GPT 5 mini", costPerMinute: 0.045 },   // cost: $0.012
+  { id: "gpt-5-nano", label: "GPT 5 nano", costPerMinute: 0.01 },    // cost: $0.003
+  { id: "gpt-4.1", label: "GPT 4.1", costPerMinute: 0.17 },          // cost: $0.045
+  { id: "gpt-4.1-mini", label: "GPT 4.1 mini", costPerMinute: 0.06 }, // cost: $0.016
+  { id: "gpt-4.1-nano", label: "GPT 4.1 nano", costPerMinute: 0.015 }, // cost: $0.004
+  { id: "gpt-4o", label: "GPT 4o", costPerMinute: 0.19 },            // cost: $0.05
+  { id: "gpt-4o-mini", label: "GPT 4o mini", costPerMinute: 0.02 },  // cost: $0.006
+  { id: "claude-4.5-sonnet", label: "Claude 4.5 sonnet", costPerMinute: 0.30 }, // cost: $0.08
+  { id: "claude-4.5-haiku", label: "Claude 4.5 haiku", costPerMinute: 0.09 },   // cost: $0.025
+  { id: "claude-3.7-sonnet", label: "Claude 3.7 sonnet", costPerMinute: 0.22 }, // cost: $0.06
+  { id: "claude-3.5-haiku", label: "Claude 3.5 haiku", costPerMinute: 0.07 },   // cost: $0.02
+  { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash", costPerMinute: 0.02 },   // cost: $0.006
+  { id: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite", costPerMinute: 0.01 }, // cost: $0.003
   { id: "custom", label: "Custom LLM", costPerMinute: 0.00 },
 ];
 
-// Voice engine included in base voice rate
+// Voice engine costs with 73% profit margin (cost / 0.27, rounded)
 const VOICE_ENGINES: PricingOption[] = [
-  { id: "elevenlabs-cartesia", label: "Elevenlabs/Cartesia Voices", costPerMinute: 0.00 },
-  { id: "openai", label: "OpenAI Voices", costPerMinute: 0.00 },
+  { id: "elevenlabs-cartesia", label: "ElevenLabs/Cartesia Voices", costPerMinute: 0.26 }, // cost: $0.07
+  { id: "openai", label: "OpenAI Voices", costPerMinute: 0.30 },     // cost: $0.08
 ];
 
 const TELEPHONY_PROVIDERS: PricingOption[] = [
@@ -48,7 +49,7 @@ export function PricingCalculator() {
   const [avgCallDuration, setAvgCallDuration] = useState(5); // Default: 5 minutes per call
   const [locations, setLocations] = useState(1); // Default: 1 location
   
-  const [selectedLLM, setSelectedLLM] = useState("claude-3.7-sonnet");
+  const [selectedLLM, setSelectedLLM] = useState("gpt-4o-mini");
   const [selectedVoice, setSelectedVoice] = useState("elevenlabs-cartesia");
   const [selectedTelephony] = useState("custom"); // Fixed to custom
 
@@ -57,10 +58,10 @@ export function PricingCalculator() {
   const voiceOption = VOICE_ENGINES.find((v) => v.id === selectedVoice) || VOICE_ENGINES[0];
   const telephonyOption = TELEPHONY_PROVIDERS.find((t) => t.id === selectedTelephony) || TELEPHONY_PROVIDERS[0];
 
-  // Calculate costs per minute (LLM + voice rate)
+  // Calculate costs per minute (LLM + voice engine + telephony)
   const llmCost = llmOption.costPerMinute;
-  const voiceCost = VOICE_RATE_PER_MINUTE; // Fixed $0.29/minute voice rate
-  const telephonyCost = telephonyOption.costPerMinute; // Usually $0 for custom
+  const voiceCost = voiceOption.costPerMinute;
+  const telephonyCost = telephonyOption.costPerMinute;
   const costPerMinute = llmCost + voiceCost + telephonyCost;
   
   // Per-location calculations

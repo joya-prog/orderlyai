@@ -63,31 +63,43 @@ export function buildFlowContext(nodes: FlowNode[], connections: FlowConnection[
     }
   }
 
-  function traverseFlow(nodeId: string, depth: number = 0) {
-    if (visited.has(nodeId) || depth > 10) return; // Prevent infinite loops
-    visited.add(nodeId);
+  function traverseFlow(nodeId: string, depth: number = 0, pathVisited: Set<string> = new Set()) {
+    // Use path-specific visited set to allow convergent branches
+    if (pathVisited.has(nodeId)) return; // Prevent cycles in current path only
+    if (depth > 15) {
+      flowInstructions.push(`${"  ".repeat(depth)}[...flow continues]`);
+      return;
+    }
 
     const node = nodeMap.get(nodeId);
     if (!node) return;
 
-    flowInstructions.push(describeNode(node, depth));
+    // Create new path set for this branch
+    const newPathVisited = new Set(pathVisited);
+    newPathVisited.add(nodeId);
+
+    // Only describe node if not already described globally
+    if (!visited.has(nodeId)) {
+      flowInstructions.push(describeNode(node, depth));
+      visited.add(nodeId);
+    } else {
+      flowInstructions.push(`${"  ".repeat(depth)}[continues to: ${node.label}]`);
+      return; // Don't re-traverse already described nodes
+    }
 
     // Get outgoing connections
     const outgoing = adjacencyList.get(nodeId) || [];
     
     if (outgoing.length === 1) {
       // Single path - continue linearly
-      flowInstructions.push(`  ${"  ".repeat(depth)}↓`);
-      traverseFlow(outgoing[0].targetId, depth);
+      flowInstructions.push(`${"  ".repeat(depth)}  ↓`);
+      traverseFlow(outgoing[0].targetId, depth, newPathVisited);
     } else if (outgoing.length > 1) {
       // Multiple paths - show branching
       outgoing.forEach((conn, idx) => {
-        const targetNode = nodeMap.get(conn.targetId);
         const branchLabel = conn.label || `Option ${idx + 1}`;
-        flowInstructions.push(`  ${"  ".repeat(depth)}→ [${branchLabel}]:`);
-        if (targetNode && !visited.has(conn.targetId)) {
-          traverseFlow(conn.targetId, depth + 1);
-        }
+        flowInstructions.push(`${"  ".repeat(depth)}  → [${branchLabel}]:`);
+        traverseFlow(conn.targetId, depth + 1, newPathVisited);
       });
     }
   }

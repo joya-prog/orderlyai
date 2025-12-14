@@ -279,16 +279,16 @@ export default function SettingsPage() {
                         {billingUsage ? Math.round(billingUsage.currentPeriodUsage) : usageMetrics?.minutesUsed || '0'}
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        @ ${USAGE_RATE_PER_MINUTE}/min
+                        rate varies by LLM + Voice
                       </div>
                     </div>
                     <div>
-                      <div className="text-sm text-muted-foreground mb-1">Usage Cost</div>
+                      <div className="text-sm text-muted-foreground mb-1">Est. Usage Cost</div>
                       <div className="font-semibold text-lg">
                         ${((billingUsage?.currentPeriodUsage || parseInt(usageMetrics?.minutesUsed || '0')) * USAGE_RATE_PER_MINUTE).toFixed(2)}
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        this billing period
+                        this billing period (est.)
                       </div>
                     </div>
                     <div>

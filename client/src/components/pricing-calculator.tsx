@@ -14,22 +14,23 @@ interface PricingOption {
   costPerMinute: number;
 }
 
-// LLM costs with 73% profit margin (cost / 0.27, rounded to clean numbers)
+// LLM costs with 73% profit margin (cost / 0.27, rounded to 2 decimals)
+// Formula: Selling Price = Cost / 0.27
 const LLM_MODELS: PricingOption[] = [
-  { id: "gpt-5", label: "GPT 5", costPerMinute: 0.15 },              // cost: $0.04
-  { id: "gpt-5-mini", label: "GPT 5 mini", costPerMinute: 0.045 },   // cost: $0.012
-  { id: "gpt-5-nano", label: "GPT 5 nano", costPerMinute: 0.01 },    // cost: $0.003
-  { id: "gpt-4.1", label: "GPT 4.1", costPerMinute: 0.17 },          // cost: $0.045
-  { id: "gpt-4.1-mini", label: "GPT 4.1 mini", costPerMinute: 0.06 }, // cost: $0.016
-  { id: "gpt-4.1-nano", label: "GPT 4.1 nano", costPerMinute: 0.015 }, // cost: $0.004
-  { id: "gpt-4o", label: "GPT 4o", costPerMinute: 0.19 },            // cost: $0.05
-  { id: "gpt-4o-mini", label: "GPT 4o mini", costPerMinute: 0.02 },  // cost: $0.006
-  { id: "claude-4.5-sonnet", label: "Claude 4.5 sonnet", costPerMinute: 0.30 }, // cost: $0.08
-  { id: "claude-4.5-haiku", label: "Claude 4.5 haiku", costPerMinute: 0.09 },   // cost: $0.025
-  { id: "claude-3.7-sonnet", label: "Claude 3.7 sonnet", costPerMinute: 0.22 }, // cost: $0.06
-  { id: "claude-3.5-haiku", label: "Claude 3.5 haiku", costPerMinute: 0.07 },   // cost: $0.02
-  { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash", costPerMinute: 0.02 },   // cost: $0.006
-  { id: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite", costPerMinute: 0.01 }, // cost: $0.003
+  { id: "gpt-5", label: "GPT 5", costPerMinute: 0.15 },              // $0.04 / 0.27 = $0.148 → $0.15
+  { id: "gpt-5-mini", label: "GPT 5 mini", costPerMinute: 0.04 },    // $0.012 / 0.27 = $0.044 → $0.04
+  { id: "gpt-5-nano", label: "GPT 5 nano", costPerMinute: 0.01 },    // $0.003 / 0.27 = $0.011 → $0.01
+  { id: "gpt-4.1", label: "GPT 4.1", costPerMinute: 0.17 },          // $0.045 / 0.27 = $0.167 → $0.17
+  { id: "gpt-4.1-mini", label: "GPT 4.1 mini", costPerMinute: 0.06 }, // $0.016 / 0.27 = $0.059 → $0.06
+  { id: "gpt-4.1-nano", label: "GPT 4.1 nano", costPerMinute: 0.01 }, // $0.004 / 0.27 = $0.015 → $0.01
+  { id: "gpt-4o", label: "GPT 4o", costPerMinute: 0.19 },            // $0.05 / 0.27 = $0.185 → $0.19
+  { id: "gpt-4o-mini", label: "GPT 4o mini", costPerMinute: 0.02 },  // $0.006 / 0.27 = $0.022 → $0.02
+  { id: "claude-4.5-sonnet", label: "Claude 4.5 sonnet", costPerMinute: 0.30 }, // $0.08 / 0.27 = $0.296 → $0.30
+  { id: "claude-4.5-haiku", label: "Claude 4.5 haiku", costPerMinute: 0.09 },   // $0.025 / 0.27 = $0.093 → $0.09
+  { id: "claude-3.7-sonnet", label: "Claude 3.7 sonnet", costPerMinute: 0.22 }, // $0.06 / 0.27 = $0.222 → $0.22
+  { id: "claude-3.5-haiku", label: "Claude 3.5 haiku", costPerMinute: 0.07 },   // $0.02 / 0.27 = $0.074 → $0.07
+  { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash", costPerMinute: 0.02 },   // $0.006 / 0.27 = $0.022 → $0.02
+  { id: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite", costPerMinute: 0.01 }, // $0.003 / 0.27 = $0.011 → $0.01
   { id: "custom", label: "Custom LLM", costPerMinute: 0.00 },
 ];
 

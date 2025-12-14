@@ -63,8 +63,8 @@ const AI_TIERS: AITier[] = [
 
 export function PricingCalculator() {
   // Restaurant-focused inputs
-  const [callsPerDay, setCallsPerDay] = useState(50);
-  const [avgCallDuration, setAvgCallDuration] = useState(5);
+  const [callsPerDay, setCallsPerDay] = useState(20);
+  const [avgCallDuration, setAvgCallDuration] = useState(4);
   const [locations, setLocations] = useState(1);
   
   const [selectedTier, setSelectedTier] = useState("gpt-5-nano");
@@ -114,18 +114,18 @@ export function PricingCalculator() {
               <Slider
                 value={[callsPerDay]}
                 onValueChange={(value) => setCallsPerDay(value[0])}
-                min={30}
-                max={400}
-                step={10}
+                min={5}
+                max={50}
+                step={5}
                 className="mb-2"
                 data-testid="slider-calls-per-day"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>30 calls/day</span>
+                <span>5 calls/day</span>
                 <span className="text-center">
                   {(callsPerDay * 30).toLocaleString()} calls/month per location
                 </span>
-                <span>400 calls/day</span>
+                <span>50 calls/day</span>
               </div>
             </div>
 
@@ -142,14 +142,14 @@ export function PricingCalculator() {
               <Slider
                 value={[avgCallDuration]}
                 onValueChange={(value) => setAvgCallDuration(value[0])}
-                min={2.5}
+                min={1}
                 max={8}
                 step={0.5}
                 className="mb-2"
                 data-testid="slider-avg-duration"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>2.5 min (quick inquiries)</span>
+                <span>1 min (quick inquiries)</span>
                 <span>8 min (complex orders)</span>
               </div>
             </div>

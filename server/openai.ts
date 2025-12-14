@@ -1,9 +1,119 @@
 // Reference: javascript_openai blueprint
 import OpenAI from "openai";
 import { Readable } from "stream";
+import type { FlowNode, FlowConnection } from "@shared/schema";
 
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Build flow context from nodes and connections for AI understanding
+export function buildFlowContext(nodes: FlowNode[], connections: FlowConnection[]): string {
+  if (!nodes || nodes.length === 0) {
+    return "";
+  }
+
+  // Create a map for quick node lookup
+  const nodeMap = new Map<string, FlowNode>();
+  nodes.forEach(node => nodeMap.set(node.id, node));
+
+  // Create adjacency list for connections
+  const adjacencyList = new Map<string, Array<{ targetId: string; label?: string }>>();
+  connections.forEach(conn => {
+    if (!adjacencyList.has(conn.sourceNodeId)) {
+      adjacencyList.set(conn.sourceNodeId, []);
+    }
+    adjacencyList.get(conn.sourceNodeId)!.push({
+      targetId: conn.targetNodeId,
+      label: conn.label || undefined
+    });
+  });
+
+  // Find the starting node (usually type 'greeting' or the node with no incoming connections)
+  const nodesWithIncoming = new Set(connections.map(c => c.targetNodeId));
+  let startNode = nodes.find(n => n.type === 'greeting') || 
+                  nodes.find(n => !nodesWithIncoming.has(n.id)) ||
+                  nodes[0];
+
+  // Build flow instructions by traversing the graph
+  const flowInstructions: string[] = [];
+  const visited = new Set<string>();
+
+  function describeNode(node: FlowNode, depth: number = 0): string {
+    const indent = "  ".repeat(depth);
+    const config = node.config as Record<string, any> || {};
+    
+    switch (node.type) {
+      case 'greeting':
+        return `${indent}START: ${node.content || node.label}`;
+      case 'question':
+        return `${indent}ASK: "${node.content || node.label}"`;
+      case 'condition':
+        const condition = config.condition || node.label;
+        return `${indent}IF: ${condition}`;
+      case 'action':
+        const action = config.action || node.content || node.label;
+        return `${indent}DO: ${action}`;
+      case 'transfer':
+        const transferTo = config.transferTo || config.department || 'staff';
+        return `${indent}TRANSFER: Connect caller to ${transferTo}`;
+      case 'end':
+        return `${indent}END: ${node.content || 'Thank them and end the call'}`;
+      default:
+        return `${indent}${node.type.toUpperCase()}: ${node.content || node.label}`;
+    }
+  }
+
+  function traverseFlow(nodeId: string, depth: number = 0) {
+    if (visited.has(nodeId) || depth > 10) return; // Prevent infinite loops
+    visited.add(nodeId);
+
+    const node = nodeMap.get(nodeId);
+    if (!node) return;
+
+    flowInstructions.push(describeNode(node, depth));
+
+    // Get outgoing connections
+    const outgoing = adjacencyList.get(nodeId) || [];
+    
+    if (outgoing.length === 1) {
+      // Single path - continue linearly
+      flowInstructions.push(`  ${"  ".repeat(depth)}↓`);
+      traverseFlow(outgoing[0].targetId, depth);
+    } else if (outgoing.length > 1) {
+      // Multiple paths - show branching
+      outgoing.forEach((conn, idx) => {
+        const targetNode = nodeMap.get(conn.targetId);
+        const branchLabel = conn.label || `Option ${idx + 1}`;
+        flowInstructions.push(`  ${"  ".repeat(depth)}→ [${branchLabel}]:`);
+        if (targetNode && !visited.has(conn.targetId)) {
+          traverseFlow(conn.targetId, depth + 1);
+        }
+      });
+    }
+  }
+
+  if (startNode) {
+    traverseFlow(startNode.id);
+  }
+
+  // Also include any disconnected nodes
+  nodes.forEach(node => {
+    if (!visited.has(node.id)) {
+      flowInstructions.push(`\nADDITIONAL: ${describeNode(node, 0)}`);
+    }
+  });
+
+  if (flowInstructions.length === 0) {
+    return "";
+  }
+
+  return `\n\nCONVERSATION FLOW:
+Follow this structured conversation flow to guide the interaction:
+
+${flowInstructions.join('\n')}
+
+IMPORTANT: Follow this flow as a guide, but remain natural and conversational. Adapt based on what the caller says while staying within the defined flow structure.`;
+}
 
 // Default values for agents without custom configuration
 const DEFAULT_SYSTEM_PROMPT = `You are a friendly and helpful AI assistant for a restaurant. Your job is to:
@@ -24,7 +134,8 @@ export async function generateAgentResponse(
   personality: string,
   knowledgeContext: string,
   conversationHistory: Array<{ role: "user" | "assistant"; content: string }>,
-  userMessage: string
+  userMessage: string,
+  flowContext?: string
 ): Promise<string> {
   try {
     // Use defaults for empty or missing values
@@ -32,6 +143,7 @@ export async function generateAgentResponse(
     const effectivePersonality = personality?.trim() || DEFAULT_PERSONALITY;
     const effectiveGreeting = greetingMessage?.trim() || DEFAULT_GREETING;
     const effectiveKnowledge = knowledgeContext?.trim() || "No specific knowledge base configured yet.";
+    const effectiveFlowContext = flowContext?.trim() || "";
     
     const fullSystemPrompt = `${effectiveSystemPrompt}
 
@@ -41,8 +153,9 @@ GREETING: When starting a conversation, use this greeting: "${effectiveGreeting}
 
 KNOWLEDGE BASE:
 ${effectiveKnowledge}
+${effectiveFlowContext}
 
-You are a helpful restaurant AI assistant. Use the knowledge base to answer questions accurately. Be conversational and helpful.`;
+You are a helpful restaurant AI assistant. Use the knowledge base to answer questions accurately. Be conversational and helpful.${effectiveFlowContext ? ' Follow the conversation flow structure when guiding the interaction.' : ''}`;
 
     const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
       { role: "system", content: fullSystemPrompt },

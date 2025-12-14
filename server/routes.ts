@@ -4,7 +4,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer } from "ws";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { generateAgentResponse, transcribeAudio, synthesizeSpeech, listOpenAIVoices, VoiceConfig } from "./openai";
+import { generateAgentResponse, transcribeAudio, synthesizeSpeech, listOpenAIVoices, VoiceConfig, buildFlowContext } from "./openai";
 import { handleTwilioWebSocket, generateTwiML, getActiveCalls, handleBrowserTestWebSocket } from "./voiceCallHandler";
 import multer from "multer";
 
@@ -375,6 +375,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const squareMenuContext = await getSquareMenuContext(userId);
       const fullKnowledgeContext = knowledgeContext + squareMenuContext;
 
+      // Get flow nodes and connections for workflow context
+      const flowNodes = await storage.getFlowNodes(req.params.id);
+      const flowConnections = await storage.getFlowConnections(req.params.id);
+      const flowContext = buildFlowContext(flowNodes, flowConnections);
+
       // Generate response using OpenAI
       const response = await generateAgentResponse(
         agent.systemPrompt,
@@ -382,7 +387,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         agent.personality,
         fullKnowledgeContext,
         history,
-        message
+        message,
+        flowContext
       );
 
       // Save test conversation

@@ -1,7 +1,7 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import { Readable } from 'stream';
 import { storage } from './storage';
-import { generateAgentResponse, transcribeAudio, synthesizeSpeech, VoiceConfig } from './openai';
+import { generateAgentResponse, transcribeAudio, synthesizeSpeech, VoiceConfig, buildFlowContext } from './openai';
 import { synthesizeElevenLabsSpeech } from './elevenlabs';
 import { Agent } from '@shared/schema';
 
@@ -39,6 +39,7 @@ interface CallSession {
   toNumber: string;
   knowledgeContext: string;
   squareMenuContext: string;
+  flowContext: string;
   callerContext: CallerContext | null;
 }
 
@@ -239,7 +240,8 @@ async function processAudioAndRespond(session: CallSession): Promise<void> {
       session.agent.personality,
       fullKnowledgeContext,
       session.conversationHistory,
-      transcript
+      transcript,
+      session.flowContext
     );
     
     console.log(`[Call ${session.callSid}] Agent response: "${response}"`);
@@ -570,6 +572,11 @@ export async function handleTwilioWebSocket(ws: WebSocket, req: any): Promise<vo
           
           const squareMenuContext = await getSquareMenuContext(agent.userId);
           
+          // Get flow nodes and connections for workflow context
+          const flowNodes = await storage.getFlowNodes(agentId);
+          const flowConnections = await storage.getFlowConnections(agentId);
+          const flowContext = buildFlowContext(flowNodes, flowConnections);
+          
           // Get caller context for repeat customer recognition
           const callerContext = await getCallerContext(fromNumber, agent.userId, agent);
           
@@ -593,6 +600,7 @@ export async function handleTwilioWebSocket(ws: WebSocket, req: any): Promise<vo
             toNumber,
             knowledgeContext,
             squareMenuContext,
+            flowContext,
             callerContext,
           };
           
@@ -748,6 +756,7 @@ interface BrowserTestSession {
   callStartTime: number;
   knowledgeContext: string;
   squareMenuContext: string;
+  flowContext: string;
   audioBuffer: Buffer[];
   silenceTimer: NodeJS.Timeout | null;
   lastAudioTime: number;
@@ -783,6 +792,11 @@ export async function handleBrowserTestWebSocket(ws: WebSocket, agentId: string,
   
   const squareMenuContext = await getSquareMenuContext(userId);
   
+  // Get flow nodes and connections for workflow context
+  const flowNodes = await storage.getFlowNodes(agentId);
+  const flowConnections = await storage.getFlowConnections(agentId);
+  const flowContext = buildFlowContext(flowNodes, flowConnections);
+  
   const callSid = `test-${Date.now()}-${Math.random().toString(36).substring(7)}`;
   
   const session: BrowserTestSession = {
@@ -796,6 +810,7 @@ export async function handleBrowserTestWebSocket(ws: WebSocket, agentId: string,
     callStartTime: Date.now(),
     knowledgeContext,
     squareMenuContext,
+    flowContext,
     audioBuffer: [],
     silenceTimer: null,
     lastAudioTime: 0,
@@ -1032,7 +1047,8 @@ async function generateAndSendResponse(session: BrowserTestSession, userInput: s
     session.agent.personality,
     fullKnowledgeContext,
     session.conversationHistory,
-    userInput
+    userInput,
+    session.flowContext
   );
   
   console.log(`[BrowserTest ${session.callSid}] Agent response: "${response}"`);

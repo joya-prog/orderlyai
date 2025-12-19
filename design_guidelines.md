@@ -2,23 +2,27 @@
 
 ## Design Approach
 
-**Selected Approach:** Warm Hospitality-Focused Design for Restaurant Voice AI
+**Selected Approach:** Ultra-Clean Modern Dashboard with Polished Depth
 
-**Justification:** This is a restaurant management dashboard requiring a welcoming, approachable aesthetic that feels premium yet comfortable - like stepping into an upscale restaurant. The warm cream backgrounds, forest green accents, and golden yellow highlights create a hospitality-driven experience that resonates with restaurant operators.
+**Justification:** Inspired by contemporary healthcare/SaaS dashboards, this design brings a premium, clinical-meets-luxury aesthetic to the restaurant voice AI platform. The approach prioritizes clarity, generous whitespace, and floating card elements that feel premium and trustworthy.
 
 **Key Principles:**
-- Warm, inviting aesthetic with soft shadows and rounded corners (18-24px)
-- Modern AI meets upscale restaurant UI - professional yet approachable
-- Cards feel like floating menus or tabletop placards
-- Prioritize ease of use for busy restaurant managers during rush hours
-- Service-oriented feel - friendly, helpful, human-centered
+- Ultra-clean, modern clinical-meets-luxury aesthetic
+- Floating cards with soft shadows and generous radii (20-24px)
+- Abundant negative space for visual breathing room
+- Layered neutrals with strategic accent colors
+- Premium but approachable - conveys trust, precision, and calm
+- Glass-morphism effects on key interactive elements
 
 **Color Philosophy:**
-- Background: Soft cream/parchment (#FFF6E8) - warm hospitality ambiance
-- Primary: Deep forest green (#0E4F4F) - upscale restaurant branding, natural, trustworthy
-- Accent: Golden yellow (#FFC857) - warmth, hospitality, welcoming energy
-- Success: Emerald green (#10B981) - growth, positive outcomes
-- Alert: Terracotta/wine red (#D86B4D) - peak hours, busy warnings, attention states
+- Background: Misty white/light gray (#F7F9FC) - clean, professional
+- Card surfaces: Pure white (#FFFFFF) with subtle shadows
+- Primary: Deep cobalt blue (#2563EB) - trust, precision, modern tech
+- Secondary: Teal/sea-glass (#14B8A6) - freshness, success metrics
+- Accent: Lime green (#84CC16) - highlights, positive actions
+- Text Primary: Charcoal (#1F2937) - strong readability
+- Text Secondary: Slate gray (#64748B) - supporting information
+- Text Tertiary: Light gray (#94A3B8) - metadata, timestamps
 
 ---
 
@@ -26,37 +30,62 @@
 
 **Font Stack:**
 - Primary: Inter (Google Fonts) - UI elements, buttons, labels, body text
-- Secondary: Space Grotesk (Google Fonts) - headings, section titles, emphasis
+- Secondary: Space Grotesk (Google Fonts) - headings, KPI numbers, emphasis
+- Mono: Fira Code (Google Fonts) - code, technical values
 
 **Type Scale:**
-- Display (agent names, dashboard headers): 32px / font-bold
-- H1 (page titles): 24px / font-semibold
+- Display (KPI numbers, hero stats): 36px / font-bold / Space Grotesk
+- H1 (page titles): 28px / font-semibold
 - H2 (section headers): 20px / font-semibold
-- H3 (subsection titles): 16px / font-medium
+- H3 (card titles): 16px / font-medium
 - Body (default text): 14px / font-normal
 - Small (metadata, timestamps): 12px / font-normal
-- Micro (labels, captions): 11px / font-medium / uppercase / letter-spacing-wide
+- Micro (labels, badges): 11px / font-medium / uppercase / tracking-wide
 
 **Hierarchy Rules:**
-- All caps + tight letter spacing for input labels and category tags
+- Bold numerals for KPI cards and statistics
 - Medium weight for clickable items and navigation
-- Bold reserved for critical actions and primary headings
+- Uppercase micro-labels with wide letter spacing for categories
+- Muted gray text for supporting/secondary information
 
 ---
 
 ## Layout System
 
-**Spacing Primitives:** Use Tailwind units of **2, 4, 6, 8, 12, 16, 24**
+**Spacing Primitives:** Generous spacing throughout
 - Micro spacing (within components): 2, 4
 - Standard spacing (between elements): 6, 8
-- Section spacing: 12, 16
-- Major layout divisions: 24
+- Section spacing: 12, 16, 24
+- Major layout divisions: 32, 48
 
 **Grid Structure:**
-- Dashboard uses fixed left sidebar (280px width) with main content area
-- Flow builder uses full viewport with floating panels
-- Content areas use max-w-7xl containers with px-6 to px-8 padding
-- Card-based layouts use gap-6 for consistent spacing
+- 12-column grid with 24px gaps
+- Outer padding: 32-48px on main content areas
+- Fixed sidebar (280-320px) with main content area
+- Content areas use max-w-7xl containers
+- Card clusters in groups of 2-3 with aligned baselines
+
+**Card Layout:**
+- Cards float with 20-24px border radius
+- Consistent 24px internal padding
+- 8-16px spacing between cards
+- Vertical rhythm maintained across sections
+
+---
+
+## Shadows & Depth
+
+**Shadow System (Light Mode):**
+- Card Shadow: `0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.03)`
+- Card Hover Shadow: `0 10px 25px -5px rgba(0,0,0,0.08), 0 4px 10px -4px rgba(0,0,0,0.04)`
+- Floating Elements: `0 12px 24px rgba(37,99,235,0.08)`
+- Inset Glow (cards): `inset 0 1px 0 rgba(255,255,255,0.5)`
+
+**Depth Layering:**
+- Background (base): #F7F9FC
+- Cards (elevated): #FFFFFF with shadow
+- Popovers/Modals: #FFFFFF with larger shadow
+- Overlays: Semi-transparent backdrop blur
 
 ---
 
@@ -65,151 +94,226 @@
 ### Navigation & Structure
 
 **Sidebar Navigation:**
-- Full-height fixed sidebar with logo at top (h-16)
-- Navigation items with icon + label, hover state with subtle background
-- Active state with accent indicator (left border-l-4)
-- Collapsed state shows icons only (w-16)
-- Bottom section for user profile/settings
+- Width: 280-320px
+- Background: Slightly warmer white or subtle gray
+- Navigation items: icon + label with generous padding (py-3 px-4)
+- Hover state: subtle background elevation
+- Active state: primary color indicator (left border or background tint)
+- Icons: 20px, stroke width 1.5
+- Collapsed state shows icons only
 
-**Top Bar:**
-- Height: h-16, backdrop blur for elevation feel
-- Contains: breadcrumbs (left), agent status indicators (center), action buttons (right)
-- Sticky positioning during scroll
+**Header Bar:**
+- Height: 64px (h-16)
+- Border-bottom for subtle separation
+- Contains: Page title (left), actions/profile (right)
+- Clean, minimal - no heavy styling
 
 ### Dashboard Components
 
-**Agent Cards:**
-- Very rounded corners (rounded-3xl / 24px), soft warm shadows
-- Header: agent name + status badge + menu (3-dot)
-- Body: key stats (calls handled, success rate, uptime)
-- Footer: quick actions with pill-shaped buttons
-- Hover state gently lifts card with slightly stronger warm shadow
-- Feel: Floating menu or tabletop placard
+**KPI Cards (Stats):**
+- Large rounded corners (rounded-2xl / 20px)
+- White background with soft shadow
+- Large bold number (text-3xl or text-4xl, Space Grotesk)
+- Small label below (text-sm, muted color)
+- Optional trend indicator with color coding
+- Optional mini-chart/sparkline
+- Padding: 24px (p-6)
 
-**Flow Builder Canvas:**
-- Infinite canvas with subtle dot grid background
-- Zoom controls (bottom-right corner)
-- Mini-map overview (top-right corner)
-- Node palette (collapsible left panel)
+**Data Cards:**
+- Rounded corners (rounded-xl / 16px)
+- Clean white background
+- Header: title + optional badge/action menu
+- Content area with consistent padding
+- Footer for actions (optional)
+- Hover: subtle lift with enhanced shadow
 
-**Flow Nodes:**
-- Rounded rectangles (rounded-lg) with subtle shadow
-- Color-coded borders by node type (greeting, question, action, condition)
-- Icon + title at top, content in body
-- Connection handles (small circles) on edges
-- Selected state: thicker border + elevated shadow
-- Node types: greeting, conditional, collect info, book table, transfer call, end call
+**Chart Cards:**
+- Full card treatment with title in header
+- Chart fills content area
+- Soft gradient fills (not solid colors)
+- Dot markers, no heavy gridlines
+- Glass-style tooltips on hover
+- Color palette: primary blue, teal, lime variations
 
-**Configuration Panels:**
-- Slide-in from right (w-96 to w-[480px])
-- Sticky header with title + close button
-- Scrollable body with organized sections
-- Footer with save/cancel actions
+**Profile/User Cards:**
+- Circular avatar with thin white ring border
+- Name prominent, role/status subdued
+- Quick stats or actions nearby
+- Clean, compact layout
+
+### Tables & Lists
+
+**Table Styling:**
+- Row height: 52-56px for comfortable touch targets
+- Header: uppercase micro-labels, muted color
+- Alternating rows: very subtle (#FAFBFC)
+- Row hover: slightly darker background
+- No visible borders between cells
+- Actions column: right-aligned, icon buttons
+- Status chips: pill-shaped badges
+
+**Visit History / Activity Lists:**
+- Avatar + name/title cluster (left)
+- Metadata columns (center)
+- Status badge + actions (right)
+- Consistent vertical alignment
+- Subtle dividers or alternating backgrounds
 
 ### Forms & Inputs
 
 **Input Fields:**
-- Outlined style with label floating above
-- Height: h-12 for text inputs
-- Focus state: accent border + ring
-- Helper text below in small gray text
-- Error state: red border + error message
+- Height: 44px (h-11)
+- Light gray fill (#F8FAFC) with subtle border
+- Border-radius: 10-12px (rounded-lg)
+- Focus: blue ring, brighter border
+- Label above in muted small text
+- Placeholder in lighter gray
 
 **Dropdowns & Selects:**
-- Same height as inputs (h-12)
-- Custom styling with chevron icon
-- Dropdown menu with shadow-xl, max height with scroll
+- Same styling as inputs
+- Chevron icon on right
+- Dropdown panel with shadow-xl
+- Selected item highlighted
 
 **Toggle Switches:**
-- Modern pill-style toggles for boolean settings
-- Size: h-6 w-11 with animated transition
+- Pill shape, 48x24px
+- Primary color when on
+- Smooth transition animation
 
-**Code Editor (for prompts):**
-- Monaco/CodeMirror integration
-- Monospace font (Fira Code via Google Fonts)
-- Syntax highlighting for AI prompts
-- Line numbers, minimap for long content
+### Buttons
 
-### Data Display
+**Primary Button:**
+- Solid primary color background (#2563EB)
+- White text, font-medium
+- Height: 40-44px
+- Padding: px-5 to px-6
+- Border-radius: rounded-lg (10-12px)
+- Hover: slightly brighter, subtle lift
+- Active: slight scale-down
 
-**Tables:**
-- Zebra striping (subtle alternate row backgrounds)
-- Sticky header on scroll
-- Row hover state
-- Action column (right-aligned) for edit/delete/view
-- Pagination at bottom (simple prev/next + page numbers)
+**Secondary Button:**
+- Outline style with primary color border
+- Primary color text
+- Same dimensions as primary
+- Hover: light primary background fill
+
+**Ghost Button:**
+- No background or border
+- Subtle hover background
+- Used for less important actions
+
+**Icon Button:**
+- Square format (40x40 or 36x36)
+- Rounded-lg
+- Hover: subtle background fill
+
+### Badges & Status
 
 **Status Badges:**
-- Pill shape (rounded-full px-3 py-1)
-- Text size: text-xs font-medium
-- Semantic states: active (green), testing (blue), inactive (gray), error (red)
+- Pill shape (rounded-full)
+- Padding: px-3 py-1
+- Font: text-xs font-medium
+- Colors:
+  - Active/Success: Teal background (#CCFBF1), dark teal text
+  - Warning: Yellow background (#FEF3C7), amber text
+  - Error/Cancelled: Red background (#FEE2E2), red text
+  - Neutral/Inactive: Gray background (#F1F5F9), gray text
+  - Primary/Info: Blue background (#DBEAFE), blue text
 
-**Stats Cards:**
-- Compact cards showing single metrics
-- Large number (text-3xl font-bold)
-- Label below (text-sm text-gray-600)
-- Optional trend indicator (↑↓ with percentage)
+**Rating Display:**
+- Star icons or numeric with parenthetical count
+- Consistent sizing and alignment
 
-### Interactive Elements
+### Special Components
 
-**Buttons:**
-- Primary: solid background, h-10 px-6, rounded-lg, font-medium
-- Secondary: outlined with border-2, same dimensions
-- Ghost: no background/border, hover shows subtle background
-- Icon buttons: square (h-10 w-10), rounded-lg, centered icon
-- Disabled state: reduced opacity (opacity-50), cursor-not-allowed
+**Promo/CTA Card:**
+- Gradient background (deep blue to cyan)
+- White text with bold headline
+- Icon or graphic element
+- Action button
+- Rounded corners matching other cards
 
-**Modals:**
-- Overlay with backdrop blur (backdrop-blur-sm)
-- Center-aligned, max-w-lg to max-w-2xl depending on content
-- Rounded corners (rounded-xl), shadow-2xl
-- Header + body + footer structure
+**Circular Progress/Gauge:**
+- Used for completion metrics
+- Gradient stroke color
+- Center value display
+- Clean, modern look
 
-**Tabs:**
-- Underline style with active indicator
-- Height: h-12, horizontal list
-- Active tab: border-b-2 with accent color
-
-### Templates Section
-
-**Template Gallery:**
-- 3-column grid on desktop (grid-cols-3 gap-6)
-- Template cards with preview image placeholder
-- Badge showing industry type (Fine Dining, Casual, Hotel, Catering)
-- "Use Template" button on hover overlay
+**Tooltip/Popover:**
+- White background with shadow
+- Subtle border
+- Arrow indicator
+- Smooth fade-in animation
 
 ---
 
-## Images
+## Color Tokens (for index.css)
 
-**Dashboard/Builder:**
-This is primarily a functional dashboard - minimal decorative imagery. Use icons from Heroicons (via CDN) throughout for:
-- Navigation items (phone, settings, chart, users)
-- Node types in flow builder (chat bubbles, branches, actions)
-- Status indicators (check, warning, info)
-- Action buttons (edit, delete, duplicate, play)
+### Light Mode
+```
+--background: 220 14% 97%     /* #F7F9FC - misty white */
+--foreground: 220 15% 15%     /* #1F2937 - charcoal */
+--card: 0 0% 100%             /* #FFFFFF - pure white */
+--card-foreground: 220 15% 15%
+--primary: 217 91% 60%        /* #2563EB - cobalt blue */
+--primary-foreground: 0 0% 100%
+--secondary: 220 14% 96%      /* Light gray surface */
+--secondary-foreground: 220 15% 35%
+--muted: 220 14% 96%
+--muted-foreground: 215 16% 47%  /* #64748B - slate */
+--accent: 84 85% 43%          /* #84CC16 - lime */
+--accent-foreground: 0 0% 100%
+--success: 168 76% 42%        /* #14B8A6 - teal */
+--destructive: 0 72% 51%
+--border: 220 13% 91%
+--input: 220 13% 91%
+--ring: 217 91% 60%
+```
 
-**Empty States:**
-Use simple illustrations (SVG or placeholder) for:
-- "No agents yet" - first dashboard view
-- "No knowledge base items" - empty knowledge tab
-- "Test your agent" - before first test run
-
-**No Hero Image:** This is not a marketing page - focus on functional UI clarity.
+### Dark Mode
+```
+--background: 224 20% 10%
+--foreground: 220 14% 90%
+--card: 224 18% 14%
+--card-foreground: 220 14% 90%
+--primary: 217 91% 65%
+--secondary: 224 18% 18%
+--muted: 224 18% 20%
+--muted-foreground: 220 14% 60%
+```
 
 ---
 
 ## Animations
 
-**Minimal Motion:**
-- Sidebar collapse/expand: 200ms ease
-- Panel slide-ins: 300ms ease-out
-- Card hovers: transform scale slightly (scale-105), 150ms ease
-- Button clicks: subtle scale-down (active:scale-95)
-- Toast notifications: slide in from top-right, 250ms ease
-- Loading states: simple spinner or skeleton screens (no elaborate animations)
+**Micro-interactions:**
+- Hover lift on cards: transform translateY(-2px), 150ms ease
+- Button hover: brightness increase, subtle scale
+- Active press: scale(0.98), 100ms
+- Focus rings: smooth 150ms transition
 
-**No Animations:**
-- Flow canvas interactions (use instant feedback)
-- Table sorting/filtering
-- Tab switches
+**Transitions:**
+- Panel slide-ins: 250ms ease-out
+- Modal fade-in: 200ms ease
+- Toast notifications: slide from top-right, 200ms
+- Dropdown open: 150ms ease-out
+
+**Avoid:**
+- Heavy animations that slow interface
+- Jarring movements
+- Excessive bounce effects
+
+---
+
+## Responsive Considerations
+
+**Breakpoints:**
+- Mobile: < 768px (single column, collapsed sidebar)
+- Tablet: 768-1024px (2 columns, collapsible sidebar)
+- Desktop: > 1024px (full layout, expanded sidebar)
+
+**Mobile Adaptations:**
+- Sidebar becomes bottom nav or hamburger menu
+- Cards stack vertically
+- Tables become card-based lists
+- Maintain generous spacing even on mobile

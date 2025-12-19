@@ -9,7 +9,8 @@ import {
   Phone,
   Plug2,
   FileText,
-  MessageSquare
+  MessageSquare,
+  X
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -23,6 +24,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarFooter,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -101,6 +103,7 @@ export function AppSidebar() {
   const minutesUsed = parseInt(usageMetrics?.minutesUsed || '0');
   const minutesLimit = parseInt(subscription?.minutesLimit || '0');
   const usagePercentage = minutesLimit > 0 ? Math.round((minutesUsed / minutesLimit) * 100) : 0;
+  const { toggleSidebar, isMobile } = useSidebar();
 
   return (
     <Sidebar collapsible="offcanvas" className="border-r-0">
@@ -113,10 +116,21 @@ export function AppSidebar() {
               className="h-10 w-10 rounded-xl object-cover shadow-sm"
               data-testid="img-logo-sidebar"
             />
-            <div className="flex flex-col">
+            <div className="flex flex-col flex-1">
               <span className="text-lg font-bold tracking-tight">Orderly AI</span>
               <span className="text-xs text-muted-foreground font-medium">Voice Agent Platform</span>
             </div>
+            {isMobile && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleSidebar}
+                className="h-8 w-8"
+                data-testid="button-close-sidebar"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </SidebarGroup>
 

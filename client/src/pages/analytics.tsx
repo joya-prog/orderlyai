@@ -2,17 +2,14 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Phone, Clock, CheckCircle2, Bot, DollarSign, TrendingUp, TrendingDown, Calendar, CalendarDays, ShoppingBag, Users, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Phone, Clock, CheckCircle2, Bot, DollarSign, TrendingUp, TrendingDown, Calendar, CalendarDays, ShoppingBag, Users } from "lucide-react";
 import { 
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { motion, AnimatePresence } from "framer-motion";
 import type { AnalyticsEvent } from "@shared/schema";
-
-type ExpandedCard = "calls" | "orders" | null;
 
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -191,7 +188,6 @@ function PercentBadge({ value, label }: { value: number; label: string }) {
 export default function AnalyticsPage() {
   const [datePreset, setDatePreset] = useState<DateRangePreset>("30days");
   const [activeChartIndex, setActiveChartIndex] = useState<number | null>(null);
-  const [expandedCard, setExpandedCard] = useState<ExpandedCard>(null);
   
   const dateRange = useMemo(() => getDateRangeFromPreset(datePreset), [datePreset]);
 
@@ -255,387 +251,200 @@ export default function AnalyticsPage() {
           </Select>
         </div>
 
-        {/* Key Metrics Cards - Top Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Bento Box / Frame Collage Layout */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 auto-rows-[180px]">
+          {/* Hero Card - Total Calls (larger, spans 2 cols and 2 rows on larger screens) */}
           <Card 
             data-testid="card-metric-total-calls" 
-            className={`hover-elevate transition-all duration-300 cursor-pointer shadow-md hover:shadow-lg ${expandedCard === 'calls' ? 'ring-2 ring-primary' : ''}`}
-            onClick={() => setExpandedCard(expandedCard === 'calls' ? null : 'calls')}
+            className="sm:col-span-2 sm:row-span-2 hover-elevate transition-all duration-300 shadow-lg hover:shadow-xl flex flex-col"
           >
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Calls</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <div className="flex items-center gap-2">
-                <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-500/10">
-                  <Phone className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-500/10">
+                  <Phone className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 </div>
-                {hasData && (
-                  <div className="text-muted-foreground">
-                    {expandedCard === 'calls' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </div>
-                )}
+                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Calls</CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="pt-0">
+            <CardContent className="flex-1 flex flex-col pt-0">
               {isLoading ? (
-                <Skeleton className="h-10 w-24" />
+                <Skeleton className="h-8 w-20" />
               ) : (
                 <>
-                  <div className="text-4xl font-bold tracking-tight" data-testid="text-total-calls">
+                  <div className="text-3xl font-bold tracking-tight text-blue-600 dark:text-blue-400" data-testid="text-total-calls">
                     {(overview?.totalCalls ?? 0).toLocaleString()}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {hasData ? "Click to view trends" : "No data yet"}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {hasData ? "Conversations handled" : "No data yet"}
                   </p>
                 </>
               )}
-            </CardContent>
-          </Card>
-
-          <Card 
-            data-testid="card-metric-total-orders" 
-            className={`hover-elevate transition-all duration-300 cursor-pointer shadow-md hover:shadow-lg ${expandedCard === 'orders' ? 'ring-2 ring-teal-500' : ''}`}
-            onClick={() => setExpandedCard(expandedCard === 'orders' ? null : 'orders')}
-          >
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Orders</CardTitle>
-              <div className="flex items-center gap-2">
-                <div className="p-2.5 rounded-xl bg-teal-50 dark:bg-teal-500/10">
-                  <ShoppingBag className="h-5 w-5 text-teal-600 dark:text-teal-400" />
-                </div>
-                {hasData && (
-                  <div className="text-muted-foreground">
-                    {expandedCard === 'orders' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {/* Embedded Interactive Chart */}
+              <div className="flex-1 mt-3 min-h-[120px]">
+                {hasData && callVolumeData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={callVolumeData}>
+                      <defs>
+                        <linearGradient id="callsGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={CHART_COLORS.primary} stopOpacity={0.4}/>
+                          <stop offset="100%" stopColor={CHART_COLORS.primary} stopOpacity={0.05}/>
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="date" hide />
+                      <YAxis hide />
+                      <Tooltip 
+                        content={({ active, payload, label }) => {
+                          if (!active || !payload || !payload.length) return null;
+                          return (
+                            <div className="bg-card border border-border rounded-lg shadow-lg p-2 text-xs">
+                              <p className="font-medium">{label}</p>
+                              <p className="text-blue-600 font-bold">{payload[0].value} calls</p>
+                            </div>
+                          );
+                        }}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="calls" 
+                        stroke={CHART_COLORS.primary} 
+                        strokeWidth={2}
+                        fill="url(#callsGradient)"
+                        dot={false}
+                        activeDot={{ r: 4, fill: CHART_COLORS.primary, stroke: '#fff', strokeWidth: 2 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-muted-foreground text-xs">
+                    Chart will appear when data is available
                   </div>
                 )}
               </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {isLoading ? (
-                <Skeleton className="h-10 w-24" />
-              ) : (
-                <>
-                  <div className="text-4xl font-bold tracking-tight" data-testid="text-total-orders">
-                    {overview?.totalOrders ?? 0}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {hasData ? "Click to view trends" : "No orders yet"}
-                  </p>
-                </>
-              )}
             </CardContent>
           </Card>
 
-          <Card data-testid="card-metric-reservations" className="hover-elevate transition-all duration-300 shadow-md hover:shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Reservations</CardTitle>
-              <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-500/10">
-                <Calendar className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+          {/* Accent Card - Reservations (smaller square) */}
+          <Card data-testid="card-metric-reservations" className="hover-elevate transition-all duration-300 shadow-lg hover:shadow-xl flex flex-col">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-500/10">
+                  <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                </div>
+                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Reservations</CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="pt-0">
+            <CardContent className="flex-1 flex flex-col justify-center pt-0">
               {isLoading ? (
-                <Skeleton className="h-10 w-24" />
+                <Skeleton className="h-8 w-16" />
               ) : (
-                <>
-                  <div className="text-4xl font-bold tracking-tight" data-testid="text-reservations">
+                <div className="text-center">
+                  <div className="text-4xl font-bold tracking-tight text-purple-600 dark:text-purple-400" data-testid="text-reservations">
                     {overview?.totalReservations ?? 0}
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
                     {hasData ? "Bookings made" : "No reservations"}
                   </p>
-                </>
+                </div>
               )}
             </CardContent>
           </Card>
 
-          <Card data-testid="card-metric-avg-duration" className="hover-elevate transition-all duration-300 shadow-md hover:shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Avg Duration</CardTitle>
-              <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10">
-                <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+          {/* Accent Card - Avg Duration (smaller square) */}
+          <Card data-testid="card-metric-avg-duration" className="hover-elevate transition-all duration-300 shadow-lg hover:shadow-xl flex flex-col">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-500/10">
+                  <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                </div>
+                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Avg Duration</CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="pt-0">
+            <CardContent className="flex-1 flex flex-col justify-center pt-0">
               {isLoading ? (
-                <Skeleton className="h-10 w-24" />
+                <Skeleton className="h-8 w-16" />
               ) : (
-                <>
-                  <div className="text-4xl font-bold tracking-tight" data-testid="text-avg-duration">
+                <div className="text-center">
+                  <div className="text-3xl font-bold tracking-tight text-amber-600 dark:text-amber-400" data-testid="text-avg-duration">
                     {formatDuration(overview?.avgDuration ?? 0)}
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
                     {hasData ? "Per conversation" : "No calls recorded"}
                   </p>
-                </>
+                </div>
               )}
             </CardContent>
           </Card>
-        </div>
 
-        {/* Expandable Detailed Charts */}
-        <AnimatePresence>
-          {expandedCard && hasData && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
-            >
-              <Card 
-                data-testid={`card-expanded-${expandedCard}`}
-                className="overflow-hidden border-2"
-                style={{ 
-                  borderColor: expandedCard === 'calls' ? 'hsl(var(--primary))' : '#22c55e'
-                }}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2.5 rounded-xl ${expandedCard === 'calls' ? 'bg-primary/10' : 'bg-green-500/10'}`}>
-                        {expandedCard === 'calls' ? (
-                          <Phone className="h-5 w-5 text-primary" />
-                        ) : (
-                          <ShoppingBag className="h-5 w-5 text-green-600" />
-                        )}
-                      </div>
-                      <div>
-                        <CardTitle className="text-xl">
-                          {expandedCard === 'calls' ? 'Call Volume Details' : 'Order Volume Details'}
-                        </CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                          {expandedCard === 'calls' 
-                            ? 'Interactive view of daily call activity' 
-                            : 'Interactive view of daily order activity'}
-                        </p>
-                      </div>
-                    </div>
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      onClick={() => setExpandedCard(null)}
-                      data-testid="button-close-expanded"
-                    >
-                      <X className="h-5 w-5" />
-                    </Button>
+          {/* Hero Card - Total Orders (larger, spans 2 cols and 2 rows on larger screens) */}
+          <Card 
+            data-testid="card-metric-total-orders" 
+            className="sm:col-span-2 sm:row-span-2 hover-elevate transition-all duration-300 shadow-lg hover:shadow-xl flex flex-col"
+          >
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-teal-50 dark:bg-teal-500/10">
+                  <ShoppingBag className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                </div>
+                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Orders</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="flex-1 flex flex-col pt-0">
+              {isLoading ? (
+                <Skeleton className="h-8 w-20" />
+              ) : (
+                <>
+                  <div className="text-3xl font-bold tracking-tight text-teal-600 dark:text-teal-400" data-testid="text-total-orders">
+                    {(overview?.totalOrders ?? 0).toLocaleString()}
                   </div>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  {expandedCard === 'calls' ? (
-                    <div className="space-y-6">
-                      {/* Calls Line Chart */}
-                      <div className="h-[350px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={callVolumeData}>
-                            <defs>
-                              <linearGradient id="callsLineGradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor={CHART_COLORS.primary} stopOpacity={0.3}/>
-                                <stop offset="100%" stopColor={CHART_COLORS.primary} stopOpacity={0.05}/>
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.border} opacity={0.5} />
-                            <XAxis 
-                              dataKey="date" 
-                              stroke={CHART_COLORS.muted} 
-                              fontSize={12} 
-                              tickLine={false}
-                              axisLine={false}
-                            />
-                            <YAxis 
-                              stroke={CHART_COLORS.muted} 
-                              fontSize={12}
-                              tickLine={false}
-                              axisLine={false}
-                            />
-                            <Tooltip 
-                              content={({ active, payload, label }) => {
-                                if (!active || !payload || !payload.length) return null;
-                                return (
-                                  <div className="bg-card border border-border rounded-xl shadow-lg p-4 min-w-[150px]">
-                                    <p className="text-sm font-semibold text-foreground mb-2">{label}</p>
-                                    <p className="text-2xl font-bold text-primary">{payload[0].value} calls</p>
-                                  </div>
-                                );
-                              }}
-                            />
-                            <Line 
-                              type="monotone" 
-                              dataKey="calls" 
-                              name="Calls"
-                              stroke={CHART_COLORS.primary} 
-                              strokeWidth={3}
-                              dot={{ r: 4, fill: CHART_COLORS.primary, strokeWidth: 2, stroke: '#fff' }}
-                              activeDot={{ 
-                                r: 8, 
-                                fill: CHART_COLORS.primary,
-                                stroke: '#fff',
-                                strokeWidth: 3,
-                                style: { filter: 'drop-shadow(0 0 8px hsl(var(--primary)))' }
-                              }}
-                            />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                      {/* Calls Bar Chart */}
-                      <div className="h-[200px]">
-                        <p className="text-sm font-medium text-muted-foreground mb-3">Daily Breakdown</p>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={callVolumeData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.border} opacity={0.5} vertical={false} />
-                            <XAxis 
-                              dataKey="date" 
-                              stroke={CHART_COLORS.muted} 
-                              fontSize={11} 
-                              tickLine={false}
-                              axisLine={false}
-                            />
-                            <YAxis 
-                              stroke={CHART_COLORS.muted} 
-                              fontSize={11}
-                              tickLine={false}
-                              axisLine={false}
-                            />
-                            <Tooltip content={<CustomTooltip />} />
-                            <Bar 
-                              dataKey="calls" 
-                              name="Calls"
-                              fill={CHART_COLORS.primary}
-                              radius={[6, 6, 0, 0]}
-                              maxBarSize={40}
-                            />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-6">
-                      {/* Orders Line Chart */}
-                      <div className="h-[350px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={processOrderVolumeData(events || [])}>
-                            <defs>
-                              <linearGradient id="ordersLineGradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#22c55e" stopOpacity={0.3}/>
-                                <stop offset="100%" stopColor="#22c55e" stopOpacity={0.05}/>
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.border} opacity={0.5} />
-                            <XAxis 
-                              dataKey="date" 
-                              stroke={CHART_COLORS.muted} 
-                              fontSize={12} 
-                              tickLine={false}
-                              axisLine={false}
-                            />
-                            <YAxis 
-                              stroke={CHART_COLORS.muted} 
-                              fontSize={12}
-                              tickLine={false}
-                              axisLine={false}
-                            />
-                            <Tooltip 
-                              content={({ active, payload, label }) => {
-                                if (!active || !payload || !payload.length) return null;
-                                return (
-                                  <div className="bg-card border border-border rounded-xl shadow-lg p-4 min-w-[150px]">
-                                    <p className="text-sm font-semibold text-foreground mb-2">{label}</p>
-                                    <p className="text-2xl font-bold text-green-600">{payload[0].value} orders</p>
-                                    {payload[1] && (
-                                      <p className="text-sm text-muted-foreground mt-1">
-                                        Revenue: {formatCurrency(payload[1].value as number)}
-                                      </p>
-                                    )}
-                                  </div>
-                                );
-                              }}
-                            />
-                            <Line 
-                              type="monotone" 
-                              dataKey="orders" 
-                              name="Orders"
-                              stroke="#22c55e" 
-                              strokeWidth={3}
-                              dot={{ r: 4, fill: '#22c55e', strokeWidth: 2, stroke: '#fff' }}
-                              activeDot={{ 
-                                r: 8, 
-                                fill: '#22c55e',
-                                stroke: '#fff',
-                                strokeWidth: 3,
-                                style: { filter: 'drop-shadow(0 0 8px #22c55e)' }
-                              }}
-                            />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                      {/* Orders Bar Chart with Revenue */}
-                      <div className="h-[200px]">
-                        <p className="text-sm font-medium text-muted-foreground mb-3">Order Volume & Revenue</p>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={processOrderVolumeData(events || [])}>
-                            <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.border} opacity={0.5} vertical={false} />
-                            <XAxis 
-                              dataKey="date" 
-                              stroke={CHART_COLORS.muted} 
-                              fontSize={11} 
-                              tickLine={false}
-                              axisLine={false}
-                            />
-                            <YAxis 
-                              yAxisId="left"
-                              stroke={CHART_COLORS.muted} 
-                              fontSize={11}
-                              tickLine={false}
-                              axisLine={false}
-                            />
-                            <YAxis 
-                              yAxisId="right"
-                              orientation="right"
-                              stroke={CHART_COLORS.muted} 
-                              fontSize={11}
-                              tickLine={false}
-                              axisLine={false}
-                              tickFormatter={(value) => `$${value}`}
-                            />
-                            <Tooltip 
-                              content={({ active, payload, label }) => {
-                                if (!active || !payload || !payload.length) return null;
-                                return (
-                                  <div className="bg-card border border-border rounded-xl shadow-lg p-3">
-                                    <p className="text-sm font-medium">{label}</p>
-                                    {payload.map((entry: any, index: number) => (
-                                      <p key={index} className="text-sm" style={{ color: entry.color }}>
-                                        {entry.name}: {entry.name === 'Revenue' ? formatCurrency(entry.value) : entry.value}
-                                      </p>
-                                    ))}
-                                  </div>
-                                );
-                              }}
-                            />
-                            <Bar 
-                              yAxisId="left"
-                              dataKey="orders" 
-                              name="Orders"
-                              fill="#22c55e"
-                              radius={[4, 4, 0, 0]}
-                              maxBarSize={30}
-                            />
-                            <Bar 
-                              yAxisId="right"
-                              dataKey="revenue" 
-                              name="Revenue"
-                              fill={CHART_COLORS.chart2}
-                              radius={[4, 4, 0, 0]}
-                              maxBarSize={30}
-                            />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {hasData ? "Orders processed" : "No orders yet"}
+                  </p>
+                </>
+              )}
+              {/* Embedded Interactive Chart */}
+              <div className="flex-1 mt-3 min-h-[120px]">
+                {hasData && revenueData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={revenueData}>
+                      <defs>
+                        <linearGradient id="ordersGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={CHART_COLORS.accent} stopOpacity={0.4}/>
+                          <stop offset="100%" stopColor={CHART_COLORS.accent} stopOpacity={0.05}/>
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="date" hide />
+                      <YAxis hide />
+                      <Tooltip 
+                        content={({ active, payload, label }) => {
+                          if (!active || !payload || !payload.length) return null;
+                          return (
+                            <div className="bg-card border border-border rounded-lg shadow-lg p-2 text-xs">
+                              <p className="font-medium">{label}</p>
+                              <p className="text-teal-600 font-bold">{formatCurrency(payload[0].value as number)}</p>
+                            </div>
+                          );
+                        }}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="revenue" 
+                        stroke={CHART_COLORS.accent} 
+                        strokeWidth={2}
+                        fill="url(#ordersGradient)"
+                        dot={false}
+                        activeDot={{ r: 4, fill: CHART_COLORS.accent, stroke: '#fff', strokeWidth: 2 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-muted-foreground text-xs">
+                    Chart will appear when data is available
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Revenue Card - Full Width with Comparisons */}
         <Card data-testid="card-metric-revenue" className="hover-elevate transition-all duration-300">

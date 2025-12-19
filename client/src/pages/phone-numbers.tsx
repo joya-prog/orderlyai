@@ -48,6 +48,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Phone, Plus, Trash2, Search, Link2, ShoppingCart } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 const searchSchema = z.object({
   areaCode: z.string().min(3, "Area code must be at least 3 digits"),
@@ -256,10 +257,10 @@ export default function PhoneNumbersPage() {
   const sipAuthType = sipForm.watch("sipAuthType");
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-8 space-y-8">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-semibold font-serif mb-2">Phone Numbers</h1>
+          <h1 className="text-3xl font-bold tracking-tight mb-2">Phone Numbers</h1>
           <p className="text-muted-foreground">
             Manage phone numbers and assign them to agents
           </p>
@@ -267,6 +268,7 @@ export default function PhoneNumbersPage() {
         <Button 
           onClick={handleOpenDialog}
           data-testid="button-add-number"
+          className="shadow-sm"
         >
           <Plus className="mr-2 h-4 w-4" />
           Add Number
@@ -274,57 +276,60 @@ export default function PhoneNumbersPage() {
       </div>
 
       {numbersLoading ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Loading phone numbers...</p>
+        <div className="text-center py-16 text-muted-foreground">
+          Loading phone numbers...
         </div>
       ) : phoneNumbers.length === 0 ? (
-        <div className="border-2 border-dashed rounded-3xl p-12 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mx-auto mb-4">
-            <Phone className="h-8 w-8 text-muted-foreground" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2" data-testid="text-no-numbers">No phone numbers</h3>
-          <p className="text-muted-foreground mb-4">
-            Buy a new number from Twilio or connect your existing number via SIP
-          </p>
-          <Button onClick={handleOpenDialog}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Number
-          </Button>
-        </div>
+        <Card className="border-dashed shadow-sm">
+          <CardContent className="flex flex-col items-center justify-center py-20">
+            <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-500/10 mb-6">
+              <Phone className="h-10 w-10 text-blue-600 dark:text-blue-400" />
+            </div>
+            <h3 className="text-xl font-semibold mb-3" data-testid="text-no-numbers">No phone numbers</h3>
+            <p className="text-muted-foreground text-center mb-8 max-w-md text-sm">
+              Buy a new number from Twilio or connect your existing number via SIP
+            </p>
+            <Button onClick={handleOpenDialog} className="shadow-sm">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Number
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Phone Number</TableHead>
-              <TableHead>Connection</TableHead>
-              <TableHead>Friendly Name</TableHead>
-              <TableHead>Assigned Agent</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {phoneNumbers.map((phoneNumber) => (
-              <TableRow key={phoneNumber.id} data-testid={`row-phone-${phoneNumber.id}`}>
-                <TableCell className="font-medium">{phoneNumber.number}</TableCell>
-                <TableCell>
-                  <Badge 
-                    variant={phoneNumber.connectionType === 'sip_trunk' ? 'outline' : 'secondary'}
-                    className="gap-1"
-                    data-testid={`connection-type-${phoneNumber.id}`}
-                  >
-                    {phoneNumber.connectionType === 'sip_trunk' ? (
-                      <>
-                        <Link2 className="h-3 w-3" />
-                        SIP Trunk
-                      </>
-                    ) : (
-                      <>
-                        <ShoppingCart className="h-3 w-3" />
-                        Purchased
-                      </>
-                    )}
-                  </Badge>
+        <Card className="shadow-md overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="text-xs uppercase tracking-wide font-medium text-muted-foreground">Phone Number</TableHead>
+                <TableHead className="text-xs uppercase tracking-wide font-medium text-muted-foreground">Connection</TableHead>
+                <TableHead className="text-xs uppercase tracking-wide font-medium text-muted-foreground">Friendly Name</TableHead>
+                <TableHead className="text-xs uppercase tracking-wide font-medium text-muted-foreground">Assigned Agent</TableHead>
+                <TableHead className="text-xs uppercase tracking-wide font-medium text-muted-foreground">Status</TableHead>
+                <TableHead className="text-right text-xs uppercase tracking-wide font-medium text-muted-foreground">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {phoneNumbers.map((phoneNumber) => (
+                <TableRow key={phoneNumber.id} className="h-14" data-testid={`row-phone-${phoneNumber.id}`}>
+                  <TableCell className="font-medium">{phoneNumber.number}</TableCell>
+                  <TableCell>
+                    <Badge 
+                      variant={phoneNumber.connectionType === 'sip_trunk' ? 'outline' : 'secondary'}
+                      className="gap-1 text-xs"
+                      data-testid={`connection-type-${phoneNumber.id}`}
+                    >
+                      {phoneNumber.connectionType === 'sip_trunk' ? (
+                        <>
+                          <Link2 className="h-3 w-3" />
+                          SIP Trunk
+                        </>
+                      ) : (
+                        <>
+                          <ShoppingCart className="h-3 w-3" />
+                          Purchased
+                        </>
+                      )}
+                    </Badge>
                 </TableCell>
                 <TableCell>{phoneNumber.friendlyName || "-"}</TableCell>
                 <TableCell>
@@ -372,6 +377,7 @@ export default function PhoneNumbersPage() {
             ))}
           </TableBody>
         </Table>
+        </Card>
       )}
 
       {/* Add Number Dialog */}

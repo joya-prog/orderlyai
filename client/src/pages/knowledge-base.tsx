@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Trash2, BookOpen, Filter, Edit, Download, Upload } from "lucide-react";
@@ -258,90 +259,99 @@ export default function KnowledgePage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-semibold font-serif">Knowledge Base</h1>
-        <p className="text-muted-foreground mt-1">
+    <div className="p-8 max-w-6xl space-y-8" data-testid="page-knowledge-base">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight mb-2" data-testid="text-page-title">
+          Knowledge Base
+        </h1>
+        <p className="text-muted-foreground">
           Manage information that agents can reference during conversations
         </p>
       </div>
 
-      <div className="flex gap-4 mb-6">
-        <div className="flex-1">
-          <Select value={selectedAgent} onValueChange={setSelectedAgent}>
-            <SelectTrigger data-testid="select-filter-agent">
-              <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Filter by agent" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Agents</SelectItem>
-              {agents.map((agent) => (
-                <SelectItem key={agent.id} value={agent.id}>
-                  {agent.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex-1">
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger data-testid="select-filter-category">
-              <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Filter by category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              <SelectItem value="menu">Menu</SelectItem>
-              <SelectItem value="hours">Hours</SelectItem>
-              <SelectItem value="policies">Policies</SelectItem>
-              <SelectItem value="faq">FAQ</SelectItem>
-              <SelectItem value="custom">Custom</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Button
-          onClick={handleExport}
-          variant="outline"
-          disabled={filteredItems.length === 0}
-          data-testid="button-export-knowledge"
-        >
-          <Download className="h-4 w-4 mr-2" />
-          Export
-        </Button>
-        <label>
-          <Button
-            variant="outline"
-            disabled={agents.length === 0 || importMutation.isPending}
-            data-testid="button-import-knowledge"
-            asChild
-          >
-            <span>
-              <Upload className="h-4 w-4 mr-2" />
-              {importMutation.isPending ? "Importing..." : "Import"}
-            </span>
-          </Button>
-          <input
-            type="file"
-            accept=".json"
-            className="hidden"
-            onChange={handleImport}
-            disabled={importMutation.isPending}
-          />
-        </label>
-        <Button
-          onClick={() => setIsAdding(true)}
-          disabled={isAdding || agents.length === 0}
-          data-testid="button-add-knowledge"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add Item
-        </Button>
-      </div>
+      <Card className="shadow-md">
+        <CardContent className="p-6">
+          <div className="flex flex-wrap gap-4">
+            <div className="flex-1 min-w-[200px]">
+              <Select value={selectedAgent} onValueChange={setSelectedAgent}>
+                <SelectTrigger className="h-11" data-testid="select-filter-agent">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Filter by agent" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Agents</SelectItem>
+                  {agents.map((agent) => (
+                    <SelectItem key={agent.id} value={agent.id}>
+                      {agent.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1 min-w-[200px]">
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="h-11" data-testid="select-filter-category">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Filter by category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem value="menu">Menu</SelectItem>
+                  <SelectItem value="hours">Hours</SelectItem>
+                  <SelectItem value="policies">Policies</SelectItem>
+                  <SelectItem value="faq">FAQ</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={handleExport}
+              variant="outline"
+              size="lg"
+              disabled={filteredItems.length === 0}
+              data-testid="button-export-knowledge"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Button>
+            <label>
+              <Button
+                variant="outline"
+                size="lg"
+                disabled={agents.length === 0 || importMutation.isPending}
+                data-testid="button-import-knowledge"
+                asChild
+              >
+                <span>
+                  <Upload className="h-4 w-4 mr-2" />
+                  {importMutation.isPending ? "Importing..." : "Import"}
+                </span>
+              </Button>
+              <input
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={handleImport}
+                disabled={importMutation.isPending}
+              />
+            </label>
+            <Button
+              onClick={() => setIsAdding(true)}
+              size="lg"
+              disabled={isAdding || agents.length === 0}
+              data-testid="button-add-knowledge"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Item
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {isAdding && (
-        <Card className="mb-6 border-primary">
+        <Card className="shadow-md border-primary">
           <CardHeader>
-            <CardTitle>Add Knowledge Item</CardTitle>
+            <CardTitle className="text-lg font-semibold">Add Knowledge Item</CardTitle>
             <CardDescription>
               Create a new knowledge entry for your agent
             </CardDescription>
@@ -466,11 +476,11 @@ export default function KnowledgePage() {
       )}
 
       {agents.length === 0 ? (
-        <Card>
-          <CardContent className="pt-12 pb-12">
+        <Card className="shadow-md border-dashed">
+          <CardContent className="py-20">
             <div className="text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mx-auto mb-4">
-                <BookOpen className="h-8 w-8 text-muted-foreground" />
+              <div className="w-16 h-16 bg-blue-50 dark:bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <BookOpen className="h-8 w-8 text-blue-500" />
               </div>
               <h3 className="text-lg font-semibold mb-2">No agents yet</h3>
               <p className="text-muted-foreground mb-4">
@@ -480,11 +490,11 @@ export default function KnowledgePage() {
           </CardContent>
         </Card>
       ) : filteredItems.length === 0 && !isAdding ? (
-        <Card>
-          <CardContent className="pt-12 pb-12">
+        <Card className="shadow-md border-dashed">
+          <CardContent className="py-20">
             <div className="text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mx-auto mb-4">
-                <BookOpen className="h-8 w-8 text-muted-foreground" />
+              <div className="w-16 h-16 bg-blue-50 dark:bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <BookOpen className="h-8 w-8 text-blue-500" />
               </div>
               <h3 className="text-lg font-semibold mb-2">No knowledge items yet</h3>
               <p className="text-muted-foreground mb-4">
@@ -498,19 +508,22 @@ export default function KnowledgePage() {
           {filteredItems.map((item) => {
             const agent = agents.find((a) => a.id === item.agentId);
             return (
-              <Card key={item.id} data-testid={`knowledge-item-${item.id}`}>
+              <Card key={item.id} className="shadow-md" data-testid={`knowledge-item-${item.id}`}>
                 <CardHeader>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs font-medium px-2 py-1 rounded-xl bg-muted">
+                        <Badge 
+                          variant="outline" 
+                          className="text-xs bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-500/20 dark:text-teal-300 dark:border-teal-700"
+                        >
                           {getCategoryLabel(item.category)}
-                        </span>
+                        </Badge>
                         <span className="text-xs text-muted-foreground">
                           {agent?.name || "Unknown Agent"}
                         </span>
                       </div>
-                      <CardTitle className="text-base">{item.question}</CardTitle>
+                      <CardTitle className="text-base font-semibold">{item.question}</CardTitle>
                     </div>
                     <div className="flex gap-1">
                       <Button

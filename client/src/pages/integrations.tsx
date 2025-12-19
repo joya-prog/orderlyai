@@ -92,9 +92,9 @@ export default function IntegrationsPage() {
   }
 
   return (
-    <div className="p-8 max-w-6xl" data-testid="page-integrations">
-      <div className="mb-8">
-        <h1 className="text-3xl font-semibold font-serif mb-2" data-testid="text-page-title">
+    <div className="p-8 max-w-6xl space-y-8" data-testid="page-integrations">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight mb-2" data-testid="text-page-title">
           Integrations
         </h1>
         <p className="text-muted-foreground">
@@ -104,15 +104,15 @@ export default function IntegrationsPage() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Square POS Integration */}
-        <Card>
+        <Card className="shadow-md">
           <CardHeader>
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#000000]/10 dark:bg-[#000000]/20">
-                  <SiSquare className="h-7 w-7 text-[#000000] dark:text-white" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
+                  <SiSquare className="h-7 w-7 text-slate-900 dark:text-white" />
                 </div>
                 <div>
-                  <CardTitle>Square POS</CardTitle>
+                  <CardTitle className="text-lg">Square POS</CardTitle>
                   <CardDescription className="mt-1">
                     Sync products and process payments
                   </CardDescription>
@@ -120,7 +120,10 @@ export default function IntegrationsPage() {
               </div>
               {squareIntegration && (
                 <Badge
-                  variant={squareIntegration.status === "active" ? "default" : "secondary"}
+                  className={squareIntegration.status === "active" 
+                    ? "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-500/20 dark:text-teal-300 dark:border-teal-700" 
+                    : ""}
+                  variant={squareIntegration.status === "active" ? "outline" : "secondary"}
                   data-testid="badge-square-status"
                 >
                   {squareIntegration.status === "active" ? (
@@ -173,15 +176,15 @@ export default function IntegrationsPage() {
         </Card>
 
         {/* Toast POS Integration */}
-        <Card>
+        <Card className="shadow-md">
           <CardHeader>
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl overflow-hidden">
                   <img src={toastLogo} alt="Toast POS" className="h-12 w-12 object-cover" />
                 </div>
                 <div>
-                  <CardTitle>Toast POS</CardTitle>
+                  <CardTitle className="text-lg">Toast POS</CardTitle>
                   <CardDescription className="mt-1">
                     Restaurant management and orders
                   </CardDescription>
@@ -189,7 +192,10 @@ export default function IntegrationsPage() {
               </div>
               {toastIntegration && (
                 <Badge
-                  variant={toastIntegration.status === "active" ? "default" : "secondary"}
+                  className={toastIntegration.status === "active" 
+                    ? "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-500/20 dark:text-teal-300 dark:border-teal-700" 
+                    : ""}
+                  variant={toastIntegration.status === "active" ? "outline" : "secondary"}
                   data-testid="badge-toast-status"
                 >
                   {toastIntegration.status === "active" ? (
@@ -242,21 +248,21 @@ export default function IntegrationsPage() {
         </Card>
 
         {/* Twilio Integration */}
-        <Card>
+        <Card className="shadow-md opacity-75">
           <CardHeader>
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F22F46]/10 dark:bg-[#F22F46]/20 opacity-75">
-                  <SiTwilio className="h-7 w-7 text-[#F22F46]" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 dark:bg-red-500/10">
+                  <SiTwilio className="h-7 w-7 text-red-500" />
                 </div>
                 <div>
-                  <CardTitle>Twilio</CardTitle>
+                  <CardTitle className="text-lg">Twilio</CardTitle>
                   <CardDescription className="mt-1">
                     Phone and SMS integration
                   </CardDescription>
                 </div>
               </div>
-              <Badge variant="secondary" data-testid="badge-twilio-status">Coming Soon</Badge>
+              <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-xs" data-testid="badge-twilio-status">Coming Soon</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -270,21 +276,21 @@ export default function IntegrationsPage() {
         </Card>
 
         {/* Resy Integration */}
-        <Card>
+        <Card className="shadow-md opacity-75">
           <CardHeader>
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl overflow-hidden opacity-75">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl overflow-hidden">
                   <img src={resyLogo} alt="Resy" className="h-12 w-12 object-cover" />
                 </div>
                 <div>
-                  <CardTitle>Resy</CardTitle>
+                  <CardTitle className="text-lg">Resy</CardTitle>
                   <CardDescription className="mt-1">
                     Restaurant reservations platform
                   </CardDescription>
                 </div>
               </div>
-              <Badge variant="secondary" data-testid="badge-resy-status">Coming Soon</Badge>
+              <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-xs" data-testid="badge-resy-status">Coming Soon</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -298,21 +304,21 @@ export default function IntegrationsPage() {
         </Card>
 
         {/* Tock Integration */}
-        <Card>
+        <Card className="shadow-md opacity-75">
           <CardHeader>
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl overflow-hidden opacity-75">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl overflow-hidden">
                   <img src={tockLogo} alt="Tock" className="h-12 w-12 object-cover" />
                 </div>
                 <div>
-                  <CardTitle>Tock</CardTitle>
+                  <CardTitle className="text-lg">Tock</CardTitle>
                   <CardDescription className="mt-1">
                     Reservation and event ticketing
                   </CardDescription>
                 </div>
               </div>
-              <Badge variant="secondary" data-testid="badge-tock-status">Coming Soon</Badge>
+              <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-xs" data-testid="badge-tock-status">Coming Soon</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -326,21 +332,21 @@ export default function IntegrationsPage() {
         </Card>
 
         {/* Yelp Reservations Integration */}
-        <Card>
+        <Card className="shadow-md opacity-75">
           <CardHeader>
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF1A1A]/10 dark:bg-[#FF1A1A]/20 opacity-75">
-                  <SiYelp className="h-7 w-7 text-[#FF1A1A]" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 dark:bg-red-500/10">
+                  <SiYelp className="h-7 w-7 text-red-600" />
                 </div>
                 <div>
-                  <CardTitle>Yelp Reservations</CardTitle>
+                  <CardTitle className="text-lg">Yelp Reservations</CardTitle>
                   <CardDescription className="mt-1">
                     Yelp-powered table bookings
                   </CardDescription>
                 </div>
               </div>
-              <Badge variant="secondary" data-testid="badge-yelp-status">Coming Soon</Badge>
+              <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-xs" data-testid="badge-yelp-status">Coming Soon</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">

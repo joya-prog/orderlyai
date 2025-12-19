@@ -34,7 +34,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Edit, Trash2, Mail, Phone, X } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Search, Plus, Edit, Trash2, Mail, Phone, X, Users } from "lucide-react";
 
 const formSchema = insertContactSchema.omit({ userId: true }).extend({
   tags: z.array(z.string()).optional(),
@@ -174,123 +175,130 @@ export default function ContactsPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Contacts</h1>
-          <p className="text-muted-foreground">
-            Manage your customer contacts and relationships
-          </p>
+    <div className="flex flex-col h-full overflow-auto">
+      <div className="flex-1 p-8 space-y-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Contacts</h1>
+            <p className="text-muted-foreground mt-2 text-sm">
+              Manage your customer contacts and relationships
+            </p>
+          </div>
+          <Button onClick={handleOpenCreate} data-testid="button-create-contact" className="shadow-sm">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Contact
+          </Button>
         </div>
-        <Button onClick={handleOpenCreate} data-testid="button-create-contact">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Contact
-        </Button>
-      </div>
 
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search contacts..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-            data-testid="input-search-contacts"
-          />
+        <div className="flex items-center gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search contacts..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-11 bg-card shadow-sm"
+              data-testid="input-search-contacts"
+            />
+          </div>
         </div>
-      </div>
 
-      {contactsLoading ? (
-        <div className="text-center py-12 text-muted-foreground">Loading contacts...</div>
-      ) : contacts.length === 0 ? (
-        <div className="text-center py-12 border-2 border-dashed rounded-3xl">
-          <p className="text-lg font-medium">No contacts found</p>
-          <p className="text-muted-foreground mb-4">
-            {searchQuery ? "Try adjusting your search" : "Get started by creating your first contact"}
-          </p>
-          {!searchQuery && (
-            <Button onClick={handleOpenCreate}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Contact
-            </Button>
-          )}
-        </div>
-      ) : (
-        <div className="border rounded-3xl">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Tags</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {contacts.map((contact) => (
-                <TableRow key={contact.id} data-testid={`row-contact-${contact.id}`}>
-                  <TableCell className="font-medium">{contact.name}</TableCell>
-                  <TableCell>
-                    {contact.email ? (
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        {contact.email}
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {contact.phone ? (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        {contact.phone}
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {contact.tags && contact.tags.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {contact.tags.map((tag) => (
-                          <Badge key={tag} variant="secondary" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleOpenEdit(contact)}
-                        data-testid={`button-edit-contact-${contact.id}`}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setDeletingContact(contact)}
-                        data-testid={`button-delete-contact-${contact.id}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+        {contactsLoading ? (
+          <div className="text-center py-16 text-muted-foreground">Loading contacts...</div>
+        ) : contacts.length === 0 ? (
+          <Card className="border-dashed shadow-sm">
+            <CardContent className="flex flex-col items-center justify-center py-20">
+              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-500/10 mb-6">
+                <Users className="h-10 w-10 text-blue-600 dark:text-blue-400" />
+              </div>
+              <h3 className="text-xl font-semibold mb-3">No contacts found</h3>
+              <p className="text-muted-foreground text-center mb-8 max-w-md text-sm">
+                {searchQuery ? "Try adjusting your search terms" : "Get started by creating your first contact"}
+              </p>
+              {!searchQuery && (
+                <Button onClick={handleOpenCreate} className="shadow-sm">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Contact
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="shadow-md overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="text-xs uppercase tracking-wide font-medium text-muted-foreground">Name</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wide font-medium text-muted-foreground">Email</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wide font-medium text-muted-foreground">Phone</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wide font-medium text-muted-foreground">Tags</TableHead>
+                  <TableHead className="text-right text-xs uppercase tracking-wide font-medium text-muted-foreground">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+              </TableHeader>
+              <TableBody>
+                {contacts.map((contact) => (
+                  <TableRow key={contact.id} className="h-14" data-testid={`row-contact-${contact.id}`}>
+                    <TableCell className="font-medium">{contact.name}</TableCell>
+                    <TableCell>
+                      {contact.email ? (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                          {contact.email}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {contact.phone ? (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Phone className="h-4 w-4 text-muted-foreground" />
+                          {contact.phone}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {contact.tags && contact.tags.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {contact.tags.map((tag) => (
+                            <Badge key={tag} variant="secondary" className="text-xs bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleOpenEdit(contact)}
+                          data-testid={`button-edit-contact-${contact.id}`}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setDeletingContact(contact)}
+                          data-testid={`button-delete-contact-${contact.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        )}
+      </div>
 
       {/* Create/Edit Dialog */}
       <Dialog

@@ -135,19 +135,19 @@ function calculateRevenueComparisons(
 }
 
 const CHART_COLORS = {
-  primary: 'hsl(var(--primary))',
-  accent: 'hsl(var(--accent))',
-  chart1: '#10b981',
-  chart2: '#f59e0b', 
-  chart3: '#8b5cf6',
-  chart4: '#ec4899',
-  chart5: '#06b6d4',
+  primary: 'hsl(217 91% 60%)',
+  accent: 'hsl(168 76% 42%)',
+  chart1: 'hsl(217 91% 60%)',
+  chart2: 'hsl(168 76% 42%)', 
+  chart3: 'hsl(84 85% 43%)',
+  chart4: 'hsl(43 96% 56%)',
+  chart5: 'hsl(280 65% 60%)',
   muted: 'hsl(var(--muted-foreground))',
   border: 'hsl(var(--border))',
   card: 'hsl(var(--card))',
 };
 
-const PIE_COLORS = ['#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#ef4444'];
+const PIE_COLORS = ['hsl(217 91% 60%)', 'hsl(168 76% 42%)', 'hsl(84 85% 43%)', 'hsl(43 96% 56%)', 'hsl(280 65% 60%)', 'hsl(0 72% 51%)'];
 
 interface CustomTooltipProps {
   active?: boolean;
@@ -230,18 +230,18 @@ export default function AnalyticsPage() {
 
   return (
     <div className="flex flex-col h-full overflow-auto" data-testid="page-analytics">
-      <div className="flex-1 p-6 space-y-6">
+      <div className="flex-1 p-8 space-y-8">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight" data-testid="text-page-title">Analytics Dashboard</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-3xl font-bold tracking-tight font-sans" data-testid="text-page-title">Analytics Dashboard</h1>
+            <p className="text-muted-foreground mt-2 text-sm">
               Real-time insights into your AI agent performance
             </p>
           </div>
           <Select value={datePreset} onValueChange={(value: DateRangePreset) => setDatePreset(value)}>
-            <SelectTrigger className="w-[180px]" data-testid="select-date-range">
+            <SelectTrigger className="w-[180px] h-11 bg-card shadow-sm" data-testid="select-date-range">
               <div className="flex items-center gap-2">
-                <CalendarDays className="h-4 w-4" />
+                <CalendarDays className="h-4 w-4 text-muted-foreground" />
                 <SelectValue />
               </div>
             </SelectTrigger>
@@ -256,17 +256,17 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Key Metrics Cards - Top Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card 
             data-testid="card-metric-total-calls" 
-            className={`hover-elevate transition-all duration-300 cursor-pointer ${expandedCard === 'calls' ? 'ring-2 ring-primary' : ''}`}
+            className={`hover-elevate transition-all duration-300 cursor-pointer shadow-md hover:shadow-lg ${expandedCard === 'calls' ? 'ring-2 ring-primary' : ''}`}
             onClick={() => setExpandedCard(expandedCard === 'calls' ? null : 'calls')}
           >
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Calls</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Calls</CardTitle>
               <div className="flex items-center gap-2">
-                <div className="p-2.5 rounded-xl bg-primary/10">
-                  <Phone className="h-5 w-5 text-primary" />
+                <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-500/10">
+                  <Phone className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 {hasData && (
                   <div className="text-muted-foreground">
@@ -275,15 +275,15 @@ export default function AnalyticsPage() {
                 )}
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               {isLoading ? (
-                <Skeleton className="h-9 w-24" />
+                <Skeleton className="h-10 w-24" />
               ) : (
                 <>
-                  <div className="text-3xl font-bold tracking-tight" data-testid="text-total-calls">
+                  <div className="text-4xl font-bold tracking-tight" data-testid="text-total-calls">
                     {(overview?.totalCalls ?? 0).toLocaleString()}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground mt-2">
                     {hasData ? "Click to view trends" : "No data yet"}
                   </p>
                 </>
@@ -293,14 +293,14 @@ export default function AnalyticsPage() {
 
           <Card 
             data-testid="card-metric-total-orders" 
-            className={`hover-elevate transition-all duration-300 cursor-pointer ${expandedCard === 'orders' ? 'ring-2 ring-green-500' : ''}`}
+            className={`hover-elevate transition-all duration-300 cursor-pointer shadow-md hover:shadow-lg ${expandedCard === 'orders' ? 'ring-2 ring-teal-500' : ''}`}
             onClick={() => setExpandedCard(expandedCard === 'orders' ? null : 'orders')}
           >
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Orders</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Orders</CardTitle>
               <div className="flex items-center gap-2">
-                <div className="p-2.5 rounded-xl bg-green-500/10">
-                  <ShoppingBag className="h-5 w-5 text-green-600" />
+                <div className="p-2.5 rounded-xl bg-teal-50 dark:bg-teal-500/10">
+                  <ShoppingBag className="h-5 w-5 text-teal-600 dark:text-teal-400" />
                 </div>
                 {hasData && (
                   <div className="text-muted-foreground">
@@ -309,15 +309,15 @@ export default function AnalyticsPage() {
                 )}
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               {isLoading ? (
-                <Skeleton className="h-9 w-24" />
+                <Skeleton className="h-10 w-24" />
               ) : (
                 <>
-                  <div className="text-3xl font-bold tracking-tight" data-testid="text-total-orders">
+                  <div className="text-4xl font-bold tracking-tight" data-testid="text-total-orders">
                     {overview?.totalOrders ?? 0}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground mt-2">
                     {hasData ? "Click to view trends" : "No orders yet"}
                   </p>
                 </>
@@ -325,22 +325,22 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          <Card data-testid="card-metric-reservations" className="hover-elevate transition-all duration-300">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Reservations</CardTitle>
-              <div className="p-2.5 rounded-xl bg-purple-500/10">
-                <Calendar className="h-5 w-5 text-purple-600" />
+          <Card data-testid="card-metric-reservations" className="hover-elevate transition-all duration-300 shadow-md hover:shadow-lg">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Reservations</CardTitle>
+              <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-500/10">
+                <Calendar className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               {isLoading ? (
-                <Skeleton className="h-9 w-24" />
+                <Skeleton className="h-10 w-24" />
               ) : (
                 <>
-                  <div className="text-3xl font-bold tracking-tight" data-testid="text-reservations">
+                  <div className="text-4xl font-bold tracking-tight" data-testid="text-reservations">
                     {overview?.totalReservations ?? 0}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground mt-2">
                     {hasData ? "Bookings made" : "No reservations"}
                   </p>
                 </>
@@ -348,22 +348,22 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          <Card data-testid="card-metric-avg-duration" className="hover-elevate transition-all duration-300">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Avg Duration</CardTitle>
-              <div className="p-2.5 rounded-xl bg-orange-500/10">
-                <Clock className="h-5 w-5 text-orange-600" />
+          <Card data-testid="card-metric-avg-duration" className="hover-elevate transition-all duration-300 shadow-md hover:shadow-lg">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Avg Duration</CardTitle>
+              <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10">
+                <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               {isLoading ? (
-                <Skeleton className="h-9 w-24" />
+                <Skeleton className="h-10 w-24" />
               ) : (
                 <>
-                  <div className="text-3xl font-bold tracking-tight" data-testid="text-avg-duration">
+                  <div className="text-4xl font-bold tracking-tight" data-testid="text-avg-duration">
                     {formatDuration(overview?.avgDuration ?? 0)}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground mt-2">
                     {hasData ? "Per conversation" : "No calls recorded"}
                   </p>
                 </>

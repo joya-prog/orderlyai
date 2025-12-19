@@ -199,14 +199,14 @@ export default function SettingsPage() {
 
       {/* Desktop: Sidebar Navigation */}
       <div className="hidden md:block w-64 border-r bg-muted/30 p-6 space-y-1">
-        <h2 className="text-lg font-semibold mb-4">Settings</h2>
+        <h2 className="text-lg font-bold tracking-tight mb-4">Settings</h2>
         {menuItems.map((item) => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-colors ${
+            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-colors ${
               activeTab === item.id
-                ? "bg-primary text-primary-foreground"
+                ? "bg-primary text-primary-foreground shadow-sm"
                 : "hover-elevate text-foreground"
             }`}
             data-testid={`settings-tab-${item.id}`}
@@ -220,16 +220,18 @@ export default function SettingsPage() {
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
         {activeTab === "billing" && (
-          <div className="p-4 md:p-8 max-w-7xl mx-auto">
-            <div className="mb-8">
-              <h1 className="text-3xl font-semibold font-serif mb-2">Plan & Billing</h1>
+          <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8" data-testid="settings-billing">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight mb-2" data-testid="text-section-title">
+                Plan & Billing
+              </h1>
               <p className="text-muted-foreground">
                 Manage your subscription, usage, and billing information
               </p>
             </div>
 
             {/* Current Plan Card */}
-            <Card className="mb-8">
+            <Card className="shadow-md">
               <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap space-y-0 pb-4">
                 <div>
                   <CardTitle>Current Plan</CardTitle>
@@ -320,7 +322,7 @@ export default function SettingsPage() {
             </Card>
 
             {/* Recent Call Activity */}
-            <Card className="mb-8">
+            <Card className="shadow-md">
               <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
                 <div>
                   <CardTitle className="flex items-center gap-2">
@@ -382,7 +384,7 @@ export default function SettingsPage() {
             </Card>
 
             {/* Invoice History */}
-            <Card className="mb-8">
+            <Card className="shadow-md">
               <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
                 <div>
                   <CardTitle className="flex items-center gap-2">
@@ -445,7 +447,7 @@ export default function SettingsPage() {
             </Card>
 
             {/* Pricing Summary Card */}
-            <Card className="mb-8">
+            <Card className="shadow-md">
               <CardHeader>
                 <CardTitle>Your Pricing</CardTitle>
                 <CardDescription>Simple, transparent pricing for your restaurant</CardDescription>
@@ -507,9 +509,9 @@ export default function SettingsPage() {
         )}
 
         {activeTab === "preferences" && (
-          <div className="p-8 max-w-4xl mx-auto">
-            <h1 className="text-3xl font-semibold font-serif mb-6">Preferences</h1>
-            <Card>
+          <div className="p-8 max-w-4xl mx-auto space-y-8">
+            <h1 className="text-3xl font-bold tracking-tight">Preferences</h1>
+            <Card className="shadow-md">
               <CardContent className="pt-12 pb-12">
                 <div className="text-center">
                   <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -524,12 +526,14 @@ export default function SettingsPage() {
         )}
 
         {activeTab === "security" && (
-          <div className="p-8 max-w-4xl mx-auto">
-            <h1 className="text-3xl font-semibold font-serif mb-6">Security</h1>
-            <Card>
+          <div className="p-8 max-w-4xl mx-auto space-y-8">
+            <h1 className="text-3xl font-bold tracking-tight">Security</h1>
+            <Card className="shadow-md">
               <CardContent className="pt-12 pb-12">
                 <div className="text-center">
-                  <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <div className="w-16 h-16 bg-blue-50 dark:bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <Shield className="h-8 w-8 text-blue-500" />
+                  </div>
                   <h3 className="text-lg font-semibold mb-2">Coming Soon</h3>
                   <p className="text-muted-foreground">
                     Password management, two-factor authentication, and API keys
@@ -541,12 +545,14 @@ export default function SettingsPage() {
         )}
 
         {activeTab === "usage" && (
-          <div className="p-8 max-w-4xl mx-auto">
-            <h1 className="text-3xl font-semibold font-serif mb-6">Usage</h1>
-            <Card>
+          <div className="p-8 max-w-4xl mx-auto space-y-8">
+            <h1 className="text-3xl font-bold tracking-tight">Usage</h1>
+            <Card className="shadow-md">
               <CardContent className="pt-12 pb-12">
                 <div className="text-center">
-                  <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <div className="w-16 h-16 bg-blue-50 dark:bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <BarChart3 className="h-8 w-8 text-blue-500" />
+                  </div>
                   <h3 className="text-lg font-semibold mb-2">Coming Soon</h3>
                   <p className="text-muted-foreground">
                     Detailed usage analytics, call history, and resource consumption
@@ -558,12 +564,14 @@ export default function SettingsPage() {
         )}
 
         {activeTab === "notifications" && (
-          <div className="p-8 max-w-4xl mx-auto">
-            <h1 className="text-3xl font-semibold font-serif mb-6">Notifications</h1>
-            <Card>
+          <div className="p-8 max-w-4xl mx-auto space-y-8">
+            <h1 className="text-3xl font-bold tracking-tight">Notifications</h1>
+            <Card className="shadow-md">
               <CardContent className="pt-12 pb-12">
                 <div className="text-center">
-                  <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <div className="w-16 h-16 bg-blue-50 dark:bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <Bell className="h-8 w-8 text-blue-500" />
+                  </div>
                   <h3 className="text-lg font-semibold mb-2">Coming Soon</h3>
                   <p className="text-muted-foreground">
                     Email preferences, alerts, and notification settings

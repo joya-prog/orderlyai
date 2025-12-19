@@ -98,13 +98,13 @@ export default function Agents() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
-        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+        return "bg-teal-50 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300 border-teal-200 dark:border-teal-500/30";
       case "testing":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
+        return "bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300 border-blue-200 dark:border-blue-500/30";
       case "paused":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
+        return "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 border-amber-200 dark:border-amber-500/30";
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
+        return "bg-slate-50 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300 border-slate-200 dark:border-slate-500/30";
     }
   };
 
@@ -120,15 +120,15 @@ export default function Agents() {
 
   return (
     <div className="flex flex-col h-full overflow-auto">
-      <div className="flex-1 p-6 space-y-6">
+      <div className="flex-1 p-8 space-y-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Voice Agents</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-3xl font-bold tracking-tight">Voice Agents</h1>
+            <p className="text-muted-foreground mt-2 text-sm">
               Manage your AI voice agents for reservations and customer service
             </p>
           </div>
-          <Button asChild data-testid="button-create-agent">
+          <Button asChild data-testid="button-create-agent" className="shadow-sm">
             <Link href="/agents/new">
               <Plus className="h-4 w-4 mr-2" />
               Create Agent
@@ -137,17 +137,17 @@ export default function Agents() {
         </div>
 
       {!agents || agents.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted mb-4">
-              <Bot className="h-10 w-10 text-muted-foreground" />
+        <Card className="border-dashed shadow-sm">
+          <CardContent className="flex flex-col items-center justify-center py-20">
+            <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-500/10 mb-6">
+              <Bot className="h-10 w-10 text-blue-600 dark:text-blue-400" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">No agents yet</h3>
-            <p className="text-muted-foreground text-center mb-6 max-w-md">
+            <h3 className="text-xl font-semibold mb-3">No agents yet</h3>
+            <p className="text-muted-foreground text-center mb-8 max-w-md text-sm">
               Create your first voice agent or start from a template to handle calls for your restaurant
             </p>
             <div className="flex gap-4">
-              <Button asChild data-testid="button-create-first-agent">
+              <Button asChild data-testid="button-create-first-agent" className="shadow-sm">
                 <Link href="/agents/new">
                   <Plus className="h-4 w-4 mr-2" />
                   Create Agent
@@ -162,26 +162,26 @@ export default function Agents() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {agents.map((agent) => (
-            <Card key={agent.id} className="hover-elevate transition-shadow" data-testid={`card-agent-${agent.id}`}>
-              <CardHeader>
+            <Card key={agent.id} className="hover-elevate transition-all duration-300 shadow-md hover:shadow-lg" data-testid={`card-agent-${agent.id}`}>
+              <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="truncate font-semibold">{agent.name}</CardTitle>
-                    <CardDescription className="mt-1 text-xs">
+                    <CardTitle className="truncate font-semibold text-lg">{agent.name}</CardTitle>
+                    <CardDescription className="mt-1.5 text-xs uppercase tracking-wide">
                       {getIndustryLabel(agent.industry)}
                     </CardDescription>
                   </div>
-                  <Badge className={getStatusColor(agent.status)}>
+                  <Badge className={`${getStatusColor(agent.status)} border font-medium`}>
                     {agent.status}
                   </Badge>
                 </div>
               </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground line-clamp-3">
+              <CardContent className="pb-4">
+                <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
                   {agent.description || agent.greetingMessage}
                 </p>
               </CardContent>
-              <CardFooter className="flex gap-2">
+              <CardFooter className="flex gap-3 pt-3 border-t border-border/50">
                 <Button
                   variant="outline"
                   size="sm"

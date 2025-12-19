@@ -103,19 +103,19 @@ export function AppSidebar() {
   const usagePercentage = minutesLimit > 0 ? Math.round((minutesUsed / minutesLimit) * 100) : 0;
 
   return (
-    <Sidebar collapsible="offcanvas">
+    <Sidebar collapsible="offcanvas" className="border-r-0">
       <SidebarContent>
         <SidebarGroup>
-          <div className="flex items-center gap-2 px-4 py-6">
+          <div className="flex items-center gap-3 px-4 py-6">
             <img 
               src={orderlyLogo} 
               alt="Orderly AI" 
-              className="h-10 w-10 rounded-md object-cover"
+              className="h-10 w-10 rounded-xl object-cover shadow-sm"
               data-testid="img-logo-sidebar"
             />
             <div className="flex flex-col">
-              <span className="text-lg font-semibold font-serif">Orderly AI</span>
-              <span className="text-xs text-muted-foreground">Voice Agent Platform</span>
+              <span className="text-lg font-bold tracking-tight">Orderly AI</span>
+              <span className="text-xs text-muted-foreground font-medium">Voice Agent Platform</span>
             </div>
           </div>
         </SidebarGroup>
@@ -144,7 +144,7 @@ export function AppSidebar() {
 
         {/* Usage Indicator */}
         <SidebarGroup className="mt-auto">
-          <div className="px-4 py-3 border-t" data-testid="usage-indicator">
+          <div className="mx-3 px-4 py-4 rounded-2xl bg-blue-50/80 dark:bg-blue-950/30" data-testid="usage-indicator">
             <div className="flex items-center gap-3">
               {/* Circular Progress */}
               <div className="relative h-12 w-12 flex-shrink-0">
@@ -156,7 +156,7 @@ export function AppSidebar() {
                     stroke="currentColor"
                     strokeWidth="4"
                     fill="none"
-                    className="text-muted opacity-20"
+                    className="text-blue-200 dark:text-blue-900"
                   />
                   <circle
                     cx="24"
@@ -167,11 +167,11 @@ export function AppSidebar() {
                     fill="none"
                     strokeDasharray={`${2 * Math.PI * 20}`}
                     strokeDashoffset={`${2 * Math.PI * 20 * (1 - usagePercentage / 100)}`}
-                    className="text-primary transition-all duration-300"
+                    className="text-blue-600 dark:text-blue-400 transition-all duration-300"
                   />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-xs font-semibold" data-testid="usage-percentage">
+                  <span className="text-xs font-bold text-blue-700 dark:text-blue-300" data-testid="usage-percentage">
                     {usagePercentage}%
                   </span>
                 </div>
@@ -179,10 +179,10 @@ export function AppSidebar() {
 
               {/* Usage Info */}
               <div className="flex flex-col min-w-0">
-                <span className="text-sm font-semibold capitalize" data-testid="plan-name">
+                <span className="text-sm font-bold capitalize text-blue-900 dark:text-blue-100" data-testid="plan-name">
                   {subscription?.planType || 'Loading...'}
                 </span>
-                <span className="text-xs text-muted-foreground" data-testid="usage-text">
+                <span className="text-xs font-medium text-blue-600/80 dark:text-blue-400/80" data-testid="usage-text">
                   {minutesUsed} / {minutesLimit} MIN
                 </span>
               </div>
@@ -191,18 +191,18 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter>
+      <SidebarFooter className="border-t">
         <SidebarMenu>
           <SidebarMenuItem>
             <div className="flex items-center gap-3 px-2 py-3">
-              <Avatar className="h-8 w-8">
+              <Avatar className="h-9 w-9 ring-2 ring-border/50">
                 <AvatarImage src={user?.profileImageUrl || undefined} />
-                <AvatarFallback className="text-xs">
+                <AvatarFallback className="text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
                   {getInitials(user?.firstName, user?.lastName)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex flex-col flex-1 min-w-0">
-                <span className="text-sm font-medium truncate">
+                <span className="text-sm font-semibold truncate">
                   {user?.firstName && user?.lastName
                     ? `${user.firstName} ${user.lastName}`
                     : user?.email || "User"}

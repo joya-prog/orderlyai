@@ -1439,82 +1439,91 @@ export default function AgentEditor() {
                       <FormField
                         control={form.control}
                         name="voiceSpeed"
-                        render={({ field }) => (
-                          <FormItem>
-                            <div className="flex items-center justify-between">
-                              <FormLabel>Voice Speed</FormLabel>
-                              <span className="text-sm text-muted-foreground">{field.value}x</span>
-                            </div>
-                            <FormDescription>Adjust how fast your agent speaks</FormDescription>
-                            <FormControl>
-                              <Slider
-                                min={0.5}
-                                max={2.0}
-                                step={0.1}
-                                value={[field.value]}
-                                onValueChange={(vals) => field.onChange(vals[0])}
-                                data-testid="slider-voice-speed"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+                        render={({ field }) => {
+                          const numValue = parseFloat(field.value) || 1.0;
+                          return (
+                            <FormItem>
+                              <div className="flex items-center justify-between">
+                                <FormLabel>Voice Speed</FormLabel>
+                                <span className="text-sm text-muted-foreground">{numValue.toFixed(1)}x</span>
+                              </div>
+                              <FormDescription>Adjust how fast your agent speaks</FormDescription>
+                              <FormControl>
+                                <Slider
+                                  min={0.5}
+                                  max={2.0}
+                                  step={0.1}
+                                  value={[numValue]}
+                                  onValueChange={(vals) => field.onChange(vals[0].toFixed(1))}
+                                  data-testid="slider-voice-speed"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
                       />
 
                       <FormField
                         control={form.control}
                         name="voiceVolume"
-                        render={({ field }) => (
-                          <FormItem>
-                            <div className="flex items-center justify-between">
-                              <FormLabel>Voice Volume</FormLabel>
-                              <span className="text-sm text-muted-foreground">{Math.round(field.value * 100)}%</span>
-                            </div>
-                            <FormDescription>Control the output volume level</FormDescription>
-                            <FormControl>
-                              <Slider
-                                min={0}
-                                max={1}
-                                step={0.05}
-                                value={[field.value]}
-                                onValueChange={(vals) => field.onChange(vals[0])}
-                                data-testid="slider-voice-volume"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+                        render={({ field }) => {
+                          const numValue = parseFloat(field.value) || 100;
+                          return (
+                            <FormItem>
+                              <div className="flex items-center justify-between">
+                                <FormLabel>Voice Volume</FormLabel>
+                                <span className="text-sm text-muted-foreground">{Math.round(numValue)}%</span>
+                              </div>
+                              <FormDescription>Control the output volume level</FormDescription>
+                              <FormControl>
+                                <Slider
+                                  min={0}
+                                  max={100}
+                                  step={5}
+                                  value={[numValue]}
+                                  onValueChange={(vals) => field.onChange(String(vals[0]))}
+                                  data-testid="slider-voice-volume"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
                       />
 
                       <FormField
                         control={form.control}
                         name="interruptionSensitivity"
-                        render={({ field }) => (
-                          <FormItem>
-                            <div className="flex items-center justify-between">
-                              <FormLabel>Interruption Sensitivity</FormLabel>
-                              <span className="text-sm text-muted-foreground">{field.value}</span>
-                            </div>
-                            <FormDescription>
-                              How easily the agent can be interrupted while speaking
-                            </FormDescription>
-                            <FormControl>
-                              <Slider
-                                min={0}
-                                max={10}
-                                step={1}
-                                value={[field.value]}
-                                onValueChange={(vals) => field.onChange(vals[0])}
-                                data-testid="slider-interruption-sensitivity"
-                              />
-                            </FormControl>
-                            <div className="flex justify-between text-xs text-muted-foreground px-1">
-                              <span>Hard to interrupt</span>
-                              <span>Easy to interrupt</span>
-                            </div>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+                        render={({ field }) => {
+                          const numValue = parseInt(field.value) || 0;
+                          return (
+                            <FormItem>
+                              <div className="flex items-center justify-between">
+                                <FormLabel>Interruption Sensitivity</FormLabel>
+                                <span className="text-sm text-muted-foreground">{numValue}</span>
+                              </div>
+                              <FormDescription>
+                                How easily the agent can be interrupted while speaking
+                              </FormDescription>
+                              <FormControl>
+                                <Slider
+                                  min={0}
+                                  max={10}
+                                  step={1}
+                                  value={[numValue]}
+                                  onValueChange={(vals) => field.onChange(String(vals[0]))}
+                                  data-testid="slider-interruption-sensitivity"
+                                />
+                              </FormControl>
+                              <div className="flex justify-between text-xs text-muted-foreground px-1">
+                                <span>Hard to interrupt</span>
+                                <span>Easy to interrupt</span>
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
                       />
                     </form>
                   </Form>

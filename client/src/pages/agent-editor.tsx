@@ -892,37 +892,15 @@ export default function AgentEditor() {
                         name="description"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Image</FormLabel>
-                            <FormDescription>An optional image that will be displayed in your agents list.</FormDescription>
+                            <FormLabel>Description</FormLabel>
+                            <FormDescription>A brief description of this agent's purpose</FormDescription>
                             <FormControl>
                               <Input
-                                placeholder="Brief description of this agent's purpose"
+                                placeholder="e.g., Handles reservations and menu inquiries"
                                 {...field}
                                 value={field.value || ""}
                                 data-testid="input-agent-description"
                               />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="voiceEngine"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Voice Engine</FormLabel>
-                            <FormDescription>The system that orchestrates your agent's speaking, listening, and reasoning capabilities</FormDescription>
-                            <FormControl>
-                              <ToggleGroup type="single" value={field.value} onValueChange={field.onChange} className="justify-start" data-testid="toggle-voice-engine">
-                                <ToggleGroupItem value="1.0" aria-label="Version 1.0" data-testid="toggle-engine-v1">
-                                  Version 1.0
-                                </ToggleGroupItem>
-                                <ToggleGroupItem value="2.0" aria-label="Version 2.0" data-testid="toggle-engine-v2">
-                                  Version 2.0
-                                </ToggleGroupItem>
-                              </ToggleGroup>
                             </FormControl>
                             <FormMessage />
                           </FormItem>

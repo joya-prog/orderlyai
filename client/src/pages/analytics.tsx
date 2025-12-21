@@ -251,8 +251,8 @@ export default function AnalyticsPage() {
           </Select>
         </div>
 
-        {/* Bento Box / Frame Collage Layout */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 auto-rows-[180px]">
+        {/* Bento Box / Frame Collage Layout - 2x2 grid on tablet, 4-col on desktop */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 auto-rows-[180px]">
           {/* Hero Card - Total Calls (larger, spans 2 cols and 2 rows on larger screens) */}
           <Card 
             data-testid="card-metric-total-calls" 

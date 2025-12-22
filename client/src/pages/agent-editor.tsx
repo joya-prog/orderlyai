@@ -1750,14 +1750,14 @@ export default function AgentEditor() {
                           <FormItem>
                             <FormLabel>Ambient Sound</FormLabel>
                             <FormDescription>Add background ambiance to make calls feel more natural</FormDescription>
-                            <Select onValueChange={field.onChange} value={field.value || ""}>
+                            <Select onValueChange={(val) => field.onChange(val === "none" ? "" : val)} value={field.value || "none"}>
                               <FormControl>
                                 <SelectTrigger data-testid="select-ambient-sound">
                                   <SelectValue placeholder="No ambient sound" />
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                <SelectItem value="">None</SelectItem>
+                                <SelectItem value="none">None</SelectItem>
                                 <SelectItem value="coffee-shop">Coffee Shop</SelectItem>
                                 <SelectItem value="office">Office</SelectItem>
                                 <SelectItem value="summer-outdoor">Summer Outdoor</SelectItem>

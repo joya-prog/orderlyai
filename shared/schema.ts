@@ -29,12 +29,29 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
+  
+  // Restaurant onboarding fields
+  restaurantName: varchar("restaurant_name"),
+  restaurantType: varchar("restaurant_type"), // 'fine_dining', 'casual_dining', 'fast_casual', 'cafe', 'bar', 'catering', 'hotel', 'other'
+  restaurantPhone: varchar("restaurant_phone"),
+  restaurantWebsite: varchar("restaurant_website"),
+  onboardingCompleted: boolean("onboarding_completed").default(false),
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+
+export const onboardingSchema = z.object({
+  restaurantName: z.string().min(2, "Restaurant name must be at least 2 characters"),
+  restaurantType: z.enum(['fine_dining', 'casual_dining', 'fast_casual', 'cafe', 'bar', 'catering', 'hotel', 'other']),
+  restaurantPhone: z.string().optional(),
+  restaurantWebsite: z.string().optional(),
+});
+
+export type OnboardingData = z.infer<typeof onboardingSchema>;
 
 // AI Agents table
 export const agents = pgTable("agents", {

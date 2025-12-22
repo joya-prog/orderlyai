@@ -10,7 +10,7 @@ import * as retell from "./retell";
 import multer from "multer";
 
 const upload = multer({ storage: multer.memoryStorage() });
-import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema, insertIntegrationConfigSchema, insertAnalyticsEventSchema } from "@shared/schema";
+import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema, insertIntegrationConfigSchema, insertAnalyticsEventSchema, onboardingSchema } from "@shared/schema";
 import twilio from "twilio";
 import crypto from "crypto";
 import { getTwilioClient, getTwilioAccountSid, getTwilioAuthToken } from "./twilioClient";
@@ -38,6 +38,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Onboarding route
+  app.post('/api/onboarding/complete', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const validationResult = onboardingSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: "Validation failed", 
+          errors: validationResult.error.errors 
+        });
+      }
+      
+      const { restaurantName, restaurantType, restaurantPhone, restaurantWebsite } = validationResult.data;
+      
+      const user = await storage.updateUserOnboarding(userId, {
+        restaurantName,
+        restaurantType,
+        restaurantPhone,
+        restaurantWebsite,
+      });
+      
+      res.json(user);
+    } catch (error) {
+      console.error("Error completing onboarding:", error);
+      res.status(500).json({ message: "Failed to complete onboarding" });
     }
   });
 

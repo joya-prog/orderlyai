@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
+import Onboarding from "@/pages/onboarding";
 import Agents from "@/pages/agents";
 import AgentEditor from "@/pages/agent-editor";
 import Templates from "@/pages/templates";
@@ -25,32 +26,47 @@ import Logs from "@/pages/logs";
 import Settings from "@/pages/settings";
 
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return null;
   }
 
+  // Show landing page for unauthenticated users
+  if (!isAuthenticated) {
+    return (
+      <Switch>
+        <Route path="/" component={Landing} />
+        <Route component={Landing} />
+      </Switch>
+    );
+  }
+
+  // Show onboarding for authenticated users who haven't completed setup
+  if (!user?.onboardingCompleted) {
+    return (
+      <Switch>
+        <Route path="/" component={Onboarding} />
+        <Route component={Onboarding} />
+      </Switch>
+    );
+  }
+
+  // Main app for fully onboarded users
   return (
     <Switch>
-      {!isAuthenticated ? (
-        <Route path="/" component={Landing} />
-      ) : (
-        <>
-          <Route path="/" component={Agents} />
-          <Route path="/agents" component={Agents} />
-          <Route path="/agents/:id" component={AgentEditor} />
-          <Route path="/analytics" component={Analytics} />
-          <Route path="/knowledge-base" component={KnowledgeBase} />
-          <Route path="/test-center" component={TestCenter} />
-          <Route path="/contacts" component={Contacts} />
-          <Route path="/phone-numbers" component={PhoneNumbers} />
-          <Route path="/integrations" component={Integrations} />
-          <Route path="/logs" component={Logs} />
-          <Route path="/settings" component={Settings} />
-          <Route path="/templates" component={Templates} />
-        </>
-      )}
+      <Route path="/" component={Agents} />
+      <Route path="/agents" component={Agents} />
+      <Route path="/agents/:id" component={AgentEditor} />
+      <Route path="/analytics" component={Analytics} />
+      <Route path="/knowledge-base" component={KnowledgeBase} />
+      <Route path="/test-center" component={TestCenter} />
+      <Route path="/contacts" component={Contacts} />
+      <Route path="/phone-numbers" component={PhoneNumbers} />
+      <Route path="/integrations" component={Integrations} />
+      <Route path="/logs" component={Logs} />
+      <Route path="/settings" component={Settings} />
+      <Route path="/templates" component={Templates} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -87,7 +103,7 @@ function SidebarResponsiveWrapper() {
 }
 
 function AppContent() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   
   // Detect if we're on desktop (>= 768px) using media query
   const isDesktop = useMediaQuery("(min-width: 768px)");
@@ -97,7 +113,8 @@ function AppContent() {
     "--sidebar-width-icon": "4rem",
   } as React.CSSProperties;
 
-  if (isLoading || !isAuthenticated) {
+  // Show landing/onboarding without sidebar for unauthenticated users or users who haven't completed onboarding
+  if (isLoading || !isAuthenticated || !user?.onboardingCompleted) {
     return (
       <>
         <Router />
@@ -106,6 +123,7 @@ function AppContent() {
     );
   }
 
+  // Show full app with sidebar for authenticated, onboarded users
   return (
     <SidebarProvider style={sidebarStyle} defaultOpen={isDesktop}>
       <SidebarResponsiveWrapper />

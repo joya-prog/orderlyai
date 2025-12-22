@@ -65,6 +65,12 @@ export interface IStorage {
   // User operations - required for Replit Auth
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+  updateUserOnboarding(id: string, data: {
+    restaurantName: string;
+    restaurantType: string;
+    restaurantPhone?: string;
+    restaurantWebsite?: string;
+  }): Promise<User>;
 
   // Agent operations
   getAgents(userId: string): Promise<Agent[]>;
@@ -202,6 +208,27 @@ export class DatabaseStorage implements IStorage {
           updatedAt: new Date(),
         },
       })
+      .returning();
+    return user;
+  }
+
+  async updateUserOnboarding(id: string, data: {
+    restaurantName: string;
+    restaurantType: string;
+    restaurantPhone?: string;
+    restaurantWebsite?: string;
+  }): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({
+        restaurantName: data.restaurantName,
+        restaurantType: data.restaurantType,
+        restaurantPhone: data.restaurantPhone || null,
+        restaurantWebsite: data.restaurantWebsite || null,
+        onboardingCompleted: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, id))
       .returning();
     return user;
   }

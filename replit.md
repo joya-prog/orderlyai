@@ -112,8 +112,11 @@ Orderly AI uses Retell AI as a white-label voice engine, providing a branded Ord
 - `enableBackchannel`, `backchannelFrequency`, `backchannelWords`
 - `ambientSound`, `ambientSoundVolume`
 - `beginMessageDelayMs`, `maxCallDurationMs`, `inactivityTimeoutMs`
+- `reminderTriggerMs`, `reminderMaxCount`, `reminderMessage`
 - `voicemailDetection`, `voicemailMessage`
-- `warmTransferEnabled`, `warmTransferNumber`
+- `warmTransferEnabled`, `warmTransferNumber`, `warmTransferMessage`
+- `boostedKeywords`, `pronunciationDictionary`
+- `fallbackVoiceId`, `endCallPhrases`
 
 **API Module (`server/retell.ts`):**
 - `createRetellLLM()` / `updateRetellLLM()` / `deleteRetellLLM()`

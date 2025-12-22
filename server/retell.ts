@@ -182,7 +182,13 @@ export async function createRetellAgent(config: RetellAgentConfig, llmId: string
       ambient_sound: config.ambientSound as any,
       ambient_sound_volume: config.ambientSoundVolume,
       boosted_keywords: config.boostedKeywords,
+      pronunciation_dictionary: config.pronunciationDictionary,
       begin_message_delay_ms: config.beginMessageDelayMs,
+      end_call_after_silence_ms: config.inactivityTimeoutMs,
+      max_call_duration_ms: config.maxCallDurationMs,
+      fallback_voice_ids: config.fallbackVoiceId ? [config.fallbackVoiceId] : undefined,
+      enable_voicemail_detection: config.voicemailDetection,
+      voicemail_message: config.voicemailMessage,
       webhook_url: config.webhookUrl,
     });
 
@@ -219,7 +225,13 @@ export async function updateRetellAgent(agentId: string, config: Partial<RetellA
       ambient_sound: config.ambientSound as any,
       ambient_sound_volume: config.ambientSoundVolume,
       boosted_keywords: config.boostedKeywords,
+      pronunciation_dictionary: config.pronunciationDictionary,
       begin_message_delay_ms: config.beginMessageDelayMs,
+      end_call_after_silence_ms: config.inactivityTimeoutMs,
+      max_call_duration_ms: config.maxCallDurationMs,
+      fallback_voice_ids: config.fallbackVoiceId ? [config.fallbackVoiceId] : undefined,
+      enable_voicemail_detection: config.voicemailDetection,
+      voicemail_message: config.voicemailMessage,
       webhook_url: config.webhookUrl,
     });
 

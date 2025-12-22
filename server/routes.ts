@@ -110,16 +110,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Sync with Retell AI if configured
       if (await retell.isRetellConfigured()) {
         try {
-          // Create LLM in Retell
-          const llmId = await retell.createRetellLLM({
+          // Create Conversation Flow in Retell (conversation-flow type agent)
+          const flowId = await retell.createRetellConversationFlow({
             generalPrompt: data.systemPrompt,
             beginMessage: data.greetingMessage,
             model: data.aiModel || 'gpt-4o-mini',
             modelTemperature: 0.7,
           });
           
-          if (llmId) {
-            // Create Agent in Retell with complete configuration
+          if (flowId) {
+            // Create Agent in Retell with conversation-flow type
             const retellAgentId = await retell.createRetellAgent({
               agentName: data.name,
               voiceId: data.voiceId || '11labs-Adrian',
@@ -150,16 +150,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               warmTransferEnabled: (data as any).warmTransferEnabled ?? false,
               warmTransferNumber: (data as any).warmTransferNumber,
               warmTransferMessage: (data as any).warmTransferMessage,
-              llmId,
-            }, llmId);
+            }, flowId);
             
-            // Update our agent with Retell IDs
+            // Update our agent with Retell IDs (store flowId as retellLlmId for backwards compatibility)
             if (retellAgentId) {
               agent = await storage.updateAgent(agent.id, {
                 retellAgentId,
-                retellLlmId: llmId,
+                retellLlmId: flowId,
               }) || agent;
-              console.log(`[Retell] Synced agent ${agent.id} -> Retell ${retellAgentId}`);
+              console.log(`[Retell] Synced agent ${agent.id} -> Retell ${retellAgentId} (conversation-flow)`);
             }
           }
         } catch (retellError) {
@@ -193,9 +192,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           const data = req.body;
           
-          // Update LLM if prompt/model changed
+          // Update Conversation Flow if prompt/model changed
           if (data.systemPrompt || data.greetingMessage || data.aiModel) {
-            await retell.updateRetellLLM(agent.retellLlmId, {
+            await retell.updateRetellConversationFlow(agent.retellLlmId, {
               generalPrompt: data.systemPrompt || agent.systemPrompt,
               beginMessage: data.greetingMessage || agent.greetingMessage,
               model: data.aiModel || agent.aiModel,
@@ -305,19 +304,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ message: "Agent already synced to Retell", retellAgentId: agent.retellAgentId });
       }
 
-      // Create LLM in Retell
-      const llmId = await retell.createRetellLLM({
+      // Create Conversation Flow in Retell
+      const flowId = await retell.createRetellConversationFlow({
         generalPrompt: agent.systemPrompt || '',
         beginMessage: agent.greetingMessage || '',
         model: agent.aiModel || 'gpt-4o-mini',
         modelTemperature: 0.7,
       });
 
-      if (!llmId) {
-        return res.status(500).json({ message: "Failed to create LLM in Retell" });
+      if (!flowId) {
+        return res.status(500).json({ message: "Failed to create conversation flow" });
       }
 
-      // Create Agent in Retell
+      // Create Agent in Retell with conversation-flow type
       const retellAgentId = await retell.createRetellAgent({
         agentName: agent.name,
         voiceId: agent.voiceId || '11labs-Adrian',
@@ -334,19 +333,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ambientSound: agent.ambientSound || undefined,
         ambientSoundVolume: typeof agent.ambientSoundVolume === 'number' ? agent.ambientSoundVolume : 1.0,
         beginMessageDelayMs: typeof agent.beginMessageDelayMs === 'number' ? agent.beginMessageDelayMs : 1000,
-      }, llmId);
+      }, flowId);
 
       if (!retellAgentId) {
-        return res.status(500).json({ message: "Failed to create agent in Retell" });
+        return res.status(500).json({ message: "Failed to create agent" });
       }
 
-      // Update our agent with Retell IDs
+      // Update our agent with IDs (store flowId as retellLlmId for backwards compatibility)
       const updated = await storage.updateAgent(agent.id, {
         retellAgentId,
-        retellLlmId: llmId,
+        retellLlmId: flowId,
       });
 
-      console.log(`[Retell] Manually synced agent ${agent.id} -> Retell ${retellAgentId}`);
+      console.log(`[Retell] Manually synced agent ${agent.id} -> Retell ${retellAgentId} (conversation-flow)`);
       res.json({ message: "Agent synced to Retell successfully", retellAgentId, agent: updated });
     } catch (error: any) {
       console.error("Error syncing agent to Retell:", error);
@@ -816,17 +815,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         systemPrompt: template.systemPrompt,
       });
 
-      // Sync with Retell AI if configured
+      // Sync with Retell AI if configured (conversation-flow type)
       if (await retell.isRetellConfigured()) {
         try {
-          const llmId = await retell.createRetellLLM({
+          const flowId = await retell.createRetellConversationFlow({
             generalPrompt: template.systemPrompt || '',
             beginMessage: template.greetingMessage || '',
             model: 'gpt-4o-mini',
             modelTemperature: 0.7,
           });
           
-          if (llmId) {
+          if (flowId) {
             const retellAgentId = await retell.createRetellAgent({
               agentName: `${template.name} (Copy)`,
               voiceId: '11labs-Adrian',
@@ -841,14 +840,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               backchannelFrequency: 0.9,
               backchannelWords: ['yeah', 'uh-huh', 'I see'],
               beginMessageDelayMs: 1000,
-            }, llmId);
+            }, flowId);
 
             if (retellAgentId) {
               agent = await storage.updateAgent(agent.id, {
                 retellAgentId,
-                retellLlmId: llmId,
+                retellLlmId: flowId,
               });
-              console.log(`[Retell] Synced template agent ${agent.id} -> Retell ${retellAgentId}`);
+              console.log(`[Retell] Synced template agent ${agent.id} -> Retell ${retellAgentId} (conversation-flow)`);
             }
           }
         } catch (retellError) {

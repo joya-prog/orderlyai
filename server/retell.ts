@@ -57,6 +57,13 @@ export interface RetellLLMConfig {
   knowledgeBaseIds?: string[];
 }
 
+export interface RetellConversationFlowConfig {
+  generalPrompt: string;
+  beginMessage?: string;
+  model?: string;
+  modelTemperature?: number;
+}
+
 export interface RetellCallLog {
   callId: string;
   agentId: string;
@@ -114,6 +121,75 @@ export async function createRetellLLM(config: RetellLLMConfig): Promise<string |
   }
 }
 
+export async function createRetellConversationFlow(config: RetellConversationFlowConfig): Promise<string | null> {
+  if (!retellClient) {
+    console.error('[Retell] Client not configured');
+    return null;
+  }
+
+  try {
+    const flowResponse = await retellClient.conversationFlow.create({
+      model_choice: {
+        model: (config.model as any) || 'gpt-4o-mini',
+        type: 'cascading',
+      },
+      model_temperature: config.modelTemperature || 0.7,
+      nodes: [
+        {
+          id: 'start',
+          type: 'conversation',
+          instruction: {
+            type: 'prompt',
+            text: config.generalPrompt,
+          },
+        },
+      ],
+      start_speaker: 'agent',
+      global_prompt: config.beginMessage || undefined,
+    });
+
+    console.log('[Retell] Created Conversation Flow:', flowResponse.conversation_flow_id);
+    return flowResponse.conversation_flow_id;
+  } catch (error) {
+    console.error('[Retell] Error creating Conversation Flow:', error);
+    throw error;
+  }
+}
+
+export async function updateRetellConversationFlow(flowId: string, config: Partial<RetellConversationFlowConfig>): Promise<boolean> {
+  if (!retellClient) {
+    console.error('[Retell] Client not configured');
+    return false;
+  }
+
+  try {
+    await retellClient.conversationFlow.update(flowId, {
+      model_choice: config.model ? {
+        model: config.model as any,
+        type: 'cascading',
+      } : undefined,
+      model_temperature: config.modelTemperature,
+      nodes: config.generalPrompt ? [
+        {
+          id: 'start',
+          type: 'conversation',
+          instruction: {
+            type: 'prompt',
+            text: config.generalPrompt,
+          },
+        },
+      ] : undefined,
+      global_prompt: config.beginMessage || undefined,
+    });
+
+    console.log('[Retell] Updated Conversation Flow:', flowId);
+    return true;
+  } catch (error) {
+    console.error('[Retell] Error updating Conversation Flow:', error);
+    throw error;
+  }
+}
+
 export async function updateRetellLLM(llmId: string, config: Partial<RetellLLMConfig>): Promise<boolean> {
   if (!retellClient) {
     console.error('[Retell] Client not configured');
@@ -153,7 +229,7 @@ export async function deleteRetellLLM(llmId: string): Promise<boolean> {
   }
 }
 
-export async function createRetellAgent(config: RetellAgentConfig, llmId: string): Promise<string | null> {
+export async function createRetellAgent(config: RetellAgentConfig, conversationFlowId: string): Promise<string | null> {
   if (!retellClient) {
     console.error('[Retell] Client not configured');
     return null;
@@ -162,8 +238,8 @@ export async function createRetellAgent(config: RetellAgentConfig, llmId: string
   try {
     const agentResponse = await retellClient.agent.create({
       response_engine: {
-        type: 'retell-llm',
-        llm_id: llmId,
+        type: 'conversation-flow',
+        conversation_flow_id: conversationFlowId,
       },
       voice_id: config.voiceId,
       agent_name: config.agentName,
@@ -192,7 +268,7 @@ export async function createRetellAgent(config: RetellAgentConfig, llmId: string
       webhook_url: config.webhookUrl,
     });
 
-    console.log('[Retell] Created agent:', agentResponse.agent_id);
+    console.log('[Retell] Created agent (conversation-flow):', agentResponse.agent_id);
     return agentResponse.agent_id;
   } catch (error) {
     console.error('[Retell] Error creating agent:', error);

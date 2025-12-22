@@ -18,7 +18,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Save, Settings, Workflow, TestTube, Send, MessageSquare, Mic, MicOff, Phone, Volume2, X, Languages, Sparkles, Zap, Clock, Timer, RefreshCw, Check } from "lucide-react";
+import { ArrowLeft, Save, Settings, Workflow, TestTube, Send, MessageSquare, Mic, MicOff, Phone, Volume2, X, Languages, Sparkles, Zap, Clock, Timer } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { insertAgentSchema } from "@shared/schema";
@@ -298,26 +298,6 @@ export default function AgentEditor() {
       toast({
         title: "Error",
         description: "Failed to save agent",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const syncRetellMutation = useMutation({
-    mutationFn: async () => {
-      return await apiRequest("POST", `/api/agents/${id}/sync-retell`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/agents", id] });
-      toast({
-        title: "Synced to Retell",
-        description: "Agent is now synced with Retell AI and ready for calls",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Sync Failed",
-        description: error.message || "Failed to sync agent to Retell",
         variant: "destructive",
       });
     },
@@ -889,33 +869,14 @@ export default function AgentEditor() {
           </div>
         </div>
         {activeTab === "settings" && (
-          <div className="flex items-center gap-2">
-            {!isNew && !agent?.retellAgentId && (
-              <Button
-                variant="outline"
-                onClick={() => syncRetellMutation.mutate()}
-                disabled={syncRetellMutation.isPending}
-                data-testid="button-sync-retell"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${syncRetellMutation.isPending ? 'animate-spin' : ''}`} />
-                {syncRetellMutation.isPending ? "Syncing..." : "Sync to Retell"}
-              </Button>
-            )}
-            {!isNew && agent?.retellAgentId && (
-              <Badge variant="outline" className="gap-1 py-1.5 px-3">
-                <Check className="h-3 w-3 text-green-600" />
-                Synced to Retell
-              </Badge>
-            )}
-            <Button
-              onClick={form.handleSubmit((data) => saveMutation.mutate(data))}
-              disabled={saveMutation.isPending}
-              data-testid="button-save-agent"
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {saveMutation.isPending ? "Saving..." : "Save Agent"}
-            </Button>
-          </div>
+          <Button
+            onClick={form.handleSubmit((data) => saveMutation.mutate(data))}
+            disabled={saveMutation.isPending}
+            data-testid="button-save-agent"
+          >
+            <Save className="h-4 w-4 mr-2" />
+            {saveMutation.isPending ? "Saving..." : "Save Agent"}
+          </Button>
         )}
       </div>
 

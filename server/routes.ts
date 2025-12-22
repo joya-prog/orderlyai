@@ -285,6 +285,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Manually sync an agent to Retell (for agents created before Retell integration)
+  app.post("/api/agents/:id/sync-retell", isAuthenticated, async (req: any, res) => {
+    try {
+      const agent = await storage.getAgent(req.params.id);
+      if (!agent) {
+        return res.status(404).json({ message: "Agent not found" });
+      }
+      if (agent.userId !== req.user.claims.sub) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      if (!await retell.isRetellConfigured()) {
+        return res.status(400).json({ message: "Retell AI is not configured" });
+      }
+
+      // If already synced, skip
+      if (agent.retellAgentId && agent.retellLlmId) {
+        return res.json({ message: "Agent already synced to Retell", retellAgentId: agent.retellAgentId });
+      }
+
+      // Create LLM in Retell
+      const llmId = await retell.createRetellLLM({
+        generalPrompt: agent.systemPrompt || '',
+        beginMessage: agent.greetingMessage || '',
+        model: agent.aiModel || 'gpt-4o-mini',
+        modelTemperature: 0.7,
+      });
+
+      if (!llmId) {
+        return res.status(500).json({ message: "Failed to create LLM in Retell" });
+      }
+
+      // Create Agent in Retell
+      const retellAgentId = await retell.createRetellAgent({
+        agentName: agent.name,
+        voiceId: agent.voiceId || '11labs-Adrian',
+        voiceModel: agent.voiceModel || 'eleven_turbo_v2',
+        voiceSpeed: parseFloat(agent.voiceSpeed || '1.0'),
+        voiceTemperature: agent.voiceTemperature ? parseFloat(String(agent.voiceTemperature)) : 1.0,
+        volume: agent.voiceVolume ? parseFloat(String(agent.voiceVolume)) : 1.0,
+        responsiveness: agent.responsiveness ? parseFloat(String(agent.responsiveness)) : 1.0,
+        interruptionSensitivity: parseFloat(agent.interruptionSensitivity || '1.0'),
+        language: agent.language || 'en-US',
+        enableBackchannel: agent.enableBackchannel ?? true,
+        backchannelFrequency: typeof agent.backchannelFrequency === 'number' ? agent.backchannelFrequency : 0.9,
+        backchannelWords: agent.backchannelWords || ['yeah', 'uh-huh', 'I see'],
+        ambientSound: agent.ambientSound || undefined,
+        ambientSoundVolume: typeof agent.ambientSoundVolume === 'number' ? agent.ambientSoundVolume : 1.0,
+        beginMessageDelayMs: typeof agent.beginMessageDelayMs === 'number' ? agent.beginMessageDelayMs : 1000,
+      }, llmId);
+
+      if (!retellAgentId) {
+        return res.status(500).json({ message: "Failed to create agent in Retell" });
+      }
+
+      // Update our agent with Retell IDs
+      const updated = await storage.updateAgent(agent.id, {
+        retellAgentId,
+        retellLlmId: llmId,
+      });
+
+      console.log(`[Retell] Manually synced agent ${agent.id} -> Retell ${retellAgentId}`);
+      res.json({ message: "Agent synced to Retell successfully", retellAgentId, agent: updated });
+    } catch (error: any) {
+      console.error("Error syncing agent to Retell:", error);
+      res.status(500).json({ message: error.message || "Failed to sync agent to Retell" });
+    }
+  });
+
   // Knowledge base routes
   // Get all knowledge items for the current user (across all agents)
   app.get("/api/knowledge", isAuthenticated, async (req: any, res) => {
@@ -736,7 +805,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const userId = req.user.claims.sub;
-      const agent = await storage.createAgent({
+      let agent = await storage.createAgent({
         userId,
         name: `${template.name} (Copy)`,
         description: template.description,
@@ -746,6 +815,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         personality: template.personality,
         systemPrompt: template.systemPrompt,
       });
+
+      // Sync with Retell AI if configured
+      if (await retell.isRetellConfigured()) {
+        try {
+          const llmId = await retell.createRetellLLM({
+            generalPrompt: template.systemPrompt || '',
+            beginMessage: template.greetingMessage || '',
+            model: 'gpt-4o-mini',
+            modelTemperature: 0.7,
+          });
+          
+          if (llmId) {
+            const retellAgentId = await retell.createRetellAgent({
+              agentName: `${template.name} (Copy)`,
+              voiceId: '11labs-Adrian',
+              voiceModel: 'eleven_turbo_v2',
+              voiceSpeed: 1.0,
+              voiceTemperature: 1.0,
+              volume: 1.0,
+              responsiveness: 1.0,
+              interruptionSensitivity: 1.0,
+              language: 'en-US',
+              enableBackchannel: true,
+              backchannelFrequency: 0.9,
+              backchannelWords: ['yeah', 'uh-huh', 'I see'],
+              beginMessageDelayMs: 1000,
+            }, llmId);
+
+            if (retellAgentId) {
+              agent = await storage.updateAgent(agent.id, {
+                retellAgentId,
+                retellLlmId: llmId,
+              });
+              console.log(`[Retell] Synced template agent ${agent.id} -> Retell ${retellAgentId}`);
+            }
+          }
+        } catch (retellError) {
+          console.error('[Retell] Error syncing template agent:', retellError);
+        }
+      }
 
       // Add default knowledge if provided
       if (template.defaultKnowledge && Array.isArray(template.defaultKnowledge)) {

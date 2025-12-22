@@ -74,6 +74,7 @@
     "react-resizable-panels": "^2.1.7",
     "reactflow": "^11.11.4",
     "recharts": "^2.15.2",
+    "retell-sdk": "^4.66.0",
     "stripe": "^18.5.0",
     "stripe-replit-sync": "^0.0.12",
     "tailwind-merge": "^2.6.0",

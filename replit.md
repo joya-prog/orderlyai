@@ -71,36 +71,75 @@ Preferred communication style: Simple, everyday language.
 - **Test Center**: Integrated into the agent editor with text and voice testing modes (using OpenAI GPT-5, Whisper, TTS) for conversational agents.
 - **Integrations Page**: Displays available and upcoming integrations (Square, Toast, Twilio, Resy, Tock, Yelp).
 
-### Native Voice Calling System
+### Retell AI White-Label Integration
 
-Orderly AI includes a built-in voice agent system that handles live phone calls without external voice AI platforms like Retell AI.
+Orderly AI uses Retell AI as a white-label voice engine, providing a branded Orderly AI interface while Retell handles the underlying voice AI infrastructure.
 
 **Architecture:**
-- **Twilio WebSocket Streaming**: Incoming calls are routed via Twilio's `<Stream>` TwiML to a WebSocket endpoint (`/voice-stream`)
-- **Speech-to-Text**: OpenAI Whisper transcribes caller audio in real-time
-- **Conversation AI**: GPT-5 generates contextual responses using the agent's knowledge base, flow logic, and live Square menu data
-- **Text-to-Speech**: Choice of OpenAI TTS or ElevenLabs (user-configurable per agent)
-- **Audio Format Conversion**: Handles mulaw ↔ linear16 PCM conversion for Twilio compatibility
+- **Multi-tenant Setup**: All Orderly users' agents are created under one Retell account, isolated by user ID tags
+- **Sync Layer**: Agents, LLMs, and voice configurations sync bidirectionally between Orderly and Retell
+- **Call Routing**: Calls flow directly through Retell (Caller → Twilio → Retell AI) for optimal latency
 
-**Voice Configuration Options (per agent):**
-- Voice Provider: OpenAI TTS or ElevenLabs
-- Voice Selection: Full voice library with preview functionality
-- Voice Speed, Volume, Interruption Sensitivity
-- Patience Level (response timing)
-- ElevenLabs-specific: Stability, Similarity, Style Exaggeration, Speaker Boost
+**Voice Providers (via Retell):**
+- ElevenLabs (Premium quality, most expressive)
+- OpenAI TTS (Fast, reliable)
+- Cartesia (Ultra-low latency)
+- Deepgram (Optimized for speed)
+- PlayHT (Voice cloning capabilities)
 
-**API Endpoints:**
-- `POST /api/voice/incoming` - Twilio webhook for incoming calls, routes to assigned agent
-- `GET /api/voice/calls/active` - List active calls for monitoring
-- `WebSocket /voice-stream` - Twilio Media Streams connection for real-time audio
+**LLM Options:**
+- GPT-4o (Premium, most capable)
+- GPT-4o Mini (Recommended, balanced cost/performance)
+- Claude 3.5 Sonnet (Premium, excellent at complex tasks)
+- Claude 3 Haiku (Fast, cost-effective)
 
-**Call Flow:**
-1. Incoming call hits Twilio webhook → finds phone number → gets assigned agent
-2. Returns TwiML with `<Stream>` pointing to `/voice-stream` WebSocket
-3. WebSocket receives audio → buffers → transcribes with Whisper
-4. GPT generates response with full context (knowledge base, Square menu)
-5. TTS synthesizes response → streams back to caller
-6. Call metrics logged to `callLogs` and `analyticsEvents` tables
+**Agent Configuration (synced to Retell):**
+- Voice settings: provider, voice ID, speed, temperature, volume
+- Speech settings: responsiveness, interruption sensitivity
+- Backchannel: enable/disable, frequency, custom words
+- Ambient sound: coffee-shop, office, outdoor environments
+- Call management: begin delay, inactivity timeout, max duration
+- Reminders: trigger time, max count, custom message
+- Voicemail detection and message
+- Warm transfer to human operators
+
+**Retell-Specific Database Fields (in `agents` table):**
+- `retellAgentId`: Retell's agent ID for sync
+- `retellLlmId`: Retell's LLM configuration ID
+- `voiceModel`: ElevenLabs model (eleven_turbo_v2, etc.)
+- `voiceTemperature`: Voice expressiveness
+- `responsiveness`: Response timing
+- `enableBackchannel`, `backchannelFrequency`, `backchannelWords`
+- `ambientSound`, `ambientSoundVolume`
+- `beginMessageDelayMs`, `maxCallDurationMs`, `inactivityTimeoutMs`
+- `voicemailDetection`, `voicemailMessage`
+- `warmTransferEnabled`, `warmTransferNumber`
+
+**API Module (`server/retell.ts`):**
+- `createRetellLLM()` / `updateRetellLLM()` / `deleteRetellLLM()`
+- `createRetellAgent()` / `updateRetellAgent()` / `deleteRetellAgent()`
+- `getRetellCallLogs()` / `getRetellCallDetails()`
+- `listRetellPhoneNumbers()` / `importRetellPhoneNumber()`
+- `registerWebCallAgent()` for browser-based testing
+
+**Environment Variables:**
+- `RETELL_API_KEY`: Required for Retell integration
+
+### Legacy Native Voice System (Deprecated)
+
+The native voice calling system remains available as a fallback but is superseded by the Retell integration:
+
+**Original Architecture:**
+- **Twilio WebSocket Streaming**: Incoming calls routed via Twilio's `<Stream>` TwiML to `/voice-stream`
+- **Speech-to-Text**: OpenAI Whisper transcribes caller audio
+- **Conversation AI**: GPT generates responses using knowledge base and flow logic
+- **Text-to-Speech**: OpenAI TTS or ElevenLabs
+- **Audio Format Conversion**: mulaw ↔ linear16 PCM for Twilio
+
+**Legacy API Endpoints:**
+- `POST /api/voice/incoming` - Twilio webhook for incoming calls
+- `GET /api/voice/calls/active` - List active calls
+- `WebSocket /voice-stream` - Twilio Media Streams connection
 
 ### Billing Infrastructure
 

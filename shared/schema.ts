@@ -48,45 +48,85 @@ export const agents = pgTable("agents", {
   personality: text("personality").notNull(),
   systemPrompt: text("system_prompt").notNull(),
   
+  // Retell AI Integration
+  retellAgentId: text("retell_agent_id"), // Retell's agent ID for sync
+  retellLlmId: text("retell_llm_id"), // Retell's LLM configuration ID
+  
   // General Configuration
   voiceEngine: text("voice_engine").notNull().default('1.0'), // '1.0', '2.0'
-  aiModel: text("ai_model").notNull().default('gpt-4o'), // 'gpt-4o', 'gpt-4', 'gpt-3.5-turbo'
+  aiModel: text("ai_model").notNull().default('gpt-4o-mini'), // 'gpt-4o', 'gpt-4o-mini', 'claude-3.5-sonnet', 'claude-3-haiku'
   timezone: text("timezone").notNull().default('US/Pacific'),
   customVocabulary: text("custom_vocabulary").array().default(sql`'{}'::text[]`),
   filterWords: text("filter_words").array().default(sql`'{}'::text[]`),
   useFillerWords: boolean("use_filler_words").default(false),
   
-  // Voice Configuration
-  voiceProvider: text("voice_provider").notNull().default('openai'), // 'openai', 'elevenlabs', 'cartesia'
-  voiceId: text("voice_id").notNull().default('nova'),
+  // Voice Configuration (Retell-compatible)
+  voiceProvider: text("voice_provider").notNull().default('elevenlabs'), // 'elevenlabs', 'openai', 'cartesia', 'deepgram', 'playht'
+  voiceId: text("voice_id").notNull().default('11labs-Adrian'), // Retell voice ID format
+  voiceModel: text("voice_model"), // Voice model for ElevenLabs (eleven_turbo_v2, etc.)
   voiceName: text("voice_name"),
-  language: text("language").notNull().default('en'),
+  language: text("language").notNull().default('en-US'), // Retell language codes
   voiceSpeed: text("voice_speed").notNull().default('1.0'), // 0.5 - 2.0
-  voiceVolume: text("voice_volume").notNull().default('100'), // 0 - 100
-  interruptionSensitivity: text("interruption_sensitivity").notNull().default('0'), // 0-5 words
+  voiceTemperature: text("voice_temperature").notNull().default('1.0'), // Voice expressiveness
+  voiceVolume: text("voice_volume").notNull().default('1.0'), // 0 - 2.0
+  fallbackVoiceId: text("fallback_voice_id"), // Backup voice if primary TTS fails
+  
+  // Speech & Transcription
+  interruptionSensitivity: text("interruption_sensitivity").notNull().default('1.0'), // 0-1, how easily user can interrupt
+  responsiveness: text("responsiveness").notNull().default('1.0'), // 0-1, how quickly agent responds
+  boostedKeywords: text("boosted_keywords").array().default(sql`'{}'::text[]`), // Keywords to bias transcription
+  pronunciationDictionary: jsonb("pronunciation_dictionary"), // [{word: string, pronunciation: string}]
+  textNormalization: boolean("text_normalization").default(true), // Convert numbers/dates to spoken form
+  
+  // Backchannel Settings (natural conversation acknowledgments)
+  enableBackchannel: boolean("enable_backchannel").default(true),
+  backchannelFrequency: text("backchannel_frequency").notNull().default('0.9'), // 0-1
+  backchannelWords: text("backchannel_words").array().default(sql`'{"yeah", "uh-huh", "I see"}'::text[]`),
+  
+  // Ambient Sound
+  ambientSound: text("ambient_sound"), // 'coffee-shop', 'call-center', etc.
+  ambientSoundVolume: text("ambient_sound_volume").notNull().default('1.0'), // 0-2
+  
+  // Reminder/Nudge Settings
+  reminderTriggerMs: text("reminder_trigger_ms").notNull().default('10000'), // ms before reminder
+  reminderMaxCount: text("reminder_max_count").notNull().default('2'),
+  reminderMessage: text("reminder_message").default("I'm still here. Do you have any questions?"),
+  
+  // Call Management
+  beginMessageDelayMs: text("begin_message_delay_ms").notNull().default('1000'), // Delay before agent speaks
+  endCallPhrases: text("end_call_phrases").array().default(sql`'{"goodbye", "bye", "have a nice day"}'::text[]`),
+  maxCallDurationMs: text("max_call_duration_ms").notNull().default('3600000'), // Max 1 hour by default
+  inactivityTimeoutMs: text("inactivity_timeout_ms").notNull().default('30000'), // End call after 30s silence
+  
+  // Voicemail Detection
+  voicemailDetection: boolean("voicemail_detection").default(false),
+  voicemailMessage: text("voicemail_message"),
+  
+  // Warm Transfer
+  warmTransferEnabled: boolean("warm_transfer_enabled").default(false),
+  warmTransferNumber: text("warm_transfer_number"),
+  warmTransferMessage: text("warm_transfer_message"),
+  
+  // Legacy fields (kept for backward compatibility)
   voicePrompting: text("voice_prompting"),
   patienceLevel: text("patience_level").notNull().default('medium'), // 'low', 'medium', 'high'
   speechRecognition: text("speech_recognition").notNull().default('faster'), // 'faster', 'high_accuracy'
-  
-  // Call Configuration
-  optimizeLatency: text("optimize_latency").notNull().default('0'), // '0', '1', '2', '3', '4'
-  stability: text("stability").notNull().default('50'), // 0-100
-  styleExaggeration: text("style_exaggeration").notNull().default('0'), // 0-100
-  similarity: text("similarity").notNull().default('75'), // 0-100
-  maxIdleDuration: text("max_idle_duration").notNull().default('7'), // seconds
+  optimizeLatency: text("optimize_latency").notNull().default('0'),
+  stability: text("stability").notNull().default('50'),
+  styleExaggeration: text("style_exaggeration").notNull().default('0'),
+  similarity: text("similarity").notNull().default('75'),
+  maxIdleDuration: text("max_idle_duration").notNull().default('7'),
   speakerBoost: boolean("speaker_boost").default(false),
   idleReminders: boolean("idle_reminders").default(true),
   idleReminderMessage: text("idle_reminder_message").default("I'm still here. Do you have any questions?"),
-  idleReminderInterval: text("idle_reminder_interval").notNull().default('4'), // seconds
-  pauseBeforeSpeaking: text("pause_before_speaking").notNull().default('0'), // seconds
-  ringDuration: text("ring_duration").notNull().default('0'), // seconds
+  idleReminderInterval: text("idle_reminder_interval").notNull().default('4'),
+  pauseBeforeSpeaking: text("pause_before_speaking").notNull().default('0'),
+  ringDuration: text("ring_duration").notNull().default('0'),
   limitCallDuration: boolean("limit_call_duration").default(true),
-  maxCallDuration: text("max_call_duration").notNull().default('20'), // minutes
+  maxCallDuration: text("max_call_duration").notNull().default('20'),
   enableRecordings: boolean("enable_recordings").default(false),
   enableTranscripts: boolean("enable_transcripts").default(true),
   limitDataRetention: boolean("limit_data_retention").default(false),
-  
-  // Repeat Customer Recognition
   repeatCustomerRecognition: boolean("repeat_customer_recognition").default(true),
   
   createdAt: timestamp("created_at").defaultNow(),
@@ -231,7 +271,7 @@ export const insertContactSchema = createInsertSchema(contacts).omit({
 export type InsertContact = z.infer<typeof insertContactSchema>;
 export type Contact = typeof contacts.$inferSelect;
 
-// Phone numbers (Twilio integration)
+// Phone numbers (Twilio + Retell integration)
 export const phoneNumbers = pgTable("phone_numbers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -249,6 +289,11 @@ export const phoneNumbers = pgTable("phone_numbers", {
   sipAuthType: text("sip_auth_type"), // 'credentials' | 'ip_acl'
   trunkSid: varchar("trunk_sid"), // Twilio SIP trunk SID
   originationUrl: text("origination_url"), // Where to send incoming calls
+  // Retell Integration
+  retellPhoneNumberId: text("retell_phone_number_id"), // Retell's phone number ID
+  retellInboundAgentId: text("retell_inbound_agent_id"), // Retell agent for inbound calls
+  retellOutboundAgentId: text("retell_outbound_agent_id"), // Retell agent for outbound calls
+  terminationUri: text("termination_uri"), // SIP termination URI for Retell
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -6,6 +6,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { generateAgentResponse, transcribeAudio, synthesizeSpeech, listOpenAIVoices, VoiceConfig, buildFlowContext } from "./openai";
 import { handleTwilioWebSocket, generateTwiML, getActiveCalls, handleBrowserTestWebSocket } from "./voiceCallHandler";
+import * as retell from "./retell";
 import multer from "multer";
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -73,7 +74,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const data = insertAgentSchema.parse({ ...req.body, userId });
-      const agent = await storage.createAgent(data);
+      
+      // Create agent in our database first
+      let agent = await storage.createAgent(data);
+      
+      // Sync with Retell AI if configured
+      if (await retell.isRetellConfigured()) {
+        try {
+          // Create LLM in Retell
+          const llmId = await retell.createRetellLLM({
+            generalPrompt: data.systemPrompt,
+            beginMessage: data.greetingMessage,
+            model: data.aiModel || 'gpt-4o-mini',
+            modelTemperature: 0.7,
+          });
+          
+          if (llmId) {
+            // Create Agent in Retell with complete configuration
+            const retellAgentId = await retell.createRetellAgent({
+              agentName: data.name,
+              voiceId: data.voiceId || '11labs-Adrian',
+              voiceModel: (data as any).voiceModel || 'eleven_turbo_v2',
+              voiceSpeed: parseFloat(data.voiceSpeed || '1.0'),
+              voiceTemperature: parseFloat((data as any).voiceTemperature || '1.0'),
+              volume: parseFloat((data as any).voiceVolume || '1.0'),
+              responsiveness: parseFloat((data as any).responsiveness || '1.0'),
+              interruptionSensitivity: parseFloat(data.interruptionSensitivity || '1.0'),
+              language: data.language || 'en-US',
+              enableBackchannel: (data as any).enableBackchannel ?? true,
+              backchannelFrequency: parseFloat((data as any).backchannelFrequency || '0.9'),
+              backchannelWords: (data as any).backchannelWords || ['yeah', 'uh-huh', 'I see'],
+              ambientSound: (data as any).ambientSound || '',
+              ambientSoundVolume: parseFloat((data as any).ambientSoundVolume || '1.0'),
+              beginMessageDelayMs: parseInt((data as any).beginMessageDelayMs || '1000'),
+              reminderTriggerMs: parseInt((data as any).reminderTriggerMs || '10000'),
+              reminderMaxCount: parseInt((data as any).reminderMaxCount || '2'),
+              reminderMessage: (data as any).reminderMessage,
+              boostedKeywords: (data as any).boostedKeywords || [],
+              pronunciationDictionary: (data as any).pronunciationDictionary || [],
+              endCallPhrases: (data as any).endCallPhrases || ['goodbye', 'bye', 'have a nice day'],
+              maxCallDurationMs: parseInt((data as any).maxCallDurationMs || '3600000'),
+              inactivityTimeoutMs: parseInt((data as any).inactivityTimeoutMs || '30000'),
+              fallbackVoiceId: (data as any).fallbackVoiceId,
+              voicemailDetection: (data as any).voicemailDetection ?? false,
+              voicemailMessage: (data as any).voicemailMessage,
+              warmTransferEnabled: (data as any).warmTransferEnabled ?? false,
+              warmTransferNumber: (data as any).warmTransferNumber,
+              warmTransferMessage: (data as any).warmTransferMessage,
+              llmId,
+            }, llmId);
+            
+            // Update our agent with Retell IDs
+            if (retellAgentId) {
+              agent = await storage.updateAgent(agent.id, {
+                retellAgentId,
+                retellLlmId: llmId,
+              }) || agent;
+              console.log(`[Retell] Synced agent ${agent.id} -> Retell ${retellAgentId}`);
+            }
+          }
+        } catch (retellError) {
+          console.error('[Retell] Error syncing new agent:', retellError);
+          // Don't fail the request - agent is created locally, Retell sync can retry later
+        }
+      }
+      
       res.json(agent);
     } catch (error: any) {
       console.error("Error creating agent:", error);
@@ -90,7 +155,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (agent.userId !== req.user.claims.sub) {
         return res.status(403).json({ message: "Forbidden" });
       }
+      
+      // Update agent in our database
       const updated = await storage.updateAgent(req.params.id, req.body);
+      
+      // Sync with Retell AI if configured and agent has Retell IDs
+      if (await retell.isRetellConfigured() && agent.retellAgentId && agent.retellLlmId) {
+        try {
+          const data = req.body;
+          
+          // Update LLM if prompt/model changed
+          if (data.systemPrompt || data.greetingMessage || data.aiModel) {
+            await retell.updateRetellLLM(agent.retellLlmId, {
+              generalPrompt: data.systemPrompt || agent.systemPrompt,
+              beginMessage: data.greetingMessage || agent.greetingMessage,
+              model: data.aiModel || agent.aiModel,
+              modelTemperature: 0.7,
+            });
+          }
+          
+          // Update Agent voice/behavior settings - complete mapping
+          await retell.updateRetellAgent(agent.retellAgentId, {
+            agentName: data.name || agent.name,
+            voiceId: data.voiceId || agent.voiceId,
+            voiceModel: data.voiceModel || (agent as any).voiceModel,
+            voiceSpeed: data.voiceSpeed ? parseFloat(data.voiceSpeed) : undefined,
+            voiceTemperature: data.voiceTemperature ? parseFloat(data.voiceTemperature) : undefined,
+            volume: data.voiceVolume ? parseFloat(data.voiceVolume) : undefined,
+            responsiveness: data.responsiveness ? parseFloat(data.responsiveness) : undefined,
+            interruptionSensitivity: data.interruptionSensitivity ? parseFloat(data.interruptionSensitivity) : undefined,
+            language: data.language || agent.language,
+            enableBackchannel: data.enableBackchannel ?? (agent as any).enableBackchannel,
+            backchannelFrequency: data.backchannelFrequency ? parseFloat(data.backchannelFrequency) : undefined,
+            backchannelWords: data.backchannelWords || (agent as any).backchannelWords,
+            ambientSound: data.ambientSound || (agent as any).ambientSound,
+            ambientSoundVolume: data.ambientSoundVolume ? parseFloat(data.ambientSoundVolume) : undefined,
+            beginMessageDelayMs: data.beginMessageDelayMs ? parseInt(data.beginMessageDelayMs) : undefined,
+            reminderTriggerMs: data.reminderTriggerMs ? parseInt(data.reminderTriggerMs) : undefined,
+            reminderMaxCount: data.reminderMaxCount ? parseInt(data.reminderMaxCount) : undefined,
+            reminderMessage: data.reminderMessage ?? (agent as any).reminderMessage,
+            boostedKeywords: data.boostedKeywords || (agent as any).boostedKeywords,
+            pronunciationDictionary: data.pronunciationDictionary || (agent as any).pronunciationDictionary,
+            endCallPhrases: data.endCallPhrases || (agent as any).endCallPhrases,
+            maxCallDurationMs: data.maxCallDurationMs ? parseInt(data.maxCallDurationMs) : undefined,
+            inactivityTimeoutMs: data.inactivityTimeoutMs ? parseInt(data.inactivityTimeoutMs) : undefined,
+            fallbackVoiceId: data.fallbackVoiceId ?? (agent as any).fallbackVoiceId,
+            voicemailDetection: data.voicemailDetection ?? (agent as any).voicemailDetection,
+            voicemailMessage: data.voicemailMessage ?? (agent as any).voicemailMessage,
+            warmTransferEnabled: data.warmTransferEnabled ?? (agent as any).warmTransferEnabled,
+            warmTransferNumber: data.warmTransferNumber ?? (agent as any).warmTransferNumber,
+            warmTransferMessage: data.warmTransferMessage ?? (agent as any).warmTransferMessage,
+          });
+          
+          console.log(`[Retell] Synced agent update ${agent.id} -> Retell ${agent.retellAgentId}`);
+        } catch (retellError) {
+          console.error('[Retell] Error syncing agent update:', retellError);
+          // Don't fail the request - local update succeeded
+        }
+      }
+      
       res.json(updated);
     } catch (error) {
       console.error("Error updating agent:", error);
@@ -107,6 +230,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (agent.userId !== req.user.claims.sub) {
         return res.status(403).json({ message: "Forbidden" });
       }
+      
+      // Clean up Retell resources if configured
+      if (await retell.isRetellConfigured()) {
+        try {
+          if (agent.retellAgentId) {
+            await retell.deleteRetellAgent(agent.retellAgentId);
+            console.log(`[Retell] Deleted agent ${agent.retellAgentId}`);
+          }
+          if (agent.retellLlmId) {
+            await retell.deleteRetellLLM(agent.retellLlmId);
+            console.log(`[Retell] Deleted LLM ${agent.retellLlmId}`);
+          }
+        } catch (retellError) {
+          console.error('[Retell] Error cleaning up Retell resources:', retellError);
+          // Continue with local deletion even if Retell cleanup fails
+        }
+      }
+      
       await storage.deleteAgent(req.params.id);
       res.json({ success: true });
     } catch (error) {

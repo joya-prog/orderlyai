@@ -118,18 +118,51 @@ export default function AgentEditor() {
       personality: "Friendly, professional, and helpful",
       systemPrompt: "You are a helpful AI assistant for a restaurant. Help customers with reservations, menu questions, and general inquiries.",
       voiceEngine: "1.0",
-      aiModel: "gpt-4o",
+      aiModel: "gpt-4o-mini",
       timezone: "US/Pacific",
       customVocabulary: [],
       filterWords: [],
       useFillerWords: false,
-      voiceProvider: "openai",
-      voiceId: "nova",
-      voiceName: "Nova",
-      language: "en",
+      // Retell-compatible voice settings
+      voiceProvider: "elevenlabs",
+      voiceId: "11labs-Adrian",
+      voiceModel: "eleven_turbo_v2",
+      voiceName: "Adrian",
+      language: "en-US",
       voiceSpeed: "1.0",
-      voiceVolume: "100",
-      interruptionSensitivity: "0",
+      voiceTemperature: "1.0",
+      voiceVolume: "1.0",
+      fallbackVoiceId: "",
+      // Speech & Transcription
+      interruptionSensitivity: "1.0",
+      responsiveness: "1.0",
+      boostedKeywords: [],
+      pronunciationDictionary: [],
+      textNormalization: true,
+      // Backchannel settings
+      enableBackchannel: true,
+      backchannelFrequency: "0.9",
+      backchannelWords: ["yeah", "uh-huh", "I see"],
+      // Ambient sound
+      ambientSound: "",
+      ambientSoundVolume: "1.0",
+      // Reminder settings
+      reminderTriggerMs: "10000",
+      reminderMaxCount: "2",
+      reminderMessage: "I'm still here. Do you have any questions?",
+      // Call management
+      beginMessageDelayMs: "1000",
+      endCallPhrases: ["goodbye", "bye", "have a nice day"],
+      maxCallDurationMs: "3600000",
+      inactivityTimeoutMs: "30000",
+      // Voicemail
+      voicemailDetection: false,
+      voicemailMessage: "",
+      // Warm transfer
+      warmTransferEnabled: false,
+      warmTransferNumber: "",
+      warmTransferMessage: "",
+      // Legacy fields
       voicePrompting: "",
       patienceLevel: "medium",
       speechRecognition: "faster",
@@ -164,18 +197,51 @@ export default function AgentEditor() {
         personality: agent.personality,
         systemPrompt: agent.systemPrompt,
         voiceEngine: agent.voiceEngine || "1.0",
-        aiModel: agent.aiModel || "gpt-4o",
+        aiModel: agent.aiModel || "gpt-4o-mini",
         timezone: agent.timezone || "US/Pacific",
         customVocabulary: agent.customVocabulary || [],
         filterWords: agent.filterWords || [],
         useFillerWords: agent.useFillerWords || false,
-        voiceProvider: agent.voiceProvider || "openai",
-        voiceId: agent.voiceId || "nova",
-        voiceName: agent.voiceName,
-        language: agent.language || "en",
+        // Retell-compatible voice settings
+        voiceProvider: agent.voiceProvider || "elevenlabs",
+        voiceId: agent.voiceId || "11labs-Adrian",
+        voiceModel: (agent as any).voiceModel || "eleven_turbo_v2",
+        voiceName: agent.voiceName || "Adrian",
+        language: agent.language || "en-US",
         voiceSpeed: agent.voiceSpeed || "1.0",
-        voiceVolume: agent.voiceVolume || "100",
-        interruptionSensitivity: agent.interruptionSensitivity || "0",
+        voiceTemperature: (agent as any).voiceTemperature || "1.0",
+        voiceVolume: agent.voiceVolume || "1.0",
+        fallbackVoiceId: (agent as any).fallbackVoiceId || "",
+        // Speech & Transcription
+        interruptionSensitivity: agent.interruptionSensitivity || "1.0",
+        responsiveness: (agent as any).responsiveness || "1.0",
+        boostedKeywords: (agent as any).boostedKeywords || [],
+        pronunciationDictionary: (agent as any).pronunciationDictionary || [],
+        textNormalization: (agent as any).textNormalization !== undefined ? (agent as any).textNormalization : true,
+        // Backchannel settings
+        enableBackchannel: (agent as any).enableBackchannel !== undefined ? (agent as any).enableBackchannel : true,
+        backchannelFrequency: (agent as any).backchannelFrequency || "0.9",
+        backchannelWords: (agent as any).backchannelWords || ["yeah", "uh-huh", "I see"],
+        // Ambient sound
+        ambientSound: (agent as any).ambientSound || "",
+        ambientSoundVolume: (agent as any).ambientSoundVolume || "1.0",
+        // Reminder settings
+        reminderTriggerMs: (agent as any).reminderTriggerMs || "10000",
+        reminderMaxCount: (agent as any).reminderMaxCount || "2",
+        reminderMessage: (agent as any).reminderMessage || "I'm still here. Do you have any questions?",
+        // Call management
+        beginMessageDelayMs: (agent as any).beginMessageDelayMs || "1000",
+        endCallPhrases: (agent as any).endCallPhrases || ["goodbye", "bye", "have a nice day"],
+        maxCallDurationMs: (agent as any).maxCallDurationMs || "3600000",
+        inactivityTimeoutMs: (agent as any).inactivityTimeoutMs || "30000",
+        // Voicemail
+        voicemailDetection: (agent as any).voicemailDetection || false,
+        voicemailMessage: (agent as any).voicemailMessage || "",
+        // Warm transfer
+        warmTransferEnabled: (agent as any).warmTransferEnabled || false,
+        warmTransferNumber: (agent as any).warmTransferNumber || "",
+        warmTransferMessage: (agent as any).warmTransferMessage || "",
+        // Legacy fields
         voicePrompting: agent.voicePrompting || "",
         patienceLevel: agent.patienceLevel || "medium",
         speechRecognition: agent.speechRecognition || "faster",
@@ -1191,6 +1257,52 @@ export default function AgentEditor() {
                 <TabsContent value="voice" className="space-y-6">
                   <Form {...form}>
                     <form className="space-y-6">
+                      {/* LLM Model Selection */}
+                      <FormField
+                        control={form.control}
+                        name="aiModel"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>AI Model</FormLabel>
+                            <FormDescription>Select the language model that powers your agent's responses</FormDescription>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-ai-model">
+                                  <SelectValue placeholder="Select AI model" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="gpt-4o">
+                                  <div className="flex items-center justify-between gap-4 w-full">
+                                    <span>GPT-4o</span>
+                                    <Badge variant="secondary" className="text-xs">Premium</Badge>
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="gpt-4o-mini">
+                                  <div className="flex items-center justify-between gap-4 w-full">
+                                    <span>GPT-4o Mini</span>
+                                    <Badge variant="outline" className="text-xs">Recommended</Badge>
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="claude-3.5-sonnet">
+                                  <div className="flex items-center justify-between gap-4 w-full">
+                                    <span>Claude 3.5 Sonnet</span>
+                                    <Badge variant="secondary" className="text-xs">Premium</Badge>
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="claude-3-haiku">
+                                  <div className="flex items-center justify-between gap-4 w-full">
+                                    <span>Claude 3 Haiku</span>
+                                    <Badge variant="outline" className="text-xs">Fast</Badge>
+                                  </div>
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
                       <FormField
                         control={form.control}
                         name="language"
@@ -1207,15 +1319,18 @@ export default function AgentEditor() {
                               <SelectContent>
                                 <SelectItem value="en-US">English (US)</SelectItem>
                                 <SelectItem value="en-GB">English (UK)</SelectItem>
-                                <SelectItem value="en-AU">English (Australia)</SelectItem>
                                 <SelectItem value="es-ES">Spanish (Spain)</SelectItem>
-                                <SelectItem value="es-MX">Spanish (Mexico)</SelectItem>
+                                <SelectItem value="es-419">Spanish (Latin America)</SelectItem>
                                 <SelectItem value="fr-FR">French</SelectItem>
                                 <SelectItem value="de-DE">German</SelectItem>
                                 <SelectItem value="it-IT">Italian</SelectItem>
                                 <SelectItem value="pt-BR">Portuguese (Brazil)</SelectItem>
                                 <SelectItem value="ja-JP">Japanese</SelectItem>
-                                <SelectItem value="zh-CN">Chinese (Simplified)</SelectItem>
+                                <SelectItem value="zh-CN">Chinese (Mandarin)</SelectItem>
+                                <SelectItem value="ko-KR">Korean</SelectItem>
+                                <SelectItem value="nl-NL">Dutch</SelectItem>
+                                <SelectItem value="hi-IN">Hindi</SelectItem>
+                                <SelectItem value="ar-SA">Arabic</SelectItem>
                               </SelectContent>
                             </Select>
                             <FormMessage />
@@ -1237,22 +1352,34 @@ export default function AgentEditor() {
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                <SelectItem value="openai">
-                                  <div className="flex items-center gap-2">
-                                    <span>OpenAI TTS</span>
-                                    <Badge variant="secondary" className="text-xs">Active</Badge>
-                                  </div>
-                                </SelectItem>
                                 <SelectItem value="elevenlabs">
                                   <div className="flex items-center gap-2">
                                     <span>ElevenLabs</span>
-                                    <Badge variant="secondary" className="text-xs">Active</Badge>
+                                    <Badge variant="secondary" className="text-xs">Premium</Badge>
                                   </div>
                                 </SelectItem>
-                                <SelectItem value="cartesia" disabled>
+                                <SelectItem value="openai">
+                                  <div className="flex items-center gap-2">
+                                    <span>OpenAI TTS</span>
+                                    <Badge variant="outline" className="text-xs">Fast</Badge>
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="cartesia">
                                   <div className="flex items-center gap-2">
                                     <span>Cartesia</span>
-                                    <Badge variant="outline" className="text-xs">Coming Soon</Badge>
+                                    <Badge variant="outline" className="text-xs">Low Latency</Badge>
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="deepgram">
+                                  <div className="flex items-center gap-2">
+                                    <span>Deepgram</span>
+                                    <Badge variant="outline" className="text-xs">Speed</Badge>
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="playht">
+                                  <div className="flex items-center gap-2">
+                                    <span>PlayHT</span>
+                                    <Badge variant="outline" className="text-xs">Cloning</Badge>
                                   </div>
                                 </SelectItem>
                               </SelectContent>
@@ -1496,12 +1623,12 @@ export default function AgentEditor() {
                         control={form.control}
                         name="interruptionSensitivity"
                         render={({ field }) => {
-                          const numValue = parseInt(field.value) || 0;
+                          const numValue = parseFloat(field.value) || 1.0;
                           return (
                             <FormItem>
                               <div className="flex items-center justify-between">
                                 <FormLabel>Interruption Sensitivity</FormLabel>
-                                <span className="text-sm text-muted-foreground">{numValue}</span>
+                                <span className="text-sm text-muted-foreground">{numValue.toFixed(1)}</span>
                               </div>
                               <FormDescription>
                                 How easily the agent can be interrupted while speaking
@@ -1509,10 +1636,10 @@ export default function AgentEditor() {
                               <FormControl>
                                 <Slider
                                   min={0}
-                                  max={10}
-                                  step={1}
+                                  max={2}
+                                  step={0.1}
                                   value={[numValue]}
-                                  onValueChange={(vals) => field.onChange(String(vals[0]))}
+                                  onValueChange={(vals) => field.onChange(vals[0].toFixed(1))}
                                   data-testid="slider-interruption-sensitivity"
                                 />
                               </FormControl>
@@ -1524,6 +1651,123 @@ export default function AgentEditor() {
                             </FormItem>
                           );
                         }}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="responsiveness"
+                        render={({ field }) => {
+                          const numValue = parseFloat(field.value) || 1.0;
+                          return (
+                            <FormItem>
+                              <div className="flex items-center justify-between">
+                                <FormLabel>Responsiveness</FormLabel>
+                                <span className="text-sm text-muted-foreground">{numValue.toFixed(1)}</span>
+                              </div>
+                              <FormDescription>
+                                How quickly the agent responds after the user stops speaking
+                              </FormDescription>
+                              <FormControl>
+                                <Slider
+                                  min={0}
+                                  max={2}
+                                  step={0.1}
+                                  value={[numValue]}
+                                  onValueChange={(vals) => field.onChange(vals[0].toFixed(1))}
+                                  data-testid="slider-responsiveness"
+                                />
+                              </FormControl>
+                              <div className="flex justify-between text-xs text-muted-foreground px-1">
+                                <span>Slower (more thoughtful)</span>
+                                <span>Faster (more reactive)</span>
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
+                      />
+
+                      {/* Backchannel Settings */}
+                      <FormField
+                        control={form.control}
+                        name="enableBackchannel"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-base">Enable Backchannel</FormLabel>
+                              <FormDescription>
+                                Agent uses natural acknowledgments like "yeah", "uh-huh", "I see" while listening
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                data-testid="switch-enable-backchannel"
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      {form.watch("enableBackchannel") && (
+                        <FormField
+                          control={form.control}
+                          name="backchannelFrequency"
+                          render={({ field }) => {
+                            const numValue = parseFloat(field.value) || 0.9;
+                            return (
+                              <FormItem>
+                                <div className="flex items-center justify-between">
+                                  <FormLabel>Backchannel Frequency</FormLabel>
+                                  <span className="text-sm text-muted-foreground">{(numValue * 100).toFixed(0)}%</span>
+                                </div>
+                                <FormDescription>
+                                  How often the agent uses acknowledgment phrases
+                                </FormDescription>
+                                <FormControl>
+                                  <Slider
+                                    min={0}
+                                    max={1}
+                                    step={0.1}
+                                    value={[numValue]}
+                                    onValueChange={(vals) => field.onChange(vals[0].toFixed(1))}
+                                    data-testid="slider-backchannel-frequency"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            );
+                          }}
+                        />
+                      )}
+
+                      {/* Ambient Sound */}
+                      <FormField
+                        control={form.control}
+                        name="ambientSound"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Ambient Sound</FormLabel>
+                            <FormDescription>Add background ambiance to make calls feel more natural</FormDescription>
+                            <Select onValueChange={field.onChange} value={field.value || ""}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-ambient-sound">
+                                  <SelectValue placeholder="No ambient sound" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="">None</SelectItem>
+                                <SelectItem value="coffee-shop">Coffee Shop</SelectItem>
+                                <SelectItem value="office">Office</SelectItem>
+                                <SelectItem value="summer-outdoor">Summer Outdoor</SelectItem>
+                                <SelectItem value="convention-hall">Convention Hall</SelectItem>
+                                <SelectItem value="static">Slight Static</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
                     </form>
                   </Form>
@@ -1542,10 +1786,294 @@ export default function AgentEditor() {
                 </TabsContent>
 
                 <TabsContent value="call-config" className="space-y-6">
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Phone className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Call configuration coming soon</p>
-                  </div>
+                  <Form {...form}>
+                    <form className="space-y-6">
+                      {/* Begin Message Delay */}
+                      <FormField
+                        control={form.control}
+                        name="beginMessageDelayMs"
+                        render={({ field }) => {
+                          const numValue = parseInt(field.value) || 1000;
+                          return (
+                            <FormItem>
+                              <div className="flex items-center justify-between">
+                                <FormLabel>Begin Message Delay</FormLabel>
+                                <span className="text-sm text-muted-foreground">{(numValue / 1000).toFixed(1)}s</span>
+                              </div>
+                              <FormDescription>
+                                How long to wait before the agent speaks after call connects
+                              </FormDescription>
+                              <FormControl>
+                                <Slider
+                                  min={0}
+                                  max={5000}
+                                  step={100}
+                                  value={[numValue]}
+                                  onValueChange={(vals) => field.onChange(String(vals[0]))}
+                                  data-testid="slider-begin-message-delay"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
+                      />
+
+                      {/* Inactivity Timeout */}
+                      <FormField
+                        control={form.control}
+                        name="inactivityTimeoutMs"
+                        render={({ field }) => {
+                          const numValue = parseInt(field.value) || 30000;
+                          return (
+                            <FormItem>
+                              <div className="flex items-center justify-between">
+                                <FormLabel>Inactivity Timeout</FormLabel>
+                                <span className="text-sm text-muted-foreground">{(numValue / 1000).toFixed(0)}s</span>
+                              </div>
+                              <FormDescription>
+                                End call after this much silence from the caller
+                              </FormDescription>
+                              <FormControl>
+                                <Slider
+                                  min={10000}
+                                  max={120000}
+                                  step={5000}
+                                  value={[numValue]}
+                                  onValueChange={(vals) => field.onChange(String(vals[0]))}
+                                  data-testid="slider-inactivity-timeout"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
+                      />
+
+                      {/* Max Call Duration */}
+                      <FormField
+                        control={form.control}
+                        name="maxCallDurationMs"
+                        render={({ field }) => {
+                          const numValue = parseInt(field.value) || 3600000;
+                          return (
+                            <FormItem>
+                              <div className="flex items-center justify-between">
+                                <FormLabel>Max Call Duration</FormLabel>
+                                <span className="text-sm text-muted-foreground">{(numValue / 60000).toFixed(0)} min</span>
+                              </div>
+                              <FormDescription>
+                                Maximum length of a single call before automatic disconnect
+                              </FormDescription>
+                              <FormControl>
+                                <Slider
+                                  min={60000}
+                                  max={3600000}
+                                  step={60000}
+                                  value={[numValue]}
+                                  onValueChange={(vals) => field.onChange(String(vals[0]))}
+                                  data-testid="slider-max-call-duration"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
+                      />
+
+                      {/* Reminder Settings */}
+                      <div className="rounded-lg border p-4 space-y-4">
+                        <div className="font-medium">Reminder Settings</div>
+                        <FormField
+                          control={form.control}
+                          name="reminderTriggerMs"
+                          render={({ field }) => {
+                            const numValue = parseInt(field.value) || 10000;
+                            return (
+                              <FormItem>
+                                <div className="flex items-center justify-between">
+                                  <FormLabel>Reminder Trigger</FormLabel>
+                                  <span className="text-sm text-muted-foreground">{(numValue / 1000).toFixed(0)}s</span>
+                                </div>
+                                <FormDescription>
+                                  Send reminder after this much silence
+                                </FormDescription>
+                                <FormControl>
+                                  <Slider
+                                    min={5000}
+                                    max={30000}
+                                    step={1000}
+                                    value={[numValue]}
+                                    onValueChange={(vals) => field.onChange(String(vals[0]))}
+                                    data-testid="slider-reminder-trigger"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            );
+                          }}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="reminderMaxCount"
+                          render={({ field }) => {
+                            const numValue = parseInt(field.value) || 2;
+                            return (
+                              <FormItem>
+                                <div className="flex items-center justify-between">
+                                  <FormLabel>Max Reminders</FormLabel>
+                                  <span className="text-sm text-muted-foreground">{numValue}</span>
+                                </div>
+                                <FormDescription>
+                                  Maximum number of reminders before ending call
+                                </FormDescription>
+                                <FormControl>
+                                  <Slider
+                                    min={1}
+                                    max={5}
+                                    step={1}
+                                    value={[numValue]}
+                                    onValueChange={(vals) => field.onChange(String(vals[0]))}
+                                    data-testid="slider-reminder-max-count"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            );
+                          }}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="reminderMessage"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Reminder Message</FormLabel>
+                              <FormDescription>What the agent says to prompt the caller</FormDescription>
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  placeholder="I'm still here. Do you have any questions?"
+                                  data-testid="input-reminder-message"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      {/* Voicemail Detection */}
+                      <FormField
+                        control={form.control}
+                        name="voicemailDetection"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-base">Voicemail Detection</FormLabel>
+                              <FormDescription>
+                                Detect voicemail and leave a message automatically
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                data-testid="switch-voicemail-detection"
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      {form.watch("voicemailDetection") && (
+                        <FormField
+                          control={form.control}
+                          name="voicemailMessage"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Voicemail Message</FormLabel>
+                              <FormDescription>Message to leave on voicemail</FormDescription>
+                              <FormControl>
+                                <Textarea
+                                  {...field}
+                                  placeholder="Hi, this is a message from your AI assistant..."
+                                  className="min-h-[100px]"
+                                  data-testid="textarea-voicemail-message"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      {/* Warm Transfer */}
+                      <FormField
+                        control={form.control}
+                        name="warmTransferEnabled"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-base">Enable Warm Transfer</FormLabel>
+                              <FormDescription>
+                                Transfer calls to a human when requested
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                data-testid="switch-warm-transfer"
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      {form.watch("warmTransferEnabled") && (
+                        <div className="space-y-4">
+                          <FormField
+                            control={form.control}
+                            name="warmTransferNumber"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Transfer Phone Number</FormLabel>
+                                <FormDescription>Phone number to transfer calls to</FormDescription>
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    placeholder="+1 (555) 123-4567"
+                                    data-testid="input-warm-transfer-number"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="warmTransferMessage"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Transfer Message</FormLabel>
+                                <FormDescription>What the agent says before transferring</FormDescription>
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    placeholder="I'm transferring you to a team member now..."
+                                    data-testid="input-warm-transfer-message"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      )}
+                    </form>
+                  </Form>
                 </TabsContent>
               </Tabs>
             </CardContent>

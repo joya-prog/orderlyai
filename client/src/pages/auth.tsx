@@ -120,24 +120,22 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="h-screen flex overflow-hidden">
       {/* Left Side - Auth Forms */}
-      <div className="w-full lg:w-1/2 flex flex-col bg-white dark:bg-gray-950 p-8 lg:p-12">
-        {/* Logo */}
-        <div className="flex items-center gap-3 mb-12">
-          <img 
-            src={orderlyLogo} 
-            alt="Orderly AI" 
-            className="h-10 w-10 rounded-lg object-cover"
-            data-testid="img-logo-auth"
-          />
-          <span className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
-            Orderly AI
-          </span>
-        </div>
-
-        {/* Auth Form Container */}
-        <div className="flex-1 flex flex-col justify-center max-w-md mx-auto w-full">
+      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center bg-white dark:bg-gray-950 p-6 lg:p-10 overflow-y-auto">
+        <div className="w-full max-w-md">
+          {/* Logo */}
+          <div className="flex items-center gap-3 mb-8">
+            <img 
+              src={orderlyLogo} 
+              alt="Orderly AI" 
+              className="h-10 w-10 rounded-lg object-cover"
+              data-testid="img-logo-auth"
+            />
+            <span className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
+              Orderly AI
+            </span>
+          </div>
           <div className="mb-8">
             <h1 className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-white mb-3" style={{ fontFamily: "'Inter', sans-serif" }}>
               {isLoginMode ? "Welcome Back" : "Get Started"}
@@ -288,7 +286,7 @@ export default function Auth() {
             </Button>
           </div>
 
-          <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-8">
+          <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
             {isLoginMode ? "Don't Have An Account? " : "Already have an account? "}
             <button
               type="button"
@@ -303,21 +301,21 @@ export default function Auth() {
       </div>
 
       {/* Right Side - Pricing Calculator */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 p-12 flex-col overflow-y-auto">
-        <div className="flex-1 flex flex-col justify-center max-w-xl mx-auto w-full">
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-white mb-3" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 p-6 flex-col items-center justify-center">
+        <div className="w-full max-w-sm">
+          <div className="mb-4">
+            <h2 className="text-xl font-bold text-white mb-1" style={{ fontFamily: "'Inter', sans-serif" }}>
               Calculate Your Savings
             </h2>
-            <p className="text-white/70 text-lg">
-              See how much you'll save with AI-powered phone agents for your restaurant.
+            <p className="text-white/70 text-xs">
+              See how much you'll save with AI-powered phone agents.
             </p>
           </div>
 
           <PricingCalculator variant="compact" />
 
-          <p className="text-white/50 text-xs mt-6 text-center">
-            Pricing is estimated based on usage. Actual costs may vary.
+          <p className="text-white/50 text-[10px] mt-3 text-center">
+            Pricing is estimated. Actual costs may vary.
           </p>
         </div>
       </div>

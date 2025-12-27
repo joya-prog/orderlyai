@@ -122,7 +122,7 @@ export default function Auth() {
   return (
     <div className="h-screen flex overflow-hidden">
       {/* Left Side - Auth Forms */}
-      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center bg-white dark:bg-gray-950 p-6 lg:p-10 overflow-y-auto">
+      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center bg-white dark:bg-gray-950 p-6 lg:p-10 overflow-hidden">
         <div className="w-full max-w-md">
           {/* Logo */}
           <div className="flex items-center gap-3 mb-8">

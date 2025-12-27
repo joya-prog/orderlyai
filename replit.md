@@ -31,7 +31,21 @@ Preferred communication style: Simple, everyday language.
 - **Runtime**: Node.js with Express.js (TypeScript, ES modules).
 - **API Design**: RESTful API with authentication middleware, organized routes, and an abstraction layer for database operations.
 - **Session Management**: Express sessions with PostgreSQL storage.
-- **Authentication**: OpenID Connect (OIDC) via Replit Auth using Passport.js.
+- **Authentication**: Native Orderly AI authentication with two options:
+  - **Email/Password**: Local authentication using Passport.js local strategy with bcrypt password hashing (12 salt rounds)
+  - **Google OAuth**: OAuth 2.0 via passport-google-oauth20 with CSRF-protected state tokens stored in session
+- **Auth Routes**:
+  - `POST /api/auth/register` - Create account with email/password
+  - `POST /api/auth/login` - Login with email/password
+  - `GET /api/auth/google` - Initiate Google OAuth flow
+  - `GET /api/auth/google/callback` - Google OAuth callback with state validation
+  - `GET /api/auth/user` - Get current authenticated user
+  - `POST /api/auth/logout` - Logout current user
+- **Auth Environment Variables**:
+  - `SESSION_SECRET` - Required for session encryption
+  - `GOOGLE_CLIENT_ID` - Optional, for Google OAuth
+  - `GOOGLE_CLIENT_SECRET` - Optional, for Google OAuth
+  - `GOOGLE_OAUTH_CALLBACK_URL` - Optional, custom callback URL for Google OAuth
 
 ### Data Storage
 

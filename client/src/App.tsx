@@ -11,7 +11,6 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/useAuth";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import NotFound from "@/pages/not-found";
-import Landing from "@/pages/landing";
 import Auth from "@/pages/auth";
 import Onboarding from "@/pages/onboarding";
 import Agents from "@/pages/agents";
@@ -33,13 +32,13 @@ function Router() {
     return null;
   }
 
-  // Show landing page for unauthenticated users
+  // Show auth page for unauthenticated users
   if (!isAuthenticated) {
     return (
       <Switch>
-        <Route path="/" component={Landing} />
+        <Route path="/" component={Auth} />
         <Route path="/auth" component={Auth} />
-        <Route component={Landing} />
+        <Route component={Auth} />
       </Switch>
     );
   }

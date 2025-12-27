@@ -5,6 +5,7 @@ import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import connectPg from "connect-pg-simple";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { storage } from "./storage";
 
 const SALT_ROUNDS = 12;
@@ -98,9 +99,9 @@ export async function setupAuth(app: Express) {
   );
 
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-    const callbackURL = process.env.NODE_ENV === 'production'
-      ? `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}/api/auth/google/callback`
-      : `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}/api/auth/google/callback`;
+    // Allow explicit callback URL override, otherwise auto-detect from Replit domain
+    const callbackURL = process.env.GOOGLE_OAUTH_CALLBACK_URL || 
+      `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}/api/auth/google/callback`;
     
     passport.use(
       new GoogleStrategy(
@@ -215,19 +216,73 @@ export async function setupAuth(app: Express) {
     })(req, res, next);
   });
 
-  app.get("/api/auth/google", (req, res, next) => {
+  app.get("/api/auth/google", (req: any, res, next) => {
     if (!process.env.GOOGLE_CLIENT_ID) {
       return res.status(501).json({ message: "Google authentication not configured" });
     }
-    passport.authenticate("google", { scope: ["profile", "email"] })(req, res, next);
+    
+    // Generate CSRF state token and store in session
+    const state = crypto.randomBytes(32).toString('hex');
+    req.session.oauthState = state;
+    req.session.oauthStateCreatedAt = Date.now();
+    
+    // Force session save before redirect
+    req.session.save((err: any) => {
+      if (err) {
+        console.error("Failed to save OAuth state to session:", err);
+        return res.redirect("/auth?error=session_error");
+      }
+      
+      passport.authenticate("google", { 
+        scope: ["profile", "email"],
+        state 
+      })(req, res, next);
+    });
   });
 
-  app.get("/api/auth/google/callback", 
-    passport.authenticate("google", { failureRedirect: "/login?error=google_failed" }),
-    (req, res) => {
-      res.redirect("/");
+  app.get("/api/auth/google/callback", (req: any, res, next) => {
+    // Validate CSRF state
+    const state = req.query.state as string;
+    if (!state) {
+      console.error("OAuth callback missing state parameter");
+      return res.redirect("/auth?error=missing_state");
     }
-  );
+    
+    // Validate state matches session
+    const storedState = req.session.oauthState;
+    const stateCreatedAt = req.session.oauthStateCreatedAt;
+    
+    if (!storedState) {
+      console.error("OAuth callback: no state in session");
+      return res.redirect("/auth?error=session_expired");
+    }
+    
+    if (storedState !== state) {
+      console.error("OAuth callback: state mismatch - potential CSRF");
+      delete req.session.oauthState;
+      delete req.session.oauthStateCreatedAt;
+      return res.redirect("/auth?error=state_mismatch");
+    }
+    
+    // Check state expiration (10 minutes)
+    const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+    if (stateCreatedAt && stateCreatedAt < tenMinutesAgo) {
+      console.error("OAuth callback: state expired");
+      delete req.session.oauthState;
+      delete req.session.oauthStateCreatedAt;
+      return res.redirect("/auth?error=state_expired");
+    }
+    
+    // Clear state after validation (one-time use)
+    delete req.session.oauthState;
+    delete req.session.oauthStateCreatedAt;
+    
+    passport.authenticate("google", { 
+      failureRedirect: "/auth?error=google_failed" 
+    })(req, res, next);
+  }, (req, res) => {
+    res.redirect("/");
+  });
 
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
     try {

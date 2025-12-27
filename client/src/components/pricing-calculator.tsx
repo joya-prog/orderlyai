@@ -61,7 +61,11 @@ const AI_TIERS: AITier[] = [
   },
 ];
 
-export function PricingCalculator() {
+interface PricingCalculatorProps {
+  variant?: "default" | "compact";
+}
+
+export function PricingCalculator({ variant = "default" }: PricingCalculatorProps) {
   // Restaurant-focused inputs
   const [callsPerDay, setCallsPerDay] = useState(20);
   const [avgCallDuration, setAvgCallDuration] = useState(4);
@@ -89,6 +93,172 @@ export function PricingCalculator() {
   const dailyBaseCost = totalBaseFee / 30;
   const dailyCost = dailyBaseCost + dailyUsageCost;
 
+  // Compact variant for auth page (dark theme on gradient background)
+  if (variant === "compact") {
+    // Only show first 4 tiers in compact mode
+    const compactTiers = AI_TIERS.slice(0, 4);
+    
+    return (
+      <div className="space-y-6">
+        {/* Calls Per Day Slider */}
+        <div>
+          <div className="flex items-baseline justify-between gap-2 mb-3">
+            <label className="text-sm font-medium text-white/90">
+              Calls per day
+            </label>
+            <span className="text-2xl font-bold text-white" data-testid="compact-calls-value">
+              {callsPerDay}
+            </span>
+          </div>
+          <Slider
+            value={[callsPerDay]}
+            onValueChange={(value) => setCallsPerDay(value[0])}
+            min={5}
+            max={50}
+            step={5}
+            className="mb-2 [&_[role=slider]]:bg-white [&_[role=slider]]:border-white [&_.bg-primary]:bg-white/80"
+            data-testid="compact-slider-calls"
+          />
+          <div className="flex justify-between text-xs text-white/60">
+            <span>5/day</span>
+            <span>{(callsPerDay * 30).toLocaleString()} calls/month</span>
+            <span>50/day</span>
+          </div>
+        </div>
+
+        {/* Average Call Duration Slider */}
+        <div>
+          <div className="flex items-baseline justify-between gap-2 mb-3">
+            <label className="text-sm font-medium text-white/90">
+              Avg call duration
+            </label>
+            <span className="text-2xl font-bold text-white" data-testid="compact-duration-value">
+              {avgCallDuration} min
+            </span>
+          </div>
+          <Slider
+            value={[avgCallDuration]}
+            onValueChange={(value) => setAvgCallDuration(value[0])}
+            min={1}
+            max={8}
+            step={0.5}
+            className="mb-2 [&_[role=slider]]:bg-white [&_[role=slider]]:border-white [&_.bg-primary]:bg-white/80"
+            data-testid="compact-slider-duration"
+          />
+          <div className="flex justify-between text-xs text-white/60">
+            <span>1 min</span>
+            <span>8 min</span>
+          </div>
+        </div>
+
+        {/* Locations Slider */}
+        <div>
+          <div className="flex items-baseline justify-between gap-2 mb-3">
+            <label className="text-sm font-medium text-white/90">
+              Locations
+            </label>
+            <span className="text-2xl font-bold text-white" data-testid="compact-locations-value">
+              {locations}
+            </span>
+          </div>
+          <Slider
+            value={[locations]}
+            onValueChange={(value) => setLocations(value[0])}
+            min={1}
+            max={10}
+            step={1}
+            className="mb-2 [&_[role=slider]]:bg-white [&_[role=slider]]:border-white [&_.bg-primary]:bg-white/80"
+            data-testid="compact-slider-locations"
+          />
+          <div className="flex justify-between text-xs text-white/60">
+            <span>1 location</span>
+            <span>10 locations</span>
+          </div>
+        </div>
+
+        {/* AI Tier Selection */}
+        <div>
+          <label className="text-sm font-medium text-white/90 block mb-3">
+            AI Model
+          </label>
+          <div className="space-y-2">
+            {compactTiers.map((tier) => (
+              <div
+                key={tier.id}
+                className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${
+                  selectedTier === tier.id 
+                    ? "bg-white/20 border border-white/40" 
+                    : "bg-white/5 border border-white/10 hover:bg-white/10"
+                }`}
+                onClick={() => setSelectedTier(tier.id)}
+                data-testid={`compact-tier-${tier.id}`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    selectedTier === tier.id ? "border-white" : "border-white/50"
+                  }`}>
+                    {selectedTier === tier.id && (
+                      <div className="w-2 h-2 rounded-full bg-white" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm text-white">{tier.label}</span>
+                      {tier.isDefault && (
+                        <Badge className="text-xs bg-white/20 text-white border-0 hover:bg-white/20">Best Value</Badge>
+                      )}
+                    </div>
+                    <div className="text-xs text-white/60">{tier.description.split(' for ')[0]}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm text-white">${tier.costPerMinute.toFixed(2)}/min</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-white/50 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="left" className="max-w-xs">
+                      <p className="text-xs font-medium mb-1">Why it's priced this way:</p>
+                      <p className="text-xs">{tier.whyPriced}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Cost Breakdown */}
+        <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 p-5 space-y-4">
+          <div className="flex justify-between items-center">
+            <span className="text-white/80 text-sm">Base subscription</span>
+            <span className="text-white font-semibold">${totalBaseFee}/mo</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-white/80 text-sm">Usage ({(monthlyMinutesPerLocation * locations).toLocaleString()} min)</span>
+            <span className="text-white font-semibold">${totalUsageCost.toFixed(2)}/mo</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-white/80 text-sm">Cost per call</span>
+            <span className="text-white font-semibold">${costPerCall.toFixed(2)}</span>
+          </div>
+          <div className="border-t border-white/20 pt-4">
+            <div className="flex justify-between items-center">
+              <span className="text-white font-medium">Estimated Monthly</span>
+              <span className="text-3xl font-bold text-white" data-testid="compact-total-cost">${totalMonthlyCost.toFixed(0)}</span>
+            </div>
+            {locations > 1 && (
+              <div className="text-white/60 text-xs mt-1 text-right">
+                for {locations} locations
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Default variant
   return (
     <Card className="bg-gradient-to-br from-primary/10 via-primary/5 to-background border-primary/20">
       <CardHeader>

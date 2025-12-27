@@ -49,12 +49,27 @@ export async function setupAuth(app: Express) {
     done(null, { id: user.id, email: user.email });
   });
 
-  passport.deserializeUser(async (data: { id: string; email: string }, done) => {
+  passport.deserializeUser(async (data: any, done) => {
     try {
-      const user = await storage.getUser(data.id);
-      done(null, user);
+      // Handle new format: { id, email }
+      if (data && data.id) {
+        const user = await storage.getUser(data.id);
+        if (user) {
+          return done(null, user);
+        }
+      }
+      // Handle old Replit Auth format: { claims: { sub: ... } }
+      if (data && data.claims && data.claims.sub) {
+        const user = await storage.getUser(data.claims.sub);
+        if (user) {
+          return done(null, user);
+        }
+      }
+      // Session is invalid - clear it and continue without user
+      done(null, false);
     } catch (error) {
-      done(error, null);
+      console.error("Deserialize user error:", error);
+      done(null, false);
     }
   });
 
@@ -126,7 +141,7 @@ export async function setupAuth(app: Express) {
 
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { email, password, firstName, lastName } = req.body;
+      const { email, password, name, firstName, lastName } = req.body;
       
       if (!email || !password) {
         return res.status(400).json({ message: "Email and password are required" });
@@ -141,12 +156,21 @@ export async function setupAuth(app: Express) {
         return res.status(400).json({ message: "An account with this email already exists" });
       }
       
+      // Parse name into first and last name
+      let first = firstName;
+      let last = lastName;
+      if (name && !firstName) {
+        const nameParts = name.trim().split(/\s+/);
+        first = nameParts[0] || '';
+        last = nameParts.slice(1).join(' ') || '';
+      }
+      
       const passwordHash = await hashPassword(password);
       const user = await storage.createUser({
         email,
         passwordHash,
-        firstName,
-        lastName,
+        firstName: first,
+        lastName: last,
         authProvider: 'local',
       });
       

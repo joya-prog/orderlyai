@@ -20,10 +20,10 @@ export default function Landing() {
           </div>
           <div className="flex items-center gap-3">
             <Button variant="ghost" asChild data-testid="button-login-header">
-              <a href="/api/login">Sign In</a>
+              <a href="/auth">Sign In</a>
             </Button>
             <Button asChild data-testid="button-get-started-header">
-              <a href="/api/login">Get Started</a>
+              <a href="/auth">Get Started</a>
             </Button>
           </div>
         </div>
@@ -46,13 +46,13 @@ export default function Landing() {
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button size="lg" className="h-12 px-6 text-base" asChild data-testid="button-get-started-hero">
-                  <a href="/api/login" className="flex items-center gap-2">
+                  <a href="/api/auth/google" className="flex items-center gap-2">
                     <SiGoogle className="h-5 w-5" />
                     Continue with Google
                   </a>
                 </Button>
                 <Button size="lg" variant="outline" className="h-12 px-6 text-base" asChild data-testid="button-login-email">
-                  <a href="/api/login" className="flex items-center gap-2">
+                  <a href="/auth" className="flex items-center gap-2">
                     Sign in with Email
                     <ArrowRight className="h-4 w-4" />
                   </a>
@@ -216,13 +216,13 @@ export default function Landing() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" variant="secondary" className="h-12 px-8 text-base" asChild data-testid="button-get-started-cta">
-                <a href="/api/login" className="flex items-center gap-2">
+                <a href="/api/auth/google" className="flex items-center gap-2">
                   <SiGoogle className="h-5 w-5" />
                   Continue with Google
                 </a>
               </Button>
               <Button size="lg" variant="outline" className="h-12 px-8 text-base border-primary-foreground/20 hover:bg-primary-foreground/10" asChild data-testid="button-login-email-cta">
-                <a href="/api/login">
+                <a href="/auth">
                   Sign in with Email
                 </a>
               </Button>

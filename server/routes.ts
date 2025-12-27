@@ -1,9 +1,8 @@
-// Reference: javascript_log_in_with_replit blueprint
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer } from "ws";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated } from "./auth";
 import { generateAgentResponse, transcribeAudio, synthesizeSpeech, listOpenAIVoices, VoiceConfig, buildFlowContext } from "./openai";
 import { handleTwilioWebSocket, generateTwiML, getActiveCalls, handleBrowserTestWebSocket } from "./voiceCallHandler";
 import * as retell from "./retell";
@@ -32,7 +31,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
       res.json(user);
     } catch (error) {
@@ -44,7 +43,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Onboarding route
   app.post('/api/onboarding/complete', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       
       const validationResult = onboardingSchema.safeParse(req.body);
       if (!validationResult.success) {
@@ -73,7 +72,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Agent routes
   app.get("/api/agents", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const agents = await storage.getAgents(userId);
       res.json(agents);
     } catch (error) {
@@ -89,7 +88,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Agent not found" });
       }
       // Verify ownership
-      if (agent.userId !== req.user.claims.sub) {
+      if (agent.userId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
       res.json(agent);
@@ -101,7 +100,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/agents", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const data = insertAgentSchema.parse({ ...req.body, userId });
       
       // Create agent in our database first
@@ -180,7 +179,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!agent) {
         return res.status(404).json({ message: "Agent not found" });
       }
-      if (agent.userId !== req.user.claims.sub) {
+      if (agent.userId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
       
@@ -255,7 +254,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!agent) {
         return res.status(404).json({ message: "Agent not found" });
       }
-      if (agent.userId !== req.user.claims.sub) {
+      if (agent.userId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
       
@@ -291,7 +290,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!agent) {
         return res.status(404).json({ message: "Agent not found" });
       }
-      if (agent.userId !== req.user.claims.sub) {
+      if (agent.userId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
 
@@ -357,7 +356,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all knowledge items for the current user (across all agents)
   app.get("/api/knowledge", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const items = await storage.getAllKnowledgeBase(userId);
       res.json(items);
     } catch (error) {
@@ -369,7 +368,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get knowledge items for a specific agent
   app.get("/api/agents/:id/knowledge", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       // Storage layer enforces ownership check internally
       const items = await storage.getKnowledgeBase(req.params.id, userId);
       res.json(items);
@@ -382,7 +381,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create knowledge item (can specify agentId in body)
   app.post("/api/knowledge", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const data = insertKnowledgeBaseSchema.parse(req.body);
       // Storage layer enforces ownership check internally
       const item = await storage.createKnowledgeBase(data, userId);
@@ -399,7 +398,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Bulk import knowledge items with transaction
   app.post("/api/knowledge/bulk-import", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { items } = req.body;
 
       if (!Array.isArray(items) || items.length === 0) {
@@ -423,7 +422,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/agents/:id/knowledge", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const data = insertKnowledgeBaseSchema.parse({ ...req.body, agentId: req.params.id });
       // Storage layer enforces ownership check internally
       const item = await storage.createKnowledgeBase(data, userId);
@@ -439,7 +438,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/knowledge/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       
       // Validate and sanitize update data using dedicated schema
       // This schema explicitly whitelists only category/question/answer
@@ -460,7 +459,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/knowledge/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       // Storage layer enforces ownership check internally
       const success = await storage.deleteKnowledgeBase(req.params.id, userId);
       if (!success) {
@@ -596,14 +595,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!agent) {
         return res.status(404).json({ message: "Agent not found" });
       }
-      if (agent.userId !== req.user.claims.sub) {
+      if (agent.userId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
 
       const { message, history = [] } = req.body;
 
       // Get knowledge base for context - storage layer enforces ownership
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const knowledgeItems = await storage.getKnowledgeBase(req.params.id, userId);
       const knowledgeContext = knowledgeItems
         .map((item) => `Q: ${item.question}\nA: ${item.answer}`)
@@ -649,7 +648,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!agent) {
         return res.status(404).json({ message: "Agent not found" });
       }
-      if (agent.userId !== req.user.claims.sub) {
+      if (agent.userId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
 
@@ -669,7 +668,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!agent) {
         return res.status(404).json({ message: "Agent not found" });
       }
-      if (agent.userId !== req.user.claims.sub) {
+      if (agent.userId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
 
@@ -692,7 +691,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!agent) {
         return res.status(404).json({ message: "Agent not found" });
       }
-      if (agent.userId !== req.user.claims.sub) {
+      if (agent.userId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
 
@@ -803,7 +802,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Template not found" });
       }
 
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       let agent = await storage.createAgent({
         userId,
         name: `${template.name} (Copy)`,
@@ -881,7 +880,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!agent) {
         return res.status(404).json({ message: "Agent not found" });
       }
-      if (agent.userId !== req.user.claims.sub) {
+      if (agent.userId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
       const nodes = await storage.getFlowNodes(req.params.id);
@@ -898,7 +897,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!agent) {
         return res.status(404).json({ message: "Agent not found" });
       }
-      if (agent.userId !== req.user.claims.sub) {
+      if (agent.userId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
       
@@ -940,7 +939,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!agent) {
         return res.status(404).json({ message: "Agent not found" });
       }
-      if (agent.userId !== req.user.claims.sub) {
+      if (agent.userId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
       const connections = await storage.getFlowConnections(req.params.id);
@@ -957,7 +956,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!agent) {
         return res.status(404).json({ message: "Agent not found" });
       }
-      if (agent.userId !== req.user.claims.sub) {
+      if (agent.userId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
 
@@ -986,7 +985,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Contact routes
   app.get("/api/contacts", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const searchQuery = req.query.search as string | undefined;
       const contacts = await storage.getContacts(userId, searchQuery);
       res.json(contacts);
@@ -1003,7 +1002,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Contact not found" });
       }
       // Verify ownership
-      if (contact.userId !== req.user.claims.sub) {
+      if (contact.userId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
       res.json(contact);
@@ -1015,7 +1014,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/contacts", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const validated = insertContactSchema.omit({ userId: true }).parse(req.body);
       const contact = await storage.createContact({ ...validated, userId });
       res.json(contact);
@@ -1027,7 +1026,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const contact = await storage.updateContact(req.params.id, userId, req.body);
       if (!contact) {
         return res.status(404).json({ message: "Contact not found or access denied" });
@@ -1041,7 +1040,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const success = await storage.deleteContact(req.params.id, userId);
       if (!success) {
         return res.status(404).json({ message: "Contact not found or access denied" });
@@ -1056,7 +1055,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Phone number routes
   app.get("/api/phone-numbers", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const phoneNumbers = await storage.getPhoneNumbers(userId);
       res.json(phoneNumbers);
     } catch (error) {
@@ -1093,7 +1092,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(503).json({ message: "Twilio not configured" });
       }
 
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { phoneNumber, friendlyName } = req.body;
 
       if (!phoneNumber) {
@@ -1132,7 +1131,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(503).json({ message: "Twilio not configured" });
       }
 
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { 
         phoneNumber, 
         friendlyName, 
@@ -1281,7 +1280,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/phone-numbers/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       
       // Validate with Zod schema
       const validated = updatePhoneNumberSchema.parse(req.body);
@@ -1315,7 +1314,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/phone-numbers/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const phoneNumber = await storage.getPhoneNumber(req.params.id);
 
       if (!phoneNumber || phoneNumber.userId !== userId) {
@@ -1409,7 +1408,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Integration routes
   app.get("/api/integrations", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const integrations = await storage.getIntegrations(userId);
       res.json(integrations);
     } catch (error) {
@@ -1420,7 +1419,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/integrations", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const data = insertIntegrationConfigSchema.parse({ ...req.body, userId });
       const integration = await storage.createIntegration(data);
       res.json(integration);
@@ -1432,7 +1431,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/integrations/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const integration = await storage.updateIntegration(req.params.id, userId, req.body);
       if (!integration) {
         return res.status(404).json({ message: "Integration not found or access denied" });
@@ -1446,7 +1445,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/integrations/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const success = await storage.deleteIntegration(req.params.id, userId);
       if (!success) {
         return res.status(404).json({ message: "Integration not found or access denied" });
@@ -1460,7 +1459,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Square OAuth routes
   app.get("/api/integrations/square/oauth/init", isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = req.user.id;
     const clientId = process.env.SQUARE_CLIENT_ID;
     const redirectUri = process.env.SQUARE_OAUTH_REDIRECT_URI;
     
@@ -1641,7 +1640,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get catalog/menu items
   app.get("/api/square/catalog", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const tokenInfo = await getSquareAccessToken(userId);
 
       if (!tokenInfo) {
@@ -1673,7 +1672,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get locations
   app.get("/api/square/locations", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const tokenInfo = await getSquareAccessToken(userId);
 
       if (!tokenInfo) {
@@ -1705,7 +1704,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Search/create customers
   app.post("/api/square/customers/search", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const tokenInfo = await getSquareAccessToken(userId);
 
       if (!tokenInfo) {
@@ -1738,7 +1737,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/square/customers", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const tokenInfo = await getSquareAccessToken(userId);
 
       if (!tokenInfo) {
@@ -1772,7 +1771,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create order
   app.post("/api/square/orders", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const tokenInfo = await getSquareAccessToken(userId);
 
       if (!tokenInfo) {
@@ -1806,7 +1805,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create payment link (for "pay now" flow)
   app.post("/api/square/payment-links", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const tokenInfo = await getSquareAccessToken(userId);
 
       if (!tokenInfo) {
@@ -1840,7 +1839,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Process payment directly
   app.post("/api/square/payments", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const tokenInfo = await getSquareAccessToken(userId);
 
       if (!tokenInfo) {
@@ -1873,7 +1872,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Toast OAuth routes
   app.get("/api/integrations/toast/oauth/init", isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = req.user.id;
     const clientId = process.env.TOAST_CLIENT_ID;
     const redirectUri = process.env.TOAST_OAUTH_REDIRECT_URI;
     
@@ -1978,7 +1977,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Analytics routes
   app.get("/api/analytics/events", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { agentId, eventType, startDate, endDate } = req.query;
       
       const filters: any = {};
@@ -1997,7 +1996,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/analytics/events", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const data = insertAnalyticsEventSchema.parse({ ...req.body, userId });
       const event = await storage.createAnalyticsEvent(data);
       res.json(event);
@@ -2009,7 +2008,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/analytics/overview", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { startDate, endDate } = req.query;
 
       const filters: any = {};
@@ -2027,7 +2026,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Call logs routes
   app.get("/api/call-logs", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { startDate, endDate } = req.query;
       
       const start = startDate ? new Date(startDate as string) : undefined;
@@ -2043,7 +2042,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/call-logs/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const log = await storage.getCallLogById(req.params.id);
       
       if (!log) {
@@ -2063,7 +2062,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Subscription routes
   app.get("/api/subscription", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       let subscription = await storage.getSubscription(userId);
 
       // If no subscription exists, create a default trial subscription
@@ -2106,7 +2105,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/subscription", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       
       // Validate plan type
       const validPlans = ['trial', 'starter', 'professional', 'business', 'enterprise'];
@@ -2185,7 +2184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Usage metrics routes
   app.get("/api/usage-metrics", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const metrics = await storage.getCurrentUsageMetrics(userId);
       
       if (!metrics) {
@@ -2226,7 +2225,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create Stripe checkout session for subscription
   app.post("/api/billing/create-checkout-session", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { planType, priceId } = req.body;
 
       // Validate planType against whitelist
@@ -2304,7 +2303,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create Stripe portal session for subscription management
   app.post("/api/billing/create-portal-session", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       
       const stripe = await getUncachableStripeClient();
       if (!stripe) {
@@ -2331,7 +2330,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get invoices for user
   app.get("/api/billing/invoices", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const invoices = await storage.getInvoices(userId);
       res.json(invoices);
     } catch (error) {
@@ -2343,7 +2342,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get usage ledger entries for billing display
   app.get("/api/billing/usage", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const subscription = await storage.getSubscription(userId);
       
       if (!subscription) {
@@ -2377,7 +2376,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get call logs for billing/analytics
   app.get("/api/billing/call-logs", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { startDate, endDate } = req.query;
       
       const logs = await storage.getCallLogsForUser(
@@ -2598,7 +2597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get active calls for monitoring
   app.get("/api/voice/calls/active", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const activeCalls = getActiveCalls();
       
       // Filter to only show calls for this user's agents

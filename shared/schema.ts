@@ -22,13 +22,19 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-// User storage table - required for Replit Auth
+// User storage table
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
+  
+  // Authentication fields
+  passwordHash: varchar("password_hash"), // For native email/password auth
+  authProvider: varchar("auth_provider").default('local'), // 'local', 'google', 'replit'
+  googleId: varchar("google_id").unique(), // Google OAuth user ID
+  emailVerified: boolean("email_verified").default(false),
   
   // Restaurant onboarding fields
   restaurantName: varchar("restaurant_name"),

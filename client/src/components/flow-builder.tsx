@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useRef, DragEvent } from 'react';
+import { useCallback, useState, useEffect, useRef, DragEvent, useMemo } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -335,21 +335,17 @@ const transitionColors: Record<string, { bg: string; text: string; handle: strin
 };
 
 // ============================================================================
-// CUSTOM NODE COMPONENT - Retell AI Style
+// CUSTOM NODE COMPONENT - Retell AI Conversation Style
 // ============================================================================
 
 function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id: string }) {
+  const [contentMode, setContentMode] = useState<'prompt' | 'static'>(data.contentMode || 'prompt');
   const nodeConfig = getNodeConfig(data.type);
-  const Icon = nodeConfig?.icon || MessageCircle;
-  const colorKey = (nodeConfig?.color || 'gray') as keyof typeof nodeColors;
-  const colors = nodeColors[colorKey];
+  const isStartNode = data.type === 'greeting';
+  const isEndNode = data.type === 'end';
   
   // Get transitions from data or use defaults
   const transitions: Transition[] = data.transitions || nodeConfig?.defaultTransitions || [];
-  
-  // Check if this is an end node (no transitions)
-  const isEndNode = data.type === 'end';
-  const isStartNode = data.type === 'greeting';
   
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -364,10 +360,17 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
     }
   };
 
-  const handleTransitionLabelChange = (transitionId: string, newLabel: string) => {
+  const handleContentModeChange = (mode: 'prompt' | 'static') => {
+    setContentMode(mode);
+    if (data.onUpdate) {
+      data.onUpdate(id, { contentMode: mode });
+    }
+  };
+
+  const handleTransitionConditionChange = (transitionId: string, newCondition: string) => {
     const currentTransitions = data.transitions || nodeConfig?.defaultTransitions || [];
     const updated = currentTransitions.map((tr: Transition) =>
-      tr.id === transitionId ? { ...tr, label: newLabel } : tr
+      tr.id === transitionId ? { ...tr, condition: newCondition, label: newCondition || 'Describe the transition condition' } : tr
     );
     if (data.onUpdate) {
       data.onUpdate(id, { transitions: updated });
@@ -379,8 +382,9 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
     const currentTransitions = data.transitions || nodeConfig?.defaultTransitions || [];
     const newTransition: Transition = {
       id: `t-${Date.now()}`,
-      label: 'New Path',
-      color: 'blue',
+      label: 'Describe the transition condition',
+      condition: '',
+      color: 'emerald',
     };
     const updated = [...currentTransitions, newTransition];
     if (data.onUpdate) {
@@ -399,12 +403,12 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
   
   return (
     <div className="group relative">
-      {/* Top Handle - Entry point (not for start node) */}
+      {/* Left Handle - Entry point (not for start node) */}
       {!isStartNode && (
         <Handle 
           type="target" 
-          position={Position.Top} 
-          className="!w-3 !h-3 !bg-gray-400 dark:!bg-gray-500 !border-2 !border-white dark:!border-gray-800 !-top-1.5 !rounded-full"
+          position={Position.Left} 
+          className="!w-3 !h-3 !bg-white !border-2 !border-gray-300 dark:!border-gray-600 !-left-1.5 !rounded-full"
           id={`${id}-target`}
           isConnectable={true}
         />
@@ -413,207 +417,188 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
       {/* Node Card */}
       <div 
         className={`
-          ${selected ? 'w-[320px]' : 'w-[240px]'} bg-white dark:bg-gray-900 rounded-xl 
-          shadow-sm hover:shadow-md transition-all duration-200
-          border-2 ${selected ? 'border-indigo-500 shadow-indigo-100 dark:shadow-indigo-900/20' : 'border-gray-100 dark:border-gray-800'}
-          ${isStartNode ? 'ring-2 ring-emerald-500/20' : ''}
+          w-[340px] rounded-xl transition-all duration-200
+          ${selected 
+            ? 'bg-gradient-to-b from-indigo-50/80 to-white dark:from-indigo-950/30 dark:to-gray-900 border-2 border-indigo-400 dark:border-indigo-600 shadow-lg shadow-indigo-100 dark:shadow-indigo-900/20' 
+            : 'bg-gradient-to-b from-rose-50/50 to-white dark:from-rose-950/20 dark:to-gray-900 border border-rose-100 dark:border-rose-900/30 shadow-sm hover:shadow-md'
+          }
         `}
         data-testid={`flow-node-${data.type}`}
       >
         {/* Header */}
-        <div className="p-3 flex items-center gap-3">
-          <div className={`w-9 h-9 rounded-lg ${colors.bg} flex items-center justify-center flex-shrink-0 shadow-sm`}>
-            <Icon className="h-4.5 w-4.5 text-white" />
-          </div>
-          
-          <div className="flex-1 min-w-0">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Hash className="h-4 w-4 text-rose-400 dark:text-rose-500" />
             {selected ? (
               <Input
-                value={data.label || nodeConfig?.label || ''}
+                value={data.label || 'Conversation'}
                 onChange={(e) => handleFieldChange('label', e.target.value)}
                 onClick={(e) => e.stopPropagation()}
-                className="h-7 text-sm font-semibold"
-                placeholder={nodeConfig?.label}
+                className="h-6 text-sm font-medium bg-transparent border-none p-0 focus-visible:ring-0 w-32 nodrag"
+                placeholder="Conversation"
                 data-testid="input-node-label"
               />
             ) : (
-              <>
-                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{data.label || nodeConfig?.label}</p>
-                <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wide">{nodeConfig?.subtitle}</p>
-              </>
+              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                {data.label || 'Conversation'}
+              </span>
+            )}
+            {selected && (
+              <span className="text-rose-400">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </span>
             )}
           </div>
           
-          {selected && !isStartNode && (
-            <button
-              onClick={handleDelete}
-              className="w-6 h-6 rounded-md bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center justify-center transition-colors"
-              data-testid="button-delete-node"
-            >
-              <X className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
-            </button>
-          )}
+          <div className="flex items-center gap-1">
+            {selected && !isStartNode && (
+              <button
+                onClick={handleDelete}
+                className="w-5 h-5 rounded flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
+                data-testid="button-delete-node"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {selected && (
+              <button className="text-gray-400 hover:text-gray-600">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="12" cy="6" r="2" />
+                  <circle cx="12" cy="12" r="2" />
+                  <circle cx="12" cy="18" r="2" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Inline Edit Panel - Only when selected */}
+        {/* Content Mode Tabs - Only when selected */}
         {selected && (
-          <div className="px-3 pb-3 space-y-3 border-t border-gray-100 dark:border-gray-800 pt-3">
-            {/* Main Content / Instructions */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Instructions</label>
-              <Textarea
-                value={data.content || ''}
-                onChange={(e) => handleFieldChange('content', e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-                placeholder="What should the AI do at this step?"
-                className="min-h-[60px] resize-none text-xs nodrag"
-                data-testid="input-node-content"
-              />
+          <div className="px-4 pb-2">
+            <div className="flex gap-1 p-0.5 bg-gray-100 dark:bg-gray-800 rounded-lg w-fit">
+              <button
+                onClick={(e) => { e.stopPropagation(); handleContentModeChange('prompt'); }}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                  contentMode === 'prompt' 
+                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' 
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+                data-testid="button-mode-prompt"
+              >
+                Prompt
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleContentModeChange('static'); }}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                  contentMode === 'static' 
+                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' 
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+                data-testid="button-mode-static"
+              >
+                Static Sentence
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Content Area */}
+        <div className="px-4 pb-3">
+          <Textarea
+            value={data.content || ''}
+            onChange={(e) => handleFieldChange('content', e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            placeholder={contentMode === 'prompt' 
+              ? "Enter AI prompt instructions..." 
+              : "Enter the exact sentence to say..."
+            }
+            className={`min-h-[80px] resize-none text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg nodrag ${
+              selected ? '' : 'pointer-events-none'
+            }`}
+            data-testid="input-node-content"
+          />
+        </div>
+        
+        {/* Transitions Section */}
+        {!isEndNode && (
+          <div className="border-t border-gray-100 dark:border-gray-800">
+            {/* Transition Header */}
+            <div className="px-4 py-2 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+                <span className="text-xs font-medium">Transition</span>
+              </div>
+              <button
+                onClick={handleAddTransition}
+                className="w-5 h-5 rounded flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                data-testid="button-add-transition"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
             </div>
             
-            {/* Config Fields */}
-            {nodeConfig?.configFields?.map((field) => (
-              <div key={field.id} className="space-y-1">
-                <label className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{field.label}</label>
-                {field.type === 'textarea' ? (
-                  <Textarea
-                    value={data[field.id] || ''}
-                    onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    placeholder={field.placeholder}
-                    className="min-h-[50px] resize-none text-xs nodrag"
-                    data-testid={`input-${field.id}`}
+            {/* Transition Items */}
+            <div className="px-4 pb-3 space-y-2">
+              {transitions.map((t, index) => (
+                <div key={t.id} className="relative flex items-center gap-2 group/transition">
+                  <div className="flex items-center gap-2 flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400 flex-shrink-0">
+                      <circle cx="12" cy="12" r="1" />
+                      <circle cx="19" cy="12" r="1" />
+                      <circle cx="5" cy="12" r="1" />
+                    </svg>
+                    <Input
+                      value={t.condition || ''}
+                      onChange={(e) => handleTransitionConditionChange(t.id, e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      placeholder="Describe the transition condition"
+                      className="h-5 text-xs flex-1 bg-transparent border-none focus-visible:ring-0 p-0 text-gray-600 dark:text-gray-300 placeholder:text-gray-400 nodrag"
+                      data-testid={`input-transition-${t.id}`}
+                    />
+                    {transitions.length > 1 && (
+                      <button
+                        onClick={(e) => handleRemoveTransition(e, t.id)}
+                        className="opacity-0 group-hover/transition:opacity-100 text-gray-400 hover:text-red-500 transition-all"
+                        data-testid={`button-remove-transition-${t.id}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Right Handle for this transition */}
+                  <Handle 
+                    type="source" 
+                    position={Position.Right}
+                    className="!w-3 !h-3 !bg-white !border-2 !border-gray-300 dark:!border-gray-600 !rounded-full !relative !right-0 !top-0 !transform-none"
+                    id={`${id}-${t.id}`}
+                    isConnectable={true}
+                    style={{ position: 'relative', right: 'auto', top: 'auto', transform: 'none' }}
                   />
-                ) : field.type === 'select' ? (
-                  <Select
-                    value={data[field.id] || ''}
-                    onValueChange={(value) => handleFieldChange(field.id, value)}
-                  >
-                    <SelectTrigger className="h-7 text-xs" onClick={(e) => e.stopPropagation()} data-testid={`select-${field.id}`}>
-                      <SelectValue placeholder={field.placeholder} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {field.options?.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
-                    type={field.type}
-                    value={data[field.id] || ''}
-                    onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    placeholder={field.placeholder}
-                    className="h-7 text-xs nodrag"
-                    data-testid={`input-${field.id}`}
-                  />
-                )}
-              </div>
-            ))}
-
-            {/* Transitions Editor */}
-            <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-800">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Transitions</label>
+                </div>
+              ))}
+              
+              {/* Add first transition prompt if none exist */}
+              {transitions.length === 0 && (
                 <button
                   onClick={handleAddTransition}
-                  className="flex items-center gap-1 text-[10px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
-                  data-testid="button-add-transition"
+                  className="w-full px-3 py-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-dashed border-gray-200 dark:border-gray-700 transition-colors"
+                  data-testid="button-add-first-transition"
                 >
-                  <Plus className="h-3 w-3" />
-                  Add
+                  + Add transition condition
                 </button>
-              </div>
-              <div className="space-y-1.5">
-                {transitions.map((t) => {
-                  const tColors = transitionColors[t.color || 'emerald'];
-                  return (
-                    <div key={t.id} className={`flex items-center gap-2 p-1.5 rounded-lg ${tColors.bg}`}>
-                      <ArrowRight className={`h-3 w-3 ${tColors.text} flex-shrink-0`} />
-                      <Input
-                        value={t.label}
-                        onChange={(e) => handleTransitionLabelChange(t.id, e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        className={`h-5 text-[10px] flex-1 bg-transparent border-none ${tColors.text} focus-visible:ring-0 p-0 nodrag`}
-                        data-testid={`input-transition-${t.id}`}
-                      />
-                      {transitions.length > 1 && (
-                        <button
-                          onClick={(e) => handleRemoveTransition(e, t.id)}
-                          className="opacity-60 hover:opacity-100"
-                          data-testid={`button-remove-transition-${t.id}`}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Content Preview - Only when NOT selected */}
-        {!selected && data.content && (
-          <div className="px-3 pb-3">
-            <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 italic">
-              "{data.content}"
-            </p>
-          </div>
-        )}
-        
-        {/* Transitions - Only when NOT selected */}
-        {!selected && transitions.length > 0 && (
-          <div className="border-t border-gray-100 dark:border-gray-800 p-2">
-            <div className="flex flex-wrap gap-1">
-              {transitions.map((transition) => {
-                const tColors = transitionColors[transition.color || 'emerald'];
-                return (
-                  <div 
-                    key={transition.id}
-                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full ${tColors.bg} text-[10px] font-medium ${tColors.text}`}
-                  >
-                    <ChevronRight className="h-2.5 w-2.5" />
-                    {transition.label}
-                  </div>
-                );
-              })}
+              )}
             </div>
           </div>
         )}
       </div>
-      
-      {/* Bottom Handles - One for each transition */}
-      {transitions.length === 1 ? (
-        <Handle 
-          type="source" 
-          position={Position.Bottom} 
-          className={`!w-3 !h-3 !border-2 !border-white dark:!border-gray-800 !-bottom-1.5 !rounded-full ${transitionColors[transitions[0].color || 'emerald'].handle}`}
-          id={`${id}-${transitions[0].id}`}
-          isConnectable={true}
-        />
-      ) : transitions.length > 1 ? (
-        <>
-          {transitions.map((transition, index) => {
-            const handleColor = transitionColors[transition.color || 'emerald'];
-            const spacing = 100 / (transitions.length + 1);
-            const leftPercent = spacing * (index + 1);
-            return (
-              <Handle 
-                key={transition.id}
-                type="source" 
-                position={Position.Bottom}
-                className={`!w-3 !h-3 !border-2 !border-white dark:!border-gray-800 !-bottom-1.5 !rounded-full ${handleColor.handle}`}
-                id={`${id}-${transition.id}`}
-                isConnectable={true}
-                style={{ left: `${leftPercent}%` }}
-              />
-            );
-          })}
-        </>
-      ) : null}
     </div>
   );
 }

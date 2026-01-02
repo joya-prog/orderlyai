@@ -19,23 +19,20 @@ import {
   Panel,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import { 
   MessageCircle, 
   Calendar, 
   ShoppingCart, 
   Users, 
   Phone, 
-  CheckCircle, 
-  XCircle,
+  CheckCircle,
   Search,
   Undo2,
   Redo2,
@@ -49,7 +46,6 @@ import {
   ArrowRight,
   Plus,
   Trash2,
-  Settings,
   Mic,
   PhoneCall,
   PhoneOff,
@@ -57,7 +53,6 @@ import {
   Keyboard,
   Repeat,
   Clock,
-  Bot,
   Sparkles,
   ChevronRight,
   Loader2,
@@ -362,6 +357,45 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
       data.onDelete(id);
     }
   };
+
+  const handleFieldChange = (fieldId: string, value: any) => {
+    if (data.onUpdate) {
+      data.onUpdate(id, { [fieldId]: value });
+    }
+  };
+
+  const handleTransitionLabelChange = (transitionId: string, newLabel: string) => {
+    const currentTransitions = data.transitions || nodeConfig?.defaultTransitions || [];
+    const updated = currentTransitions.map((tr: Transition) =>
+      tr.id === transitionId ? { ...tr, label: newLabel } : tr
+    );
+    if (data.onUpdate) {
+      data.onUpdate(id, { transitions: updated });
+    }
+  };
+
+  const handleAddTransition = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const currentTransitions = data.transitions || nodeConfig?.defaultTransitions || [];
+    const newTransition: Transition = {
+      id: `t-${Date.now()}`,
+      label: 'New Path',
+      color: 'blue',
+    };
+    const updated = [...currentTransitions, newTransition];
+    if (data.onUpdate) {
+      data.onUpdate(id, { transitions: updated });
+    }
+  };
+
+  const handleRemoveTransition = (e: React.MouseEvent, transitionId: string) => {
+    e.stopPropagation();
+    const currentTransitions = data.transitions || nodeConfig?.defaultTransitions || [];
+    const updated = currentTransitions.filter((tr: Transition) => tr.id !== transitionId);
+    if (data.onUpdate) {
+      data.onUpdate(id, { transitions: updated });
+    }
+  };
   
   return (
     <div className="group relative">
@@ -379,7 +413,7 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
       {/* Node Card */}
       <div 
         className={`
-          w-[240px] bg-white dark:bg-gray-900 rounded-xl 
+          ${selected ? 'w-[320px]' : 'w-[240px]'} bg-white dark:bg-gray-900 rounded-xl 
           shadow-sm hover:shadow-md transition-all duration-200
           border-2 ${selected ? 'border-indigo-500 shadow-indigo-100 dark:shadow-indigo-900/20' : 'border-gray-100 dark:border-gray-800'}
           ${isStartNode ? 'ring-2 ring-emerald-500/20' : ''}
@@ -393,8 +427,21 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
           </div>
           
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{data.label || nodeConfig?.label}</p>
-            <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wide">{nodeConfig?.subtitle}</p>
+            {selected ? (
+              <Input
+                value={data.label || nodeConfig?.label || ''}
+                onChange={(e) => handleFieldChange('label', e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                className="h-7 text-sm font-semibold"
+                placeholder={nodeConfig?.label}
+                data-testid="input-node-label"
+              />
+            ) : (
+              <>
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{data.label || nodeConfig?.label}</p>
+                <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wide">{nodeConfig?.subtitle}</p>
+              </>
+            )}
           </div>
           
           {selected && !isStartNode && (
@@ -407,9 +454,109 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
             </button>
           )}
         </div>
+
+        {/* Inline Edit Panel - Only when selected */}
+        {selected && (
+          <div className="px-3 pb-3 space-y-3 border-t border-gray-100 dark:border-gray-800 pt-3">
+            {/* Main Content / Instructions */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Instructions</label>
+              <Textarea
+                value={data.content || ''}
+                onChange={(e) => handleFieldChange('content', e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                placeholder="What should the AI do at this step?"
+                className="min-h-[60px] resize-none text-xs nodrag"
+                data-testid="input-node-content"
+              />
+            </div>
+            
+            {/* Config Fields */}
+            {nodeConfig?.configFields?.map((field) => (
+              <div key={field.id} className="space-y-1">
+                <label className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{field.label}</label>
+                {field.type === 'textarea' ? (
+                  <Textarea
+                    value={data[field.id] || ''}
+                    onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    placeholder={field.placeholder}
+                    className="min-h-[50px] resize-none text-xs nodrag"
+                    data-testid={`input-${field.id}`}
+                  />
+                ) : field.type === 'select' ? (
+                  <Select
+                    value={data[field.id] || ''}
+                    onValueChange={(value) => handleFieldChange(field.id, value)}
+                  >
+                    <SelectTrigger className="h-7 text-xs" onClick={(e) => e.stopPropagation()} data-testid={`select-${field.id}`}>
+                      <SelectValue placeholder={field.placeholder} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {field.options?.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    type={field.type}
+                    value={data[field.id] || ''}
+                    onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    placeholder={field.placeholder}
+                    className="h-7 text-xs nodrag"
+                    data-testid={`input-${field.id}`}
+                  />
+                )}
+              </div>
+            ))}
+
+            {/* Transitions Editor */}
+            <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Transitions</label>
+                <button
+                  onClick={handleAddTransition}
+                  className="flex items-center gap-1 text-[10px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
+                  data-testid="button-add-transition"
+                >
+                  <Plus className="h-3 w-3" />
+                  Add
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                {transitions.map((t) => {
+                  const tColors = transitionColors[t.color || 'emerald'];
+                  return (
+                    <div key={t.id} className={`flex items-center gap-2 p-1.5 rounded-lg ${tColors.bg}`}>
+                      <ArrowRight className={`h-3 w-3 ${tColors.text} flex-shrink-0`} />
+                      <Input
+                        value={t.label}
+                        onChange={(e) => handleTransitionLabelChange(t.id, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        className={`h-5 text-[10px] flex-1 bg-transparent border-none ${tColors.text} focus-visible:ring-0 p-0 nodrag`}
+                        data-testid={`input-transition-${t.id}`}
+                      />
+                      {transitions.length > 1 && (
+                        <button
+                          onClick={(e) => handleRemoveTransition(e, t.id)}
+                          className="opacity-60 hover:opacity-100"
+                          data-testid={`button-remove-transition-${t.id}`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
         
-        {/* Content Preview */}
-        {data.content && (
+        {/* Content Preview - Only when NOT selected */}
+        {!selected && data.content && (
           <div className="px-3 pb-3">
             <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 italic">
               "{data.content}"
@@ -417,8 +564,8 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
           </div>
         )}
         
-        {/* Transitions */}
-        {transitions.length > 0 && (
+        {/* Transitions - Only when NOT selected */}
+        {!selected && transitions.length > 0 && (
           <div className="border-t border-gray-100 dark:border-gray-800 p-2">
             <div className="flex flex-wrap gap-1">
               {transitions.map((transition) => {
@@ -490,213 +637,6 @@ const defaultEdgeOptions = {
     height: 20,
   },
 };
-
-// ============================================================================
-// NODE INSPECTOR PANEL
-// ============================================================================
-
-interface NodeInspectorProps {
-  node: Node | null;
-  onUpdate: (nodeId: string, data: any) => void;
-  onClose: () => void;
-}
-
-function NodeInspector({ node, onUpdate, onClose }: NodeInspectorProps) {
-  const nodeConfig = node ? getNodeConfig(node.data?.type as string) : null;
-  const [localData, setLocalData] = useState<any>({});
-  
-  useEffect(() => {
-    if (node) {
-      setLocalData({ ...node.data });
-    }
-  }, [node?.id]);
-  
-  if (!node || !nodeConfig) {
-    return (
-      <Card className="flex-1 flex flex-col">
-        <CardContent className="flex-1 flex items-center justify-center p-6">
-          <div className="text-center text-muted-foreground">
-            <Settings className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">Select a node to edit</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-  
-  const Icon = nodeConfig.icon;
-  const colors = nodeColors[nodeConfig.color];
-  
-  const handleFieldChange = (fieldId: string, value: any) => {
-    const updated = { ...localData, [fieldId]: value };
-    setLocalData(updated);
-    onUpdate(node.id, { [fieldId]: value });
-  };
-  
-  const handleContentChange = (value: string) => {
-    const updated = { ...localData, content: value };
-    setLocalData(updated);
-    onUpdate(node.id, { content: value });
-  };
-  
-  return (
-    <Card className="flex-1 flex flex-col overflow-hidden">
-      <CardHeader className="pb-3 flex-shrink-0 border-b">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-lg ${colors.bg} flex items-center justify-center`}>
-              <Icon className="h-4 w-4 text-white" />
-            </div>
-            <div>
-              <CardTitle className="text-base">{nodeConfig.label}</CardTitle>
-              <p className="text-xs text-muted-foreground">{nodeConfig.subtitle}</p>
-            </div>
-          </div>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      </CardHeader>
-      
-      <ScrollArea className="flex-1">
-        <div className="p-4 space-y-4">
-          {/* Node Label */}
-          <div className="space-y-2">
-            <Label className="text-xs font-medium">Node Label</Label>
-            <Input
-              value={localData.label || nodeConfig.label}
-              onChange={(e) => handleFieldChange('label', e.target.value)}
-              placeholder={nodeConfig.label}
-              data-testid="input-node-label"
-            />
-          </div>
-          
-          {/* Main Content / Instructions */}
-          <div className="space-y-2">
-            <Label className="text-xs font-medium">Instructions / Prompt</Label>
-            <Textarea
-              value={localData.content || ''}
-              onChange={(e) => handleContentChange(e.target.value)}
-              placeholder="What should the AI do at this step?"
-              className="min-h-[100px] resize-none"
-              data-testid="input-node-content"
-            />
-            <p className="text-[10px] text-muted-foreground">
-              Describe what the AI should say or do at this step in natural language.
-            </p>
-          </div>
-          
-          {/* Config Fields */}
-          {nodeConfig.configFields?.map((field) => (
-            <div key={field.id} className="space-y-2">
-              <Label className="text-xs font-medium">{field.label}</Label>
-              {field.type === 'textarea' ? (
-                <Textarea
-                  value={localData[field.id] || ''}
-                  onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                  placeholder={field.placeholder}
-                  className="min-h-[80px] resize-none"
-                  data-testid={`input-${field.id}`}
-                />
-              ) : field.type === 'select' ? (
-                <Select
-                  value={localData[field.id] || ''}
-                  onValueChange={(value) => handleFieldChange(field.id, value)}
-                >
-                  <SelectTrigger data-testid={`select-${field.id}`}>
-                    <SelectValue placeholder={field.placeholder} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {field.options?.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input
-                  type={field.type}
-                  value={localData[field.id] || ''}
-                  onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                  placeholder={field.placeholder}
-                  data-testid={`input-${field.id}`}
-                />
-              )}
-            </div>
-          ))}
-          
-          {/* Transitions Section */}
-          <div className="space-y-2 pt-2 border-t">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-medium">Transitions</Label>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-xs"
-                onClick={() => {
-                  const currentTransitions = localData.transitions || nodeConfig.defaultTransitions || [];
-                  const newTransition: Transition = {
-                    id: `t-${Date.now()}`,
-                    label: 'New Path',
-                    color: 'blue',
-                  };
-                  const updated = [...currentTransitions, newTransition];
-                  setLocalData({ ...localData, transitions: updated });
-                  onUpdate(node.id, { transitions: updated });
-                }}
-                data-testid="button-add-transition"
-              >
-                <Plus className="h-3 w-3 mr-1" />
-                Add
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {(localData.transitions || nodeConfig.defaultTransitions || []).map((t: Transition, index: number) => {
-                const tColors = transitionColors[t.color || 'emerald'];
-                return (
-                  <div key={t.id} className={`flex items-center gap-2 p-2 rounded-lg ${tColors.bg}`}>
-                    <ArrowRight className={`h-3.5 w-3.5 ${tColors.text} flex-shrink-0`} />
-                    <Input
-                      value={t.label}
-                      onChange={(e) => {
-                        const currentTransitions = localData.transitions || nodeConfig.defaultTransitions || [];
-                        const updated = currentTransitions.map((tr: Transition) =>
-                          tr.id === t.id ? { ...tr, label: e.target.value } : tr
-                        );
-                        setLocalData({ ...localData, transitions: updated });
-                        onUpdate(node.id, { transitions: updated });
-                      }}
-                      className={`h-6 text-xs flex-1 bg-transparent border-none ${tColors.text} focus-visible:ring-0 p-0`}
-                      data-testid={`input-transition-${t.id}`}
-                    />
-                    {(localData.transitions || nodeConfig.defaultTransitions || []).length > 1 && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5 opacity-60 hover:opacity-100"
-                        onClick={() => {
-                          const currentTransitions = localData.transitions || nodeConfig.defaultTransitions || [];
-                          const updated = currentTransitions.filter((tr: Transition) => tr.id !== t.id);
-                          setLocalData({ ...localData, transitions: updated });
-                          onUpdate(node.id, { transitions: updated });
-                        }}
-                        data-testid={`button-remove-transition-${t.id}`}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <p className="text-[10px] text-muted-foreground">
-              Connect transitions to other nodes by dragging from the handles.
-            </p>
-          </div>
-        </div>
-      </ScrollArea>
-    </Card>
-  );
-}
 
 // ============================================================================
 // MAIN FLOW BUILDER COMPONENT
@@ -818,8 +758,6 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
     [setEdges],
   );
-
-  const selectedNode = nodes.find(n => n.id === selectedNodeId) || null;
 
   const onNodeClick = useCallback((_event: any, node: Node) => {
     setSelectedNodeId(node.id);
@@ -1133,15 +1071,6 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
             zoomable
           />
         </ReactFlow>
-      </div>
-
-      {/* Right Panel - Node Inspector */}
-      <div className="w-72 flex-shrink-0">
-        <NodeInspector 
-          node={selectedNode}
-          onUpdate={updateNodeData}
-          onClose={() => setSelectedNodeId(null)}
-        />
       </div>
     </div>
   );

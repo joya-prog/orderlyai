@@ -192,6 +192,7 @@ export const flowConnections = pgTable("flow_connections", {
   agentId: varchar("agent_id").notNull().references(() => agents.id, { onDelete: 'cascade' }),
   sourceNodeId: varchar("source_node_id").notNull().references(() => flowNodes.id, { onDelete: 'cascade' }),
   targetNodeId: varchar("target_node_id").notNull().references(() => flowNodes.id, { onDelete: 'cascade' }),
+  sourceHandle: varchar("source_handle"), // Handle ID for transition-specific connections (e.g., "node-123-t-456")
   label: text("label"), // Optional label for connection
   createdAt: timestamp("created_at").defaultNow(),
 });

@@ -64,6 +64,25 @@ export interface RetellConversationFlowConfig {
   modelTemperature?: number;
 }
 
+// Types for converting Orderly flow nodes to Retell format
+export interface OrderlyFlowNode {
+  id: string;
+  type: string;
+  label: string;
+  content?: string;
+  contentMode?: 'prompt' | 'static';
+  config?: Record<string, any>;
+  transitions?: Array<{ id: string; label: string; condition?: string }>;
+}
+
+export interface OrderlyFlowConnection {
+  id: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  sourceHandle?: string;
+  label?: string;
+}
+
 export interface RetellCallLog {
   callId: string;
   agentId: string;
@@ -187,6 +206,96 @@ export async function updateRetellConversationFlow(flowId: string, config: Parti
   } catch (error) {
     console.error('[Retell] Error updating Conversation Flow:', error);
     throw error;
+  }
+}
+
+// Convert Orderly flow nodes to Retell conversation flow format and sync
+export async function syncWorkflowToRetell(
+  flowId: string,
+  nodes: OrderlyFlowNode[],
+  connections: OrderlyFlowConnection[],
+  globalPrompt?: string,
+  model?: string
+): Promise<boolean> {
+  if (!retellClient) {
+    console.error('[Retell] Client not configured');
+    return false;
+  }
+
+  try {
+    // Build connection map: sourceHandle -> targetNodeId
+    const connectionMap = new Map<string, string>();
+    connections.forEach(conn => {
+      connectionMap.set(conn.sourceHandle || conn.sourceNodeId, conn.targetNodeId);
+    });
+
+    // Convert Orderly nodes to Retell format with embedded transitions
+    const retellNodes: any[] = [];
+
+    nodes.forEach((node) => {
+      // Map Orderly node types to Retell types
+      let retellNodeType = 'conversation';
+      if (node.type === 'end') {
+        retellNodeType = 'end_call';
+      } else if (node.type === 'transfer') {
+        retellNodeType = 'transfer_call';
+      }
+
+      // Build instruction based on content mode
+      const instruction = node.contentMode === 'static' 
+        ? { type: 'static' as const, text: node.content || node.label }
+        : { type: 'prompt' as const, text: node.content || node.label };
+
+      // Build transitions with target node IDs
+      const nodeTransitions = (node.transitions || []).map(transition => {
+        const handleId = `${node.id}-${transition.id}`;
+        const targetNodeId = connectionMap.get(handleId);
+        return {
+          condition: transition.condition || transition.label || 'Continue',
+          next_node_id: targetNodeId || null,
+        };
+      }).filter(t => t.next_node_id); // Only include transitions with valid targets
+
+      // Build Retell node
+      const retellNode: any = {
+        id: node.id,
+        type: retellNodeType,
+        instruction,
+      };
+
+      // Add transitions if any exist
+      if (nodeTransitions.length > 0) {
+        retellNode.transitions = nodeTransitions;
+      }
+
+      // Add node-specific config
+      if (node.type === 'transfer' && node.config?.transferTo) {
+        retellNode.phone_number = node.config.transferTo;
+      }
+
+      retellNodes.push(retellNode);
+    });
+
+    // Find start node (greeting type or first node)
+    const startNode = nodes.find(n => n.type === 'greeting') || nodes[0];
+    
+    // Update Retell conversation flow with full node structure
+    await retellClient.conversationFlow.update(flowId, {
+      model_choice: model ? {
+        model: model as any,
+        type: 'cascading',
+      } : undefined,
+      model_temperature: 0.7,
+      nodes: retellNodes.length > 0 ? retellNodes : undefined,
+      global_prompt: globalPrompt || undefined,
+      starting_node_id: startNode?.id,
+    } as any); // Cast to any to allow Retell SDK flexibility
+
+    console.log(`[Retell] Synced workflow with ${retellNodes.length} nodes to flow: ${flowId}`);
+    return true;
+  } catch (error) {
+    console.error('[Retell] Error syncing workflow:', error);
+    return false;
   }
 }
 

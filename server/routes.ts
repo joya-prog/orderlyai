@@ -975,6 +975,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdConnections.push(created);
       }
 
+      // Sync workflow to Retell AI if configured
+      if (await retell.isRetellConfigured() && agent.retellLlmId) {
+        try {
+          const flowNodes = await storage.getFlowNodes(req.params.id);
+          
+          // Convert to Orderly format for Retell sync
+          const orderlyNodes = flowNodes.map(node => ({
+            id: node.id,
+            type: node.type,
+            label: node.label,
+            content: node.content || undefined,
+            contentMode: (node.config as any)?.contentMode || 'prompt',
+            config: node.config as Record<string, any> | undefined,
+            transitions: (node.config as any)?.transitions || [],
+          }));
+          
+          const orderlyConnections = createdConnections.map(conn => ({
+            id: conn.id,
+            sourceNodeId: conn.sourceNodeId,
+            targetNodeId: conn.targetNodeId,
+            sourceHandle: conn.sourceHandle || undefined,
+            label: conn.label || undefined,
+          }));
+
+          await retell.syncWorkflowToRetell(
+            agent.retellLlmId,
+            orderlyNodes,
+            orderlyConnections,
+            agent.systemPrompt || undefined,
+            agent.aiModel || 'gpt-4o-mini'
+          );
+          
+          console.log(`[Retell] Synced workflow for agent ${agent.id}`);
+        } catch (retellError) {
+          console.error('[Retell] Error syncing workflow:', retellError);
+          // Don't fail the request - local save succeeded
+        }
+      }
+
       res.json(createdConnections);
     } catch (error) {
       console.error("Error saving flow connections:", error);

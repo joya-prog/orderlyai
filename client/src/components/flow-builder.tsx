@@ -19,10 +19,15 @@ import {
   Panel,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { 
   MessageCircle, 
   Calendar, 
@@ -44,17 +49,37 @@ import {
   ArrowRight,
   Plus,
   Trash2,
+  Settings,
+  Mic,
+  PhoneCall,
+  PhoneOff,
+  Hash,
+  Keyboard,
+  Repeat,
+  Clock,
+  Bot,
+  Sparkles,
+  ChevronRight,
+  Loader2,
+  CheckCircle2,
 } from 'lucide-react';
 
-// Color definitions for node badges - inspired by professional IVR builders
+// ============================================================================
+// NODE TYPE DEFINITIONS - Retell AI Style Categories
+// ============================================================================
+
+// Color definitions for node badges
 const nodeColors = {
-  green: { bg: 'bg-emerald-500', light: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-800' },
-  blue: { bg: 'bg-blue-500', light: 'bg-blue-50 dark:bg-blue-950/30', border: 'border-blue-200 dark:border-blue-800' },
-  orange: { bg: 'bg-amber-500', light: 'bg-amber-50 dark:bg-amber-950/30', border: 'border-amber-200 dark:border-amber-800' },
-  purple: { bg: 'bg-violet-500', light: 'bg-violet-50 dark:bg-violet-950/30', border: 'border-violet-200 dark:border-violet-800' },
-  red: { bg: 'bg-rose-500', light: 'bg-rose-50 dark:bg-rose-950/30', border: 'border-rose-200 dark:border-rose-800' },
-  cyan: { bg: 'bg-cyan-500', light: 'bg-cyan-50 dark:bg-cyan-950/30', border: 'border-cyan-200 dark:border-cyan-800' },
-  gray: { bg: 'bg-gray-500', light: 'bg-gray-50 dark:bg-gray-950/30', border: 'border-gray-200 dark:border-gray-800' },
+  green: { bg: 'bg-emerald-500', light: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-800', hex: '#10b981' },
+  blue: { bg: 'bg-blue-500', light: 'bg-blue-50 dark:bg-blue-950/30', border: 'border-blue-200 dark:border-blue-800', hex: '#3b82f6' },
+  orange: { bg: 'bg-amber-500', light: 'bg-amber-50 dark:bg-amber-950/30', border: 'border-amber-200 dark:border-amber-800', hex: '#f59e0b' },
+  purple: { bg: 'bg-violet-500', light: 'bg-violet-50 dark:bg-violet-950/30', border: 'border-violet-200 dark:border-violet-800', hex: '#8b5cf6' },
+  red: { bg: 'bg-rose-500', light: 'bg-rose-50 dark:bg-rose-950/30', border: 'border-rose-200 dark:border-rose-800', hex: '#f43f5e' },
+  cyan: { bg: 'bg-cyan-500', light: 'bg-cyan-50 dark:bg-cyan-950/30', border: 'border-cyan-200 dark:border-cyan-800', hex: '#06b6d4' },
+  gray: { bg: 'bg-gray-500', light: 'bg-gray-50 dark:bg-gray-950/30', border: 'border-gray-200 dark:border-gray-800', hex: '#6b7280' },
+  indigo: { bg: 'bg-indigo-500', light: 'bg-indigo-50 dark:bg-indigo-950/30', border: 'border-indigo-200 dark:border-indigo-800', hex: '#6366f1' },
+  pink: { bg: 'bg-pink-500', light: 'bg-pink-50 dark:bg-pink-950/30', border: 'border-pink-200 dark:border-pink-800', hex: '#ec4899' },
+  teal: { bg: 'bg-teal-500', light: 'bg-teal-50 dark:bg-teal-950/30', border: 'border-teal-200 dark:border-teal-800', hex: '#14b8a6' },
 };
 
 // Transition type definition
@@ -62,39 +87,249 @@ interface Transition {
   id: string;
   label: string;
   color?: string;
+  condition?: string;
 }
 
-// Default transitions for each node type
-const defaultTransitions: Record<string, Transition[]> = {
-  greeting: [{ id: 'next', label: 'Continue', color: 'emerald' }],
-  checkAvailability: [
-    { id: 'available', label: 'Available', color: 'emerald' },
-    { id: 'unavailable', label: 'Unavailable', color: 'rose' },
-  ],
-  bookTable: [{ id: 'next', label: 'Confirmed', color: 'emerald' }],
-  takeOrder: [{ id: 'next', label: 'Order Complete', color: 'emerald' }],
-  dietaryRestrictions: [{ id: 'next', label: 'Continue', color: 'emerald' }],
-  collectInfo: [{ id: 'next', label: 'Info Collected', color: 'emerald' }],
-  condition: [
-    { id: 'yes', label: 'Yes', color: 'emerald' },
-    { id: 'no', label: 'No', color: 'rose' },
-  ],
-  transfer: [{ id: 'next', label: 'Transferred', color: 'emerald' }],
-  end: [],
-};
+// Node category definition
+interface NodeCategory {
+  id: string;
+  label: string;
+  description: string;
+  nodes: NodeTypeConfig[];
+}
 
-// Restaurant-specific node types with new color scheme
-const restaurantNodeTypes = [
-  { type: 'greeting', label: 'Greeting', subtitle: 'Welcome message', icon: Play, color: 'green' },
-  { type: 'checkAvailability', label: 'Check Availability', subtitle: 'Table lookup', icon: Calendar, color: 'green' },
-  { type: 'bookTable', label: 'Book Reservation', subtitle: 'Confirm booking', icon: CheckCircle, color: 'blue' },
-  { type: 'takeOrder', label: 'Take Order', subtitle: 'Menu selection', icon: ShoppingCart, color: 'orange' },
-  { type: 'dietaryRestrictions', label: 'Dietary Info', subtitle: 'Allergies & preferences', icon: Users, color: 'orange' },
-  { type: 'collectInfo', label: 'Collect Info', subtitle: 'Guest details', icon: MessageCircle, color: 'cyan' },
-  { type: 'condition', label: 'Conditional', subtitle: 'Branch logic', icon: GitBranch, color: 'purple' },
-  { type: 'transfer', label: 'Transfer Call', subtitle: 'Connect to staff', icon: Phone, color: 'red' },
-  { type: 'end', label: 'End Call', subtitle: 'Hang up', icon: XCircle, color: 'gray' },
+interface NodeTypeConfig {
+  type: string;
+  label: string;
+  subtitle: string;
+  icon: any;
+  color: keyof typeof nodeColors;
+  defaultTransitions: Transition[];
+  configFields?: ConfigField[];
+}
+
+interface ConfigField {
+  id: string;
+  label: string;
+  type: 'text' | 'textarea' | 'select' | 'number';
+  placeholder?: string;
+  options?: { value: string; label: string }[];
+}
+
+// Node categories organized like Retell AI
+const nodeCategories: NodeCategory[] = [
+  {
+    id: 'conversation',
+    label: 'Conversation',
+    description: 'AI responses and prompts',
+    nodes: [
+      {
+        type: 'greeting',
+        label: 'Start',
+        subtitle: 'Begin conversation',
+        icon: Play,
+        color: 'green',
+        defaultTransitions: [{ id: 'next', label: 'Continue', color: 'emerald' }],
+        configFields: [
+          { id: 'prompt', label: 'Opening Message', type: 'textarea', placeholder: 'Hello! Thank you for calling...' },
+        ],
+      },
+      {
+        type: 'response',
+        label: 'Response',
+        subtitle: 'AI speaks to caller',
+        icon: MessageCircle,
+        color: 'blue',
+        defaultTransitions: [{ id: 'next', label: 'Continue', color: 'emerald' }],
+        configFields: [
+          { id: 'prompt', label: 'Response Prompt', type: 'textarea', placeholder: 'What should the AI say?' },
+        ],
+      },
+      {
+        type: 'collectInfo',
+        label: 'Collect Input',
+        subtitle: 'Gather caller info',
+        icon: Mic,
+        color: 'cyan',
+        defaultTransitions: [
+          { id: 'collected', label: 'Info Collected', color: 'emerald' },
+          { id: 'failed', label: 'Failed', color: 'rose' },
+        ],
+        configFields: [
+          { id: 'prompt', label: 'Collection Prompt', type: 'textarea', placeholder: 'May I have your name please?' },
+          { id: 'variableName', label: 'Save to Variable', type: 'text', placeholder: 'customer_name' },
+        ],
+      },
+      {
+        type: 'keypadInput',
+        label: 'Keypad Input',
+        subtitle: 'DTMF digits',
+        icon: Keyboard,
+        color: 'indigo',
+        defaultTransitions: [
+          { id: 'received', label: 'Input Received', color: 'emerald' },
+          { id: 'timeout', label: 'Timeout', color: 'rose' },
+        ],
+        configFields: [
+          { id: 'prompt', label: 'Prompt', type: 'textarea', placeholder: 'Please enter your 4-digit code...' },
+          { id: 'digits', label: 'Expected Digits', type: 'number', placeholder: '4' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'restaurant',
+    label: 'Restaurant',
+    description: 'Restaurant-specific actions',
+    nodes: [
+      {
+        type: 'checkAvailability',
+        label: 'Check Availability',
+        subtitle: 'Table lookup',
+        icon: Calendar,
+        color: 'green',
+        defaultTransitions: [
+          { id: 'available', label: 'Available', color: 'emerald' },
+          { id: 'unavailable', label: 'Unavailable', color: 'rose' },
+        ],
+        configFields: [
+          { id: 'prompt', label: 'Checking Message', type: 'textarea', placeholder: 'Let me check availability for you...' },
+        ],
+      },
+      {
+        type: 'bookTable',
+        label: 'Book Reservation',
+        subtitle: 'Confirm booking',
+        icon: CheckCircle,
+        color: 'blue',
+        defaultTransitions: [
+          { id: 'confirmed', label: 'Confirmed', color: 'emerald' },
+          { id: 'failed', label: 'Failed', color: 'rose' },
+        ],
+        configFields: [
+          { id: 'confirmationPrompt', label: 'Confirmation Message', type: 'textarea', placeholder: 'Your reservation is confirmed for...' },
+        ],
+      },
+      {
+        type: 'takeOrder',
+        label: 'Take Order',
+        subtitle: 'Menu selection',
+        icon: ShoppingCart,
+        color: 'orange',
+        defaultTransitions: [
+          { id: 'orderComplete', label: 'Order Complete', color: 'emerald' },
+          { id: 'addMore', label: 'Add More Items', color: 'blue' },
+        ],
+        configFields: [
+          { id: 'prompt', label: 'Order Prompt', type: 'textarea', placeholder: 'What would you like to order?' },
+        ],
+      },
+      {
+        type: 'dietaryRestrictions',
+        label: 'Dietary Info',
+        subtitle: 'Allergies & preferences',
+        icon: Users,
+        color: 'teal',
+        defaultTransitions: [{ id: 'next', label: 'Continue', color: 'emerald' }],
+        configFields: [
+          { id: 'prompt', label: 'Dietary Prompt', type: 'textarea', placeholder: 'Do you have any dietary restrictions or allergies?' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'logic',
+    label: 'Logic',
+    description: 'Branching and conditions',
+    nodes: [
+      {
+        type: 'condition',
+        label: 'Condition',
+        subtitle: 'Branch logic',
+        icon: GitBranch,
+        color: 'purple',
+        defaultTransitions: [
+          { id: 'yes', label: 'Yes / True', color: 'emerald' },
+          { id: 'no', label: 'No / False', color: 'rose' },
+        ],
+        configFields: [
+          { id: 'condition', label: 'Condition', type: 'textarea', placeholder: 'if customer wants to make a reservation' },
+        ],
+      },
+      {
+        type: 'wait',
+        label: 'Wait',
+        subtitle: 'Pause briefly',
+        icon: Clock,
+        color: 'gray',
+        defaultTransitions: [{ id: 'next', label: 'Continue', color: 'emerald' }],
+        configFields: [
+          { id: 'duration', label: 'Wait Duration (seconds)', type: 'number', placeholder: '2' },
+        ],
+      },
+      {
+        type: 'repeat',
+        label: 'Loop Back',
+        subtitle: 'Return to node',
+        icon: Repeat,
+        color: 'indigo',
+        defaultTransitions: [{ id: 'next', label: 'Loop', color: 'blue' }],
+      },
+    ],
+  },
+  {
+    id: 'telephony',
+    label: 'Telephony',
+    description: 'Call handling',
+    nodes: [
+      {
+        type: 'transfer',
+        label: 'Transfer Call',
+        subtitle: 'Connect to staff',
+        icon: PhoneCall,
+        color: 'pink',
+        defaultTransitions: [
+          { id: 'transferred', label: 'Transferred', color: 'emerald' },
+          { id: 'failed', label: 'Failed', color: 'rose' },
+        ],
+        configFields: [
+          { id: 'transferMessage', label: 'Transfer Message', type: 'textarea', placeholder: 'Please hold while I connect you...' },
+          { id: 'phoneNumber', label: 'Transfer To', type: 'text', placeholder: '+1 (555) 123-4567' },
+        ],
+      },
+      {
+        type: 'pressDigit',
+        label: 'Press Digit',
+        subtitle: 'Navigate IVR',
+        icon: Hash,
+        color: 'cyan',
+        defaultTransitions: [{ id: 'next', label: 'Digit Pressed', color: 'emerald' }],
+        configFields: [
+          { id: 'digit', label: 'Digit to Press', type: 'text', placeholder: '1' },
+        ],
+      },
+      {
+        type: 'end',
+        label: 'End Call',
+        subtitle: 'Hang up',
+        icon: PhoneOff,
+        color: 'red',
+        defaultTransitions: [],
+        configFields: [
+          { id: 'closingMessage', label: 'Closing Message', type: 'textarea', placeholder: 'Thank you for calling. Goodbye!' },
+        ],
+      },
+    ],
+  },
 ];
+
+// Flatten all node types for easy lookup
+const allNodeTypes = nodeCategories.flatMap(cat => cat.nodes);
+
+// Get node config by type
+function getNodeConfig(type: string): NodeTypeConfig | undefined {
+  return allNodeTypes.find(n => n.type === type);
+}
 
 // Transition color mapping
 const transitionColors: Record<string, { bg: string; text: string; handle: string }> = {
@@ -104,70 +339,22 @@ const transitionColors: Record<string, { bg: string; text: string; handle: strin
   amber: { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-400', handle: '!bg-amber-500' },
 };
 
-// Professional editable node component with inline description editing and transitions
+// ============================================================================
+// CUSTOM NODE COMPONENT - Retell AI Style
+// ============================================================================
+
 function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id: string }) {
-  const nodeConfig = restaurantNodeTypes.find(t => t.type === data.type);
+  const nodeConfig = getNodeConfig(data.type);
   const Icon = nodeConfig?.icon || MessageCircle;
   const colorKey = (nodeConfig?.color || 'gray') as keyof typeof nodeColors;
   const colors = nodeColors[colorKey];
-  const [isEditing, setIsEditing] = useState(false);
-  const [localContent, setLocalContent] = useState(data.content || '');
-  const [editingTransitionId, setEditingTransitionId] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   // Get transitions from data or use defaults
-  const transitions: Transition[] = data.transitions || defaultTransitions[data.type] || [];
+  const transitions: Transition[] = data.transitions || nodeConfig?.defaultTransitions || [];
   
-  // Sync local content with data
-  useEffect(() => {
-    setLocalContent(data.content || '');
-  }, [data.content]);
-  
-  // Focus textarea when editing starts
-  useEffect(() => {
-    if (isEditing && textareaRef.current) {
-      textareaRef.current.focus();
-      textareaRef.current.select();
-    }
-  }, [isEditing]);
-  
-  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    setLocalContent(value);
-    if (data.onUpdate) {
-      data.onUpdate(id, { content: value });
-    }
-  };
-  
-  const handleTransitionLabelChange = (transitionId: string, newLabel: string) => {
-    const updatedTransitions = transitions.map(t => 
-      t.id === transitionId ? { ...t, label: newLabel } : t
-    );
-    if (data.onUpdate) {
-      data.onUpdate(id, { transitions: updatedTransitions });
-    }
-  };
-  
-  const handleAddTransition = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const newTransition: Transition = {
-      id: `transition-${Date.now()}`,
-      label: 'New Path',
-      color: 'blue',
-    };
-    const updatedTransitions = [...transitions, newTransition];
-    if (data.onUpdate) {
-      data.onUpdate(id, { transitions: updatedTransitions });
-    }
-  };
-  
-  const handleRemoveTransition = (e: React.MouseEvent, transitionId: string) => {
-    e.stopPropagation();
-    const updatedTransitions = transitions.filter(t => t.id !== transitionId);
-    if (data.onUpdate) {
-      data.onUpdate(id, { transitions: updatedTransitions });
-    }
-  };
+  // Check if this is an end node (no transitions)
+  const isEndNode = data.type === 'end';
+  const isStartNode = data.type === 'greeting';
   
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -176,58 +363,41 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
     }
   };
   
-  const handleTextareaClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsEditing(true);
-  };
-  
-  const handleTextareaBlur = () => {
-    setIsEditing(false);
-  };
-  
-  const handleTextareaMouseDown = (e: React.MouseEvent) => {
-    e.stopPropagation();
-  };
-  
-  const handleTransitionInputMouseDown = (e: React.MouseEvent) => {
-    e.stopPropagation();
-  };
-  
-  // Check if this is an end node (no transitions)
-  const isEndNode = data.type === 'end';
-  
   return (
     <div className="group relative">
-      {/* Top Handle - Entry point */}
-      <Handle 
-        type="target" 
-        position={Position.Top} 
-        className="!w-3 !h-3 !bg-gray-400 dark:!bg-gray-500 !border-2 !border-white dark:!border-gray-800 !-top-1.5 !rounded-full"
-        id={`${id}-target`}
-        isConnectable={true}
-      />
+      {/* Top Handle - Entry point (not for start node) */}
+      {!isStartNode && (
+        <Handle 
+          type="target" 
+          position={Position.Top} 
+          className="!w-3 !h-3 !bg-gray-400 dark:!bg-gray-500 !border-2 !border-white dark:!border-gray-800 !-top-1.5 !rounded-full"
+          id={`${id}-target`}
+          isConnectable={true}
+        />
+      )}
       
       {/* Node Card */}
       <div 
         className={`
-          w-[260px] bg-white dark:bg-gray-900 rounded-xl 
+          w-[240px] bg-white dark:bg-gray-900 rounded-xl 
           shadow-sm hover:shadow-md transition-all duration-200
-          border-2 ${selected ? 'border-blue-500 shadow-blue-100 dark:shadow-blue-900/20' : 'border-gray-100 dark:border-gray-800'}
+          border-2 ${selected ? 'border-indigo-500 shadow-indigo-100 dark:shadow-indigo-900/20' : 'border-gray-100 dark:border-gray-800'}
+          ${isStartNode ? 'ring-2 ring-emerald-500/20' : ''}
         `}
         data-testid={`flow-node-${data.type}`}
       >
-        {/* Header with icon and title */}
-        <div className="p-3 flex items-center gap-3 border-b border-gray-100 dark:border-gray-800">
-          <div className={`w-8 h-8 rounded-lg ${colors.bg} flex items-center justify-center flex-shrink-0 shadow-sm`}>
-            <Icon className="h-4 w-4 text-white" />
+        {/* Header */}
+        <div className="p-3 flex items-center gap-3">
+          <div className={`w-9 h-9 rounded-lg ${colors.bg} flex items-center justify-center flex-shrink-0 shadow-sm`}>
+            <Icon className="h-4.5 w-4.5 text-white" />
           </div>
           
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{data.label}</p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{data.label || nodeConfig?.label}</p>
             <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wide">{nodeConfig?.subtitle}</p>
           </div>
           
-          {selected && (
+          {selected && !isStartNode && (
             <button
               onClick={handleDelete}
               className="w-6 h-6 rounded-md bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center justify-center transition-colors"
@@ -238,99 +408,28 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
           )}
         </div>
         
-        {/* Editable Content Area */}
-        <div className="p-3 border-b border-gray-100 dark:border-gray-800">
-          <label className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1.5 block">
-            Instructions
-          </label>
-          <textarea
-            ref={textareaRef}
-            value={localContent}
-            onChange={handleContentChange}
-            onClick={handleTextareaClick}
-            onBlur={handleTextareaBlur}
-            onMouseDown={handleTextareaMouseDown}
-            placeholder={`What should the AI do here?`}
-            className={`
-              w-full min-h-[50px] max-h-[100px] text-xs leading-relaxed resize-none
-              bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2
-              border border-gray-200 dark:border-gray-700
-              focus:border-blue-400 dark:focus:border-blue-500 focus:ring-1 focus:ring-blue-400/20
-              text-gray-700 dark:text-gray-300 placeholder:text-gray-400 dark:placeholder:text-gray-500
-              transition-colors outline-none
-              ${isEditing ? 'cursor-text' : 'cursor-pointer'}
-            `}
-            data-testid="input-node-content"
-          />
-        </div>
+        {/* Content Preview */}
+        {data.content && (
+          <div className="px-3 pb-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 italic">
+              "{data.content}"
+            </p>
+          </div>
+        )}
         
-        {/* Transitions Section */}
-        {!isEndNode && (
-          <div className="p-3">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">
-                Transitions
-              </label>
-              {selected && (
-                <button
-                  onClick={handleAddTransition}
-                  className="w-5 h-5 rounded bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 
-                    flex items-center justify-center transition-colors"
-                  data-testid="button-add-transition"
-                >
-                  <Plus className="h-3 w-3 text-blue-600 dark:text-blue-400" />
-                </button>
-              )}
-            </div>
-            
-            {/* Transition List */}
-            <div className="space-y-2">
-              {transitions.map((transition, index) => {
+        {/* Transitions */}
+        {transitions.length > 0 && (
+          <div className="border-t border-gray-100 dark:border-gray-800 p-2">
+            <div className="flex flex-wrap gap-1">
+              {transitions.map((transition) => {
                 const tColors = transitionColors[transition.color || 'emerald'];
                 return (
                   <div 
                     key={transition.id}
-                    className={`flex items-center gap-2 p-1.5 rounded-lg ${tColors.bg} group/transition`}
+                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full ${tColors.bg} text-[10px] font-medium ${tColors.text}`}
                   >
-                    <ArrowRight className={`h-3 w-3 ${tColors.text} flex-shrink-0`} />
-                    {editingTransitionId === transition.id ? (
-                      <input
-                        type="text"
-                        defaultValue={transition.label}
-                        onBlur={(e) => {
-                          handleTransitionLabelChange(transition.id, e.target.value);
-                          setEditingTransitionId(null);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            handleTransitionLabelChange(transition.id, e.currentTarget.value);
-                            setEditingTransitionId(null);
-                          }
-                        }}
-                        onMouseDown={handleTransitionInputMouseDown}
-                        autoFocus
-                        className={`flex-1 text-xs font-medium bg-transparent border-none outline-none ${tColors.text}`}
-                        data-testid={`input-transition-${transition.id}`}
-                      />
-                    ) : (
-                      <span 
-                        onClick={(e) => { e.stopPropagation(); setEditingTransitionId(transition.id); }}
-                        className={`flex-1 text-xs font-medium ${tColors.text} cursor-pointer hover:underline`}
-                        data-testid={`text-transition-${transition.id}`}
-                      >
-                        {transition.label}
-                      </span>
-                    )}
-                    {selected && transitions.length > 1 && (
-                      <button
-                        onClick={(e) => handleRemoveTransition(e, transition.id)}
-                        className="opacity-0 group-hover/transition:opacity-100 w-4 h-4 rounded bg-white/50 dark:bg-gray-800/50 
-                          hover:bg-white dark:hover:bg-gray-800 flex items-center justify-center transition-all"
-                        data-testid={`button-remove-transition-${transition.id}`}
-                      >
-                        <Trash2 className="h-2.5 w-2.5 text-gray-500" />
-                      </button>
-                    )}
+                    <ChevronRight className="h-2.5 w-2.5" />
+                    {transition.label}
                   </div>
                 );
               })}
@@ -392,6 +491,217 @@ const defaultEdgeOptions = {
   },
 };
 
+// ============================================================================
+// NODE INSPECTOR PANEL
+// ============================================================================
+
+interface NodeInspectorProps {
+  node: Node | null;
+  onUpdate: (nodeId: string, data: any) => void;
+  onClose: () => void;
+}
+
+function NodeInspector({ node, onUpdate, onClose }: NodeInspectorProps) {
+  const nodeConfig = node ? getNodeConfig(node.data?.type as string) : null;
+  const [localData, setLocalData] = useState<any>({});
+  
+  useEffect(() => {
+    if (node) {
+      setLocalData({ ...node.data });
+    }
+  }, [node?.id]);
+  
+  if (!node || !nodeConfig) {
+    return (
+      <Card className="flex-1 flex flex-col">
+        <CardContent className="flex-1 flex items-center justify-center p-6">
+          <div className="text-center text-muted-foreground">
+            <Settings className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">Select a node to edit</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  const Icon = nodeConfig.icon;
+  const colors = nodeColors[nodeConfig.color];
+  
+  const handleFieldChange = (fieldId: string, value: any) => {
+    const updated = { ...localData, [fieldId]: value };
+    setLocalData(updated);
+    onUpdate(node.id, { [fieldId]: value });
+  };
+  
+  const handleContentChange = (value: string) => {
+    const updated = { ...localData, content: value };
+    setLocalData(updated);
+    onUpdate(node.id, { content: value });
+  };
+  
+  return (
+    <Card className="flex-1 flex flex-col overflow-hidden">
+      <CardHeader className="pb-3 flex-shrink-0 border-b">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`w-8 h-8 rounded-lg ${colors.bg} flex items-center justify-center`}>
+              <Icon className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-base">{nodeConfig.label}</CardTitle>
+              <p className="text-xs text-muted-foreground">{nodeConfig.subtitle}</p>
+            </div>
+          </div>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </CardHeader>
+      
+      <ScrollArea className="flex-1">
+        <div className="p-4 space-y-4">
+          {/* Node Label */}
+          <div className="space-y-2">
+            <Label className="text-xs font-medium">Node Label</Label>
+            <Input
+              value={localData.label || nodeConfig.label}
+              onChange={(e) => handleFieldChange('label', e.target.value)}
+              placeholder={nodeConfig.label}
+              data-testid="input-node-label"
+            />
+          </div>
+          
+          {/* Main Content / Instructions */}
+          <div className="space-y-2">
+            <Label className="text-xs font-medium">Instructions / Prompt</Label>
+            <Textarea
+              value={localData.content || ''}
+              onChange={(e) => handleContentChange(e.target.value)}
+              placeholder="What should the AI do at this step?"
+              className="min-h-[100px] resize-none"
+              data-testid="input-node-content"
+            />
+            <p className="text-[10px] text-muted-foreground">
+              Describe what the AI should say or do at this step in natural language.
+            </p>
+          </div>
+          
+          {/* Config Fields */}
+          {nodeConfig.configFields?.map((field) => (
+            <div key={field.id} className="space-y-2">
+              <Label className="text-xs font-medium">{field.label}</Label>
+              {field.type === 'textarea' ? (
+                <Textarea
+                  value={localData[field.id] || ''}
+                  onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                  placeholder={field.placeholder}
+                  className="min-h-[80px] resize-none"
+                  data-testid={`input-${field.id}`}
+                />
+              ) : field.type === 'select' ? (
+                <Select
+                  value={localData[field.id] || ''}
+                  onValueChange={(value) => handleFieldChange(field.id, value)}
+                >
+                  <SelectTrigger data-testid={`select-${field.id}`}>
+                    <SelectValue placeholder={field.placeholder} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {field.options?.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  type={field.type}
+                  value={localData[field.id] || ''}
+                  onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                  placeholder={field.placeholder}
+                  data-testid={`input-${field.id}`}
+                />
+              )}
+            </div>
+          ))}
+          
+          {/* Transitions Section */}
+          <div className="space-y-2 pt-2 border-t">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-medium">Transitions</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={() => {
+                  const currentTransitions = localData.transitions || nodeConfig.defaultTransitions || [];
+                  const newTransition: Transition = {
+                    id: `t-${Date.now()}`,
+                    label: 'New Path',
+                    color: 'blue',
+                  };
+                  const updated = [...currentTransitions, newTransition];
+                  setLocalData({ ...localData, transitions: updated });
+                  onUpdate(node.id, { transitions: updated });
+                }}
+                data-testid="button-add-transition"
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Add
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {(localData.transitions || nodeConfig.defaultTransitions || []).map((t: Transition, index: number) => {
+                const tColors = transitionColors[t.color || 'emerald'];
+                return (
+                  <div key={t.id} className={`flex items-center gap-2 p-2 rounded-lg ${tColors.bg}`}>
+                    <ArrowRight className={`h-3.5 w-3.5 ${tColors.text} flex-shrink-0`} />
+                    <Input
+                      value={t.label}
+                      onChange={(e) => {
+                        const currentTransitions = localData.transitions || nodeConfig.defaultTransitions || [];
+                        const updated = currentTransitions.map((tr: Transition) =>
+                          tr.id === t.id ? { ...tr, label: e.target.value } : tr
+                        );
+                        setLocalData({ ...localData, transitions: updated });
+                        onUpdate(node.id, { transitions: updated });
+                      }}
+                      className={`h-6 text-xs flex-1 bg-transparent border-none ${tColors.text} focus-visible:ring-0 p-0`}
+                      data-testid={`input-transition-${t.id}`}
+                    />
+                    {(localData.transitions || nodeConfig.defaultTransitions || []).length > 1 && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 opacity-60 hover:opacity-100"
+                        onClick={() => {
+                          const currentTransitions = localData.transitions || nodeConfig.defaultTransitions || [];
+                          const updated = currentTransitions.filter((tr: Transition) => tr.id !== t.id);
+                          setLocalData({ ...localData, transitions: updated });
+                          onUpdate(node.id, { transitions: updated });
+                        }}
+                        data-testid={`button-remove-transition-${t.id}`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Connect transitions to other nodes by dragging from the handles.
+            </p>
+          </div>
+        </div>
+      </ScrollArea>
+    </Card>
+  );
+}
+
+// ============================================================================
+// MAIN FLOW BUILDER COMPONENT
+// ============================================================================
+
 interface FlowBuilderProps {
   agentId: string;
   initialNodes?: Node[];
@@ -419,9 +729,12 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState('conversation');
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const { screenToFlowPosition, zoomIn, zoomOut, fitView } = useReactFlow();
   
-  // Undo/Redo history - use state for proper React integration
+  // Undo/Redo history
   const [history, setHistory] = useState<HistoryEntry[]>([cloneState(initialNodes, initialEdges)]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const skipHistoryRef = useRef(false);
@@ -457,7 +770,6 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
       return;
     }
     
-    // Only track significant changes (node count or edge count changed)
     const lastEntry = history[historyIndex];
     if (!lastEntry) return;
     
@@ -471,7 +783,6 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
       setHistory(prev => {
         const newHistory = prev.slice(0, historyIndex + 1);
         newHistory.push(newEntry);
-        // Limit to 50 entries
         if (newHistory.length > 50) {
           newHistory.shift();
         }
@@ -508,6 +819,8 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
     [setEdges],
   );
 
+  const selectedNode = nodes.find(n => n.id === selectedNodeId) || null;
+
   const onNodeClick = useCallback((_event: any, node: Node) => {
     setSelectedNodeId(node.id);
   }, []);
@@ -521,10 +834,7 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
     event.dataTransfer.dropEffect = 'move';
   }, []);
 
-  // Define update and delete functions first (will be injected into nodes)
-  const updateNodeDataRef = useRef<(nodeId: string, newData: any) => void>();
-  const deleteNodeRef = useRef<(nodeId: string) => void>();
-  
+  // Update and delete node functions
   const updateNodeData = useCallback((nodeId: string, newData: any) => {
     setNodes((nds) =>
       nds.map((node) =>
@@ -538,40 +848,10 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
   const deleteNode = useCallback((nodeId: string) => {
     setNodes((nds) => nds.filter((node) => node.id !== nodeId));
     setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
-  }, [setNodes, setEdges]);
-  
-  // Keep refs updated
-  useEffect(() => {
-    updateNodeDataRef.current = updateNodeData;
-    deleteNodeRef.current = deleteNode;
-  }, [updateNodeData, deleteNode]);
-  
-  // Inject callbacks into nodes that don't have them (only runs when node IDs change)
-  const nodeIdsKey = nodes.map(n => n.id).join(',');
-  const prevNodeIdsRef = useRef(nodeIdsKey);
-  
-  useEffect(() => {
-    // Only check when nodes are added (IDs changed or new nodes)
-    if (nodeIdsKey !== prevNodeIdsRef.current || nodes.some(n => typeof n.data.onUpdate !== 'function')) {
-      prevNodeIdsRef.current = nodeIdsKey;
-      const needsUpdate = nodes.some(n => typeof n.data.onUpdate !== 'function' || typeof n.data.onDelete !== 'function');
-      if (needsUpdate) {
-        setNodes((nds) =>
-          nds.map((node) => {
-            if (typeof node.data.onUpdate === 'function') return node;
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                onUpdate: (id: string, data: any) => updateNodeDataRef.current?.(id, data),
-                onDelete: (id: string) => deleteNodeRef.current?.(id),
-              },
-            };
-          })
-        );
-      }
+    if (selectedNodeId === nodeId) {
+      setSelectedNodeId(null);
     }
-  }, [nodeIdsKey, nodes, setNodes]);
+  }, [setNodes, setEdges, selectedNodeId]);
 
   const onDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
@@ -580,7 +860,7 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
       const type = event.dataTransfer.getData('application/reactflow');
       if (!type) return;
 
-      const nodeConfig = restaurantNodeTypes.find(t => t.type === type);
+      const nodeConfig = getNodeConfig(type);
       if (!nodeConfig) return;
 
       const position = screenToFlowPosition({
@@ -596,6 +876,7 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
           type, 
           label: nodeConfig.label,
           content: '',
+          transitions: nodeConfig.defaultTransitions,
           agentId,
           onUpdate: updateNodeData,
           onDelete: deleteNode,
@@ -607,9 +888,15 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
     [agentId, screenToFlowPosition, setNodes, updateNodeData, deleteNode],
   );
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (onSave) {
-      onSave(nodes, edges);
+      setIsSaving(true);
+      try {
+        await onSave(nodes, edges);
+        setLastSaved(new Date());
+      } finally {
+        setIsSaving(false);
+      }
     }
   }, [nodes, edges, onSave]);
 
@@ -618,18 +905,121 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
     event.dataTransfer.effectAllowed = 'move';
   };
 
-  // Filter nodes based on search
-  const filteredNodeTypes = restaurantNodeTypes.filter(node =>
-    node.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    node.subtitle.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter nodes based on search - keep all categories but filter their nodes
+  const filteredCategories = nodeCategories.map(cat => ({
+    ...cat,
+    nodes: searchQuery.trim() 
+      ? cat.nodes.filter(node =>
+          node.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          node.subtitle.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      : cat.nodes,
+  }));
+
+  // Inject callbacks into nodes
+  useEffect(() => {
+    const needsUpdate = nodes.some(n => typeof n.data.onUpdate !== 'function');
+    if (needsUpdate) {
+      setNodes((nds) =>
+        nds.map((node) => ({
+          ...node,
+          data: {
+            ...node.data,
+            onUpdate: updateNodeData,
+            onDelete: deleteNode,
+          },
+        }))
+      );
+    }
+  }, [nodes.length, setNodes, updateNodeData, deleteNode]);
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] gap-4" data-testid="flow-builder">
-      {/* Flow Canvas */}
-      <div ref={reactFlowWrapper} className="flex-1 relative rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-800">
+    <div className="flex h-[calc(100vh-12rem)] gap-3" data-testid="flow-builder">
+      {/* Left Panel - Node Library */}
+      <div className="w-64 flex-shrink-0 flex flex-col gap-3">
+        <Card className="flex-1 flex flex-col overflow-hidden">
+          <CardHeader className="pb-2 flex-shrink-0">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-indigo-500" />
+              Node Library
+            </CardTitle>
+          </CardHeader>
+          
+          {/* Search */}
+          <div className="px-3 pb-2 flex-shrink-0">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search nodes..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 h-8 text-sm"
+                data-testid="input-search-widgets"
+              />
+            </div>
+          </div>
+
+          {/* Category Tabs */}
+          <Tabs value={activeCategory} onValueChange={setActiveCategory} className="flex-1 flex flex-col overflow-hidden">
+            <TabsList className="mx-3 grid grid-cols-4 h-8">
+              {nodeCategories.map((cat) => (
+                <TabsTrigger 
+                  key={cat.id} 
+                  value={cat.id} 
+                  className="text-[10px] px-1"
+                  data-testid={`tab-${cat.id}`}
+                >
+                  {cat.label.slice(0, 4)}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            
+            <ScrollArea className="flex-1 px-3 pb-3 pt-2">
+              {filteredCategories.map((category) => (
+                <TabsContent key={category.id} value={category.id} className="mt-0 space-y-2">
+                  {category.nodes.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">No nodes match your search</p>
+                  ) : (
+                    category.nodes.map((nodeType) => {
+                      const Icon = nodeType.icon;
+                      const colors = nodeColors[nodeType.color];
+                      return (
+                        <div
+                          key={nodeType.type}
+                          draggable
+                          onDragStart={(event) => onDragStart(event, nodeType.type)}
+                          className="flex items-center gap-2.5 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/50 
+                            hover:bg-gray-100 dark:hover:bg-gray-800 border border-transparent hover:border-gray-200 
+                            dark:hover:border-gray-700 cursor-grab active:cursor-grabbing transition-all duration-150
+                            hover:shadow-sm"
+                          data-testid={`draggable-node-${nodeType.type}`}
+                        >
+                          <div className={`w-8 h-8 rounded-lg ${colors.bg} flex items-center justify-center shadow-sm flex-shrink-0`}>
+                            <Icon className="h-4 w-4 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">
+                              {nodeType.label}
+                            </p>
+                            <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate">
+                              {nodeType.subtitle}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </TabsContent>
+              ))}
+            </ScrollArea>
+          </Tabs>
+        </Card>
+      </div>
+
+      {/* Center - Flow Canvas */}
+      <div ref={reactFlowWrapper} className="flex-1 relative rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800">
         {/* Gradient Background Layer */}
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100 dark:from-gray-950 dark:via-blue-950/20 dark:to-gray-900" />
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-indigo-50/20 to-slate-100 dark:from-gray-950 dark:via-indigo-950/10 dark:to-gray-900" />
         
         <ReactFlow
           nodes={nodes.map(n => ({ ...n, selected: n.id === selectedNodeId }))}
@@ -652,151 +1042,106 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-8 w-8"
+              className="h-7 w-7"
               onClick={handleUndo}
               disabled={!canUndo}
               data-testid="button-undo"
             >
-              <Undo2 className="h-4 w-4" />
+              <Undo2 className="h-3.5 w-3.5" />
             </Button>
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-8 w-8"
+              className="h-7 w-7"
               onClick={handleRedo}
               disabled={!canRedo}
               data-testid="button-redo"
             >
-              <Redo2 className="h-4 w-4" />
+              <Redo2 className="h-3.5 w-3.5" />
             </Button>
-            <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1" />
+            <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-0.5" />
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-8 w-8"
+              className="h-7 w-7"
               onClick={() => zoomOut()}
               data-testid="button-zoom-out"
             >
-              <ZoomOut className="h-4 w-4" />
+              <ZoomOut className="h-3.5 w-3.5" />
             </Button>
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-8 w-8"
+              className="h-7 w-7"
               onClick={() => zoomIn()}
               data-testid="button-zoom-in"
             >
-              <ZoomIn className="h-4 w-4" />
+              <ZoomIn className="h-3.5 w-3.5" />
             </Button>
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-8 w-8"
+              className="h-7 w-7"
               onClick={() => fitView()}
               data-testid="button-fit-view"
             >
-              <Maximize className="h-4 w-4" />
+              <Maximize className="h-3.5 w-3.5" />
             </Button>
-            <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1" />
+            <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-0.5" />
             <Button 
               onClick={handleSave} 
               size="sm"
-              className="h-8 gap-1.5"
+              className="h-7 gap-1.5 text-xs"
+              disabled={isSaving}
               data-testid="button-save-flow"
             >
-              <Save className="h-3.5 w-3.5" />
+              {isSaving ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Save className="h-3 w-3" />
+              )}
               Save
             </Button>
           </Panel>
+
+          {/* Save Status */}
+          {lastSaved && (
+            <Panel position="top-right" className="flex items-center gap-1.5 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-lg px-2 py-1 text-xs text-muted-foreground">
+              <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+              Saved {lastSaved.toLocaleTimeString()}
+            </Panel>
+          )}
 
           <Background 
             variant={BackgroundVariant.Dots} 
             gap={20} 
             size={1} 
             color="#cbd5e1"
-            className="dark:opacity-30"
+            className="dark:opacity-20"
           />
           
-          {/* MiniMap in bottom right */}
+          {/* MiniMap */}
           <MiniMap 
             nodeColor={(node) => {
-              const nodeConfig = restaurantNodeTypes.find(t => t.type === node.data?.type);
-              const colorMap: Record<string, string> = {
-                green: '#10b981',
-                blue: '#3b82f6',
-                orange: '#f59e0b',
-                purple: '#8b5cf6',
-                red: '#f43f5e',
-                cyan: '#06b6d4',
-                gray: '#6b7280',
-              };
-              return colorMap[nodeConfig?.color || 'gray'] || '#6b7280';
+              const nodeConfig = getNodeConfig(node.data?.type as string);
+              return nodeConfig ? nodeColors[nodeConfig.color].hex : '#6b7280';
             }}
-            maskColor="rgba(0, 0, 0, 0.1)"
-            className="!bg-white/80 dark:!bg-gray-900/80 !rounded-lg !border !border-gray-200 dark:!border-gray-700 !shadow-sm"
-            style={{ width: 140, height: 90 }}
+            maskColor="rgba(0, 0, 0, 0.08)"
+            className="!bg-white/90 dark:!bg-gray-900/90 !rounded-lg !border !border-gray-200 dark:!border-gray-700 !shadow-sm"
+            style={{ width: 120, height: 80 }}
             pannable
             zoomable
           />
         </ReactFlow>
       </div>
 
-      {/* Right Side Panel - Widget Library & Properties */}
-      <div className="flex flex-col gap-4 w-72 flex-shrink-0">
-        {/* Widget Library */}
-        <Card className="flex-1 flex flex-col overflow-hidden">
-          <CardHeader className="pb-3 flex-shrink-0">
-            <CardTitle className="text-base font-semibold">Widget Library</CardTitle>
-            <p className="text-xs text-muted-foreground">Drop widgets into the builder</p>
-          </CardHeader>
-          
-          {/* Search */}
-          <div className="px-4 pb-3 flex-shrink-0">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search widgets"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 h-9"
-                data-testid="input-search-widgets"
-              />
-            </div>
-          </div>
-
-          {/* Widget Grid */}
-          <ScrollArea className="flex-1 px-4 pb-4">
-            <div className="grid grid-cols-2 gap-3">
-              {filteredNodeTypes.map((nodeType) => {
-                const Icon = nodeType.icon;
-                const colorKey = nodeType.color as keyof typeof nodeColors;
-                const colors = nodeColors[colorKey];
-                return (
-                  <div
-                    key={nodeType.type}
-                    draggable
-                    onDragStart={(event) => onDragStart(event, nodeType.type)}
-                    className="flex flex-col items-center gap-2 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 
-                      hover:bg-gray-100 dark:hover:bg-gray-800 border border-transparent hover:border-gray-200 
-                      dark:hover:border-gray-700 cursor-grab active:cursor-grabbing transition-all duration-150
-                      hover:shadow-sm"
-                    data-testid={`draggable-node-${nodeType.type}`}
-                  >
-                    {/* Circular Icon */}
-                    <div className={`w-10 h-10 rounded-full ${colors.bg} flex items-center justify-center shadow-sm`}>
-                      <Icon className="h-5 w-5 text-white" />
-                    </div>
-                    {/* Label */}
-                    <span className="text-xs font-medium text-center text-gray-700 dark:text-gray-300 leading-tight">
-                      {nodeType.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </ScrollArea>
-        </Card>
-
+      {/* Right Panel - Node Inspector */}
+      <div className="w-72 flex-shrink-0">
+        <NodeInspector 
+          node={selectedNode}
+          onUpdate={updateNodeData}
+          onClose={() => setSelectedNodeId(null)}
+        />
       </div>
     </div>
   );

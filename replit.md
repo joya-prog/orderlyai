@@ -81,7 +81,13 @@ Preferred communication style: Simple, everyday language.
     - `POST /api/square/payments` - Process payments directly
 - **Live Menu Integration**: AI agents automatically access real-time Square menu data (items, prices, variations, modifiers) during conversations when Square is connected.
 - **Analytics Dashboard**: Real-time tracking for calls, orders, reservations, with KPI cards and Recharts visualizations.
-- **Workflow Builder**: Integrated into the agent editor with drag-and-drop interface for creating agent flows.
+- **Workflow Builder**: Retell AI-style visual conversation flow builder integrated into the agent editor:
+  - **Node Categories**: Conversation (Start, Response, Collect Input, Keypad Input), Restaurant (Check Availability, Book Reservation, Take Order, Dietary Info), Logic (Condition, Wait, Loop Back), Telephony (Transfer Call, Press Digit, End Call)
+  - **Three-Panel Layout**: Left (Node Library with search and category tabs), Center (ReactFlow canvas with minimap), Right (Node Inspector for editing selected node)
+  - **Drag-and-Drop**: Nodes can be dragged from library onto canvas
+  - **Transitions**: Visual connection points with editable labels (e.g., "Available", "Unavailable" for branching)
+  - **Undo/Redo**: Full history management with toolbar controls
+  - **Auto-Save Indicator**: Shows save status with timestamp
 - **Test Center**: Integrated into the agent editor with text and voice testing modes (using OpenAI GPT-5, Whisper, TTS) for conversational agents.
 - **Integrations Page**: Displays available and upcoming integrations (Square, Toast, Twilio, Resy, Tock, Yelp).
 

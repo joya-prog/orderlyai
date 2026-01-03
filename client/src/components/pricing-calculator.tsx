@@ -10,8 +10,7 @@ import {
   TooltipProvider,
 } from "@/components/ui/tooltip";
 
-// Base subscription: $149/month per location
-const BASE_MONTHLY_FEE_PER_LOCATION = 149;
+// Usage-only pricing - no base fee
 
 interface AITier {
   id: string;
@@ -82,17 +81,14 @@ export function PricingCalculator({ variant = "default" }: PricingCalculatorProp
   const dailyMinutes = callsPerDay * avgCallDuration;
   const monthlyMinutesPerLocation = dailyMinutes * 30;
   const monthlyUsageCostPerLocation = costPerMinute * monthlyMinutesPerLocation;
-  const monthlyCostPerLocation = BASE_MONTHLY_FEE_PER_LOCATION + monthlyUsageCostPerLocation;
   
-  // Total calculations (across all locations)
-  const totalBaseFee = BASE_MONTHLY_FEE_PER_LOCATION * locations;
+  // Total calculations (across all locations) - usage only, no base fee
   const totalUsageCost = monthlyUsageCostPerLocation * locations;
-  const totalMonthlyCost = totalBaseFee + totalUsageCost;
+  const totalMonthlyCost = totalUsageCost;
   const totalCallsPerMonth = callsPerDay * 30 * locations;
+  const totalMinutesPerMonth = totalCallsPerMonth * avgCallDuration;
   const costPerCall = costPerMinute * avgCallDuration;
-  const dailyUsageCost = totalUsageCost / 30;
-  const dailyBaseCost = totalBaseFee / 30;
-  const dailyCost = dailyBaseCost + dailyUsageCost;
+  const dailyCost = totalUsageCost / 30;
 
   // Compact variant for auth page (dark theme on gradient background)
   if (variant === "compact") {
@@ -156,14 +152,14 @@ export function PricingCalculator({ variant = "default" }: PricingCalculatorProp
             value={[locations]}
             onValueChange={(value) => setLocations(value[0])}
             min={1}
-            max={10}
+            max={25}
             step={1}
             className="[&_[role=slider]]:bg-white [&_[role=slider]]:border-white [&_.bg-primary]:bg-white/80"
             data-testid="compact-slider-locations"
           />
           <div className="flex justify-between text-[10px] text-white/50 mt-1">
             <span>1</span>
-            <span>10</span>
+            <span>25</span>
           </div>
         </div>
 
@@ -216,12 +212,12 @@ export function PricingCalculator({ variant = "default" }: PricingCalculatorProp
         {/* Cost Breakdown - Compact */}
         <div className="rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 p-4 space-y-2">
           <div className="flex justify-between items-center text-sm">
-            <span className="text-white/70">Base</span>
-            <span className="text-white font-medium">${totalBaseFee}/mo</span>
+            <span className="text-white/70">Monthly minutes</span>
+            <span className="text-white font-medium">{totalMinutesPerMonth.toLocaleString()}</span>
           </div>
           <div className="flex justify-between items-center text-sm">
-            <span className="text-white/70">Usage</span>
-            <span className="text-white font-medium">${totalUsageCost.toFixed(0)}/mo</span>
+            <span className="text-white/70">Rate</span>
+            <span className="text-white font-medium">${costPerMinute.toFixed(2)}/min</span>
           </div>
           <div className="border-t border-white/20 pt-2 mt-2">
             <div className="flex justify-between items-center">
@@ -314,14 +310,14 @@ export function PricingCalculator({ variant = "default" }: PricingCalculatorProp
                 value={[locations]}
                 onValueChange={(value) => setLocations(value[0])}
                 min={1}
-                max={10}
+                max={25}
                 step={1}
                 className="mb-2"
                 data-testid="slider-locations"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>1 location</span>
-                <span>10 locations</span>
+                <span>25 locations</span>
               </div>
             </div>
 
@@ -383,18 +379,9 @@ export function PricingCalculator({ variant = "default" }: PricingCalculatorProp
           <div className="space-y-6">
             {/* Per-Location Breakdown */}
             <div className="rounded-lg border bg-card p-6 space-y-4">
-              {/* Base Subscription */}
-              <div>
-                <div className="text-sm text-muted-foreground mb-1">Base Subscription</div>
-                <div className="text-2xl font-bold" data-testid="base-fee">
-                  ${BASE_MONTHLY_FEE_PER_LOCATION}/month
-                </div>
-                <div className="text-xs text-muted-foreground">per location</div>
-              </div>
-
               {/* Per Minute Rate */}
-              <div className="pt-4 border-t">
-                <div className="text-sm text-muted-foreground mb-1">All-in Usage Rate</div>
+              <div>
+                <div className="text-sm text-muted-foreground mb-1">Usage Rate</div>
                 <div className="text-2xl font-bold" data-testid="cost-per-minute">
                   ${costPerMinute.toFixed(2)}/min
                 </div>
@@ -406,10 +393,10 @@ export function PricingCalculator({ variant = "default" }: PricingCalculatorProp
               <div className="pt-4 border-t">
                 <div className="text-sm text-muted-foreground mb-1">Per Location (Monthly)</div>
                 <div className="text-2xl font-bold text-primary" data-testid="per-location-cost">
-                  ${monthlyCostPerLocation.toFixed(2)}
+                  ${monthlyUsageCostPerLocation.toFixed(2)}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  ${BASE_MONTHLY_FEE_PER_LOCATION} base + {monthlyMinutesPerLocation.toLocaleString()} min × ${costPerMinute.toFixed(2)}
+                  {monthlyMinutesPerLocation.toLocaleString()} min × ${costPerMinute.toFixed(2)}
                 </div>
               </div>
 
@@ -421,7 +408,7 @@ export function PricingCalculator({ variant = "default" }: PricingCalculatorProp
                   ${totalMonthlyCost.toFixed(2)}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  ${totalBaseFee} base + ${totalUsageCost.toFixed(2)} usage
+                  {totalMinutesPerMonth.toLocaleString()} total minutes
                 </div>
               </div>
             </div>

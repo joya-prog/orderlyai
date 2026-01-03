@@ -308,7 +308,7 @@ export default function Auth() {
               Estimate your Cost
             </h2>
             <p className="text-white/70 text-xs">
-              Adjust your usage, LLM, engine, to see real time pricing for our AI voice agent solution.
+              Adjust your usage, and AI model to see real time pricing for our AI voice agent solution.
             </p>
           </div>
 

@@ -305,10 +305,10 @@ export default function Auth() {
         <div className="w-full max-w-sm">
           <div className="mb-4">
             <h2 className="text-xl font-bold text-white mb-1" style={{ fontFamily: "'Inter', sans-serif" }}>
-              Calculate Your Savings
+              Estimate your Cost
             </h2>
             <p className="text-white/70 text-xs">
-              See how much you'll save with AI-powered phone agents.
+              Adjust your usage, LLM, engine, to see real time pricing for our AI voice agent solution.
             </p>
           </div>
 

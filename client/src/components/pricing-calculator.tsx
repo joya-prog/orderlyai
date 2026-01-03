@@ -7,6 +7,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  TooltipProvider,
 } from "@/components/ui/tooltip";
 
 // Base subscription: $149/month per location
@@ -106,19 +107,19 @@ export function PricingCalculator({ variant = "default" }: PricingCalculatorProp
           <div>
             <div className="flex items-baseline justify-between gap-2 mb-2">
               <label className="text-xs font-medium text-white/90">Calls/day</label>
-              <span className="text-lg font-bold text-white" data-testid="compact-calls-value">{callsPerDay}</span>
+              <span className="text-lg font-bold text-white" data-testid="compact-calls-value">{Math.round(callsPerDay)}</span>
             </div>
             <Slider
               value={[callsPerDay]}
               onValueChange={(value) => setCallsPerDay(value[0])}
-              min={5}
+              min={1}
               max={50}
-              step={5}
+              step={1}
               className="[&_[role=slider]]:bg-white [&_[role=slider]]:border-white [&_.bg-primary]:bg-white/80"
               data-testid="compact-slider-calls"
             />
             <div className="flex justify-between text-[10px] text-white/50 mt-1">
-              <span>5</span>
+              <span>1</span>
               <span>50</span>
             </div>
           </div>
@@ -127,20 +128,20 @@ export function PricingCalculator({ variant = "default" }: PricingCalculatorProp
           <div>
             <div className="flex items-baseline justify-between gap-2 mb-2">
               <label className="text-xs font-medium text-white/90">Duration</label>
-              <span className="text-lg font-bold text-white" data-testid="compact-duration-value">{avgCallDuration}m</span>
+              <span className="text-lg font-bold text-white" data-testid="compact-duration-value">{avgCallDuration.toFixed(1)}m</span>
             </div>
             <Slider
               value={[avgCallDuration]}
               onValueChange={(value) => setAvgCallDuration(value[0])}
               min={1}
-              max={8}
-              step={0.5}
+              max={10}
+              step={0.1}
               className="[&_[role=slider]]:bg-white [&_[role=slider]]:border-white [&_.bg-primary]:bg-white/80"
               data-testid="compact-slider-duration"
             />
             <div className="flex justify-between text-[10px] text-white/50 mt-1">
               <span>1m</span>
-              <span>8m</span>
+              <span>10m</span>
             </div>
           </div>
         </div>
@@ -169,35 +170,47 @@ export function PricingCalculator({ variant = "default" }: PricingCalculatorProp
         {/* AI Tier Selection - Compact */}
         <div>
           <label className="text-xs font-medium text-white/90 block mb-2">AI Model</label>
-          <div className="space-y-1.5">
-            {compactTiers.map((tier) => (
-              <div
-                key={tier.id}
-                className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all ${
-                  selectedTier === tier.id 
-                    ? "bg-white/20 border border-white/40" 
-                    : "bg-white/5 border border-white/10 hover:bg-white/10"
-                }`}
-                onClick={() => setSelectedTier(tier.id)}
-                data-testid={`compact-tier-${tier.id}`}
-              >
-                <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${
-                    selectedTier === tier.id ? "border-white" : "border-white/50"
-                  }`}>
-                    {selectedTier === tier.id && (
-                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
+          <TooltipProvider>
+            <div className="space-y-1.5">
+              {compactTiers.map((tier) => (
+                <div
+                  key={tier.id}
+                  className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all ${
+                    selectedTier === tier.id 
+                      ? "bg-white/20 border border-white/40" 
+                      : "bg-white/5 border border-white/10 hover:bg-white/10"
+                  }`}
+                  onClick={() => setSelectedTier(tier.id)}
+                  data-testid={`compact-tier-${tier.id}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${
+                      selectedTier === tier.id ? "border-white" : "border-white/50"
+                    }`}>
+                      {selectedTier === tier.id && (
+                        <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                      )}
+                    </div>
+                    <span className="font-medium text-xs text-white">{tier.label}</span>
+                    {tier.isDefault && (
+                      <Badge className="text-[10px] px-1.5 py-0 h-4 bg-white/20 text-white border-0 hover:bg-white/20">Best</Badge>
                     )}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 text-white/50 hover:text-white/80 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[200px] bg-gray-900 border-gray-700">
+                        <p className="text-xs font-medium mb-1 text-white">{tier.label}</p>
+                        <p className="text-xs text-gray-300">{tier.description}</p>
+                        <p className="text-xs text-gray-400 mt-1">{tier.whyPriced}</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
-                  <span className="font-medium text-xs text-white">{tier.label}</span>
-                  {tier.isDefault && (
-                    <Badge className="text-[10px] px-1.5 py-0 h-4 bg-white/20 text-white border-0 hover:bg-white/20">Best</Badge>
-                  )}
+                  <span className="font-semibold text-xs text-white">${tier.costPerMinute.toFixed(2)}/min</span>
                 </div>
-                <span className="font-semibold text-xs text-white">${tier.costPerMinute.toFixed(2)}/min</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </TooltipProvider>
         </div>
 
         {/* Cost Breakdown - Compact */}
@@ -241,22 +254,22 @@ export function PricingCalculator({ variant = "default" }: PricingCalculatorProp
                   How many calls does your restaurant have per day?
                 </label>
                 <span className="text-3xl font-bold" data-testid="calls-per-day-value">
-                  {callsPerDay}
+                  {Math.round(callsPerDay)}
                 </span>
               </div>
               <Slider
                 value={[callsPerDay]}
                 onValueChange={(value) => setCallsPerDay(value[0])}
-                min={5}
+                min={1}
                 max={50}
-                step={5}
+                step={1}
                 className="mb-2"
                 data-testid="slider-calls-per-day"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>5 calls/day</span>
+                <span>1 call/day</span>
                 <span className="text-center">
-                  {(callsPerDay * 30).toLocaleString()} calls/month per location
+                  {(Math.round(callsPerDay) * 30).toLocaleString()} calls/month per location
                 </span>
                 <span>50 calls/day</span>
               </div>
@@ -269,21 +282,21 @@ export function PricingCalculator({ variant = "default" }: PricingCalculatorProp
                   How long is the duration of each call?
                 </label>
                 <span className="text-2xl font-bold" data-testid="avg-duration-value">
-                  {avgCallDuration} min
+                  {avgCallDuration.toFixed(1)} min
                 </span>
               </div>
               <Slider
                 value={[avgCallDuration]}
                 onValueChange={(value) => setAvgCallDuration(value[0])}
                 min={1}
-                max={8}
-                step={0.5}
+                max={10}
+                step={0.1}
                 className="mb-2"
                 data-testid="slider-avg-duration"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>1 min (quick inquiries)</span>
-                <span>8 min (complex orders)</span>
+                <span>10 min (complex orders)</span>
               </div>
             </div>
 

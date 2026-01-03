@@ -124,7 +124,7 @@ export function PricingCalculator({ variant = "default" }: PricingCalculatorProp
           <div>
             <div className="flex items-baseline justify-between gap-2 mb-2">
               <label className="text-xs font-medium text-white/90">Duration</label>
-              <span className="text-lg font-bold text-white" data-testid="compact-duration-value">{avgCallDuration.toFixed(1)}m</span>
+              <span className="text-lg font-bold text-white" data-testid="compact-duration-value">{avgCallDuration.toFixed(1)} minutes</span>
             </div>
             <Slider
               value={[avgCallDuration]}
@@ -136,8 +136,8 @@ export function PricingCalculator({ variant = "default" }: PricingCalculatorProp
               data-testid="compact-slider-duration"
             />
             <div className="flex justify-between text-[10px] text-white/50 mt-1">
-              <span>1m</span>
-              <span>10m</span>
+              <span>1 min</span>
+              <span>10 min</span>
             </div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useRef, DragEvent, useMemo } from 'react';
+import { useCallback, useState, useEffect, useRef, DragEvent, useMemo, memo } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -338,8 +338,9 @@ const transitionColors: Record<string, { bg: string; text: string; handle: strin
 // CUSTOM NODE COMPONENT - Retell AI Conversation Style
 // ============================================================================
 
-function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id: string }) {
-  const [contentMode, setContentMode] = useState<'prompt' | 'static'>(data.contentMode || 'prompt');
+const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id: string }) {
+  // Derive contentMode directly from data - no local state duplication
+  const contentMode = data.contentMode || 'prompt';
   const nodeConfig = getNodeConfig(data.type);
   const isStartNode = data.type === 'greeting';
   const isEndNode = data.type === 'end';
@@ -347,27 +348,26 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
   // Get transitions from data or use defaults
   const transitions: Transition[] = data.transitions || nodeConfig?.defaultTransitions || [];
   
-  const handleDelete = (e: React.MouseEvent) => {
+  const handleDelete = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     if (data.onDelete) {
       data.onDelete(id);
     }
-  };
+  }, [data.onDelete, id]);
 
-  const handleFieldChange = (fieldId: string, value: any) => {
+  const handleFieldChange = useCallback((fieldId: string, value: any) => {
     if (data.onUpdate) {
       data.onUpdate(id, { [fieldId]: value });
     }
-  };
+  }, [data.onUpdate, id]);
 
-  const handleContentModeChange = (mode: 'prompt' | 'static') => {
-    setContentMode(mode);
+  const handleContentModeChange = useCallback((mode: 'prompt' | 'static') => {
     if (data.onUpdate) {
       data.onUpdate(id, { contentMode: mode });
     }
-  };
+  }, [data.onUpdate, id]);
 
-  const handleTransitionConditionChange = (transitionId: string, newCondition: string) => {
+  const handleTransitionConditionChange = useCallback((transitionId: string, newCondition: string) => {
     const currentTransitions = data.transitions || nodeConfig?.defaultTransitions || [];
     const updated = currentTransitions.map((tr: Transition) =>
       tr.id === transitionId ? { ...tr, condition: newCondition, label: newCondition || 'Describe the transition condition' } : tr
@@ -375,9 +375,9 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
     if (data.onUpdate) {
       data.onUpdate(id, { transitions: updated });
     }
-  };
+  }, [data.onUpdate, data.transitions, nodeConfig?.defaultTransitions, id]);
 
-  const handleAddTransition = (e: React.MouseEvent) => {
+  const handleAddTransition = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     const currentTransitions = data.transitions || nodeConfig?.defaultTransitions || [];
     const newTransition: Transition = {
@@ -390,16 +390,16 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
     if (data.onUpdate) {
       data.onUpdate(id, { transitions: updated });
     }
-  };
+  }, [data.onUpdate, data.transitions, nodeConfig?.defaultTransitions, id]);
 
-  const handleRemoveTransition = (e: React.MouseEvent, transitionId: string) => {
+  const handleRemoveTransition = useCallback((e: React.MouseEvent, transitionId: string) => {
     e.stopPropagation();
     const currentTransitions = data.transitions || nodeConfig?.defaultTransitions || [];
     const updated = currentTransitions.filter((tr: Transition) => tr.id !== transitionId);
     if (data.onUpdate) {
       data.onUpdate(id, { transitions: updated });
     }
-  };
+  }, [data.onUpdate, data.transitions, nodeConfig?.defaultTransitions, id]);
   
   return (
     <div className="group relative">
@@ -601,7 +601,7 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
       </div>
     </div>
   );
-}
+});
 
 const nodeTypes: NodeTypes = {
   custom: CustomNode,
@@ -688,7 +688,11 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
 
-  // Track changes for undo/redo
+  // Debounced history push - only commit to history after changes settle
+  const historyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingHistoryRef = useRef<{ nodes: Node[], edges: Edge[] } | null>(null);
+
+  // Track changes for undo/redo with debouncing (800ms)
   useEffect(() => {
     if (skipHistoryRef.current) {
       skipHistoryRef.current = false;
@@ -698,12 +702,19 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
     const lastEntry = history[historyIndex];
     if (!lastEntry) return;
     
+    // Only track structural changes (add/remove nodes/edges), not data changes
     const nodesChanged = nodes.length !== lastEntry.nodes.length || 
       JSON.stringify(nodes.map(n => n.id)) !== JSON.stringify(lastEntry.nodes.map(n => n.id));
     const edgesChanged = edges.length !== lastEntry.edges.length ||
       JSON.stringify(edges.map(e => e.id)) !== JSON.stringify(lastEntry.edges.map(e => e.id));
     
     if (nodesChanged || edgesChanged) {
+      // Clear pending timeout and immediately push structural changes
+      if (historyTimeoutRef.current) {
+        clearTimeout(historyTimeoutRef.current);
+        historyTimeoutRef.current = null;
+      }
+      
       const newEntry = cloneState(nodes, edges);
       setHistory(prev => {
         const newHistory = prev.slice(0, historyIndex + 1);
@@ -715,7 +726,7 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
       });
       setHistoryIndex(prev => Math.min(prev + 1, 49));
     }
-  }, [nodes, edges, history, historyIndex]);
+  }, [nodes.length, edges.length]);
 
   const handleUndo = useCallback(() => {
     if (historyIndex > 0) {

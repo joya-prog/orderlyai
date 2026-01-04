@@ -585,6 +585,17 @@ function AgentEditorInner() {
   const [testInput, setTestInput] = useState("");
   const [isTestLoading, setIsTestLoading] = useState(false);
   
+  // Voice call state
+  const [isInVoiceCall, setIsInVoiceCall] = useState(false);
+  const [isVoiceCallConnecting, setIsVoiceCallConnecting] = useState(false);
+  const voiceWsRef = useRef<WebSocket | null>(null);
+  const captureContextRef = useRef<AudioContext | null>(null);
+  const playbackContextRef = useRef<AudioContext | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const audioQueueRef = useRef<ArrayBuffer[]>([]);
+  const isPlayingAudioRef = useRef(false);
+  
   // ReactFlow state - properly typed
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -893,6 +904,243 @@ function AgentEditorInner() {
       setIsTestLoading(false);
     }
   }, [testInput, testMessages, isTestLoading, id, toast]);
+
+  // Voice call - play audio from queue using playback context
+  const playNextAudio = useCallback(async () => {
+    if (isPlayingAudioRef.current || audioQueueRef.current.length === 0) return;
+    
+    isPlayingAudioRef.current = true;
+    const audioData = audioQueueRef.current.shift();
+    
+    // Use playback context, create new one if needed
+    if (!playbackContextRef.current || playbackContextRef.current.state === 'closed') {
+      playbackContextRef.current = new AudioContext();
+    }
+    
+    if (audioData) {
+      try {
+        // Clone the ArrayBuffer since decodeAudioData detaches it
+        const clonedData = audioData.slice(0);
+        const audioBuffer = await playbackContextRef.current.decodeAudioData(clonedData);
+        const source = playbackContextRef.current.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(playbackContextRef.current.destination);
+        source.onended = () => {
+          isPlayingAudioRef.current = false;
+          playNextAudio();
+        };
+        source.start();
+      } catch (error) {
+        console.error("Error playing audio:", error);
+        isPlayingAudioRef.current = false;
+        // Continue to next audio in queue
+        setTimeout(playNextAudio, 100);
+      }
+    } else {
+      isPlayingAudioRef.current = false;
+    }
+  }, []);
+
+  // Voice call - convert base64 to ArrayBuffer
+  const base64ToArrayBuffer = useCallback((base64: string): ArrayBuffer => {
+    const binaryString = atob(base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes.buffer;
+  }, []);
+
+  // Voice call - convert ArrayBuffer to base64
+  const arrayBufferToBase64 = useCallback((buffer: ArrayBuffer): string => {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }, []);
+
+  // Voice call - start call with microphone
+  const startVoiceCall = useCallback(async () => {
+    if (isNew || !id || !user) return;
+    
+    setIsVoiceCallConnecting(true);
+    
+    try {
+      // Request microphone permission
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      
+      // Create audio context for recording (sample rate will be resampled)
+      const audioContext = new AudioContext();
+      captureContextRef.current = audioContext;
+      
+      // Create WebSocket connection
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${wsProtocol}//${window.location.host}/test-call?agentId=${id}&userId=${user.id}`);
+      voiceWsRef.current = ws;
+      
+      ws.onopen = () => {
+        console.log('[VoiceCall] WebSocket connected');
+        setIsInVoiceCall(true);
+        setIsVoiceCallConnecting(false);
+        
+        // Set up audio processing - record microphone audio
+        const source = audioContext.createMediaStreamSource(stream);
+        const processor = audioContext.createScriptProcessor(4096, 1, 1);
+        audioProcessorRef.current = processor;
+        
+        processor.onaudioprocess = (event) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            const inputData = event.inputBuffer.getChannelData(0);
+            
+            // Resample to 16kHz if needed
+            const sourceRate = audioContext.sampleRate;
+            const targetRate = 16000;
+            const ratio = sourceRate / targetRate;
+            const resampledLength = Math.floor(inputData.length / ratio);
+            const resampledData = new Float32Array(resampledLength);
+            
+            for (let i = 0; i < resampledLength; i++) {
+              resampledData[i] = inputData[Math.floor(i * ratio)];
+            }
+            
+            // Convert float32 to int16 PCM
+            const int16Data = new Int16Array(resampledData.length);
+            for (let i = 0; i < resampledData.length; i++) {
+              int16Data[i] = Math.max(-32768, Math.min(32767, Math.floor(resampledData[i] * 32768)));
+            }
+            
+            // Convert to base64 and send as JSON
+            const base64Audio = arrayBufferToBase64(int16Data.buffer);
+            ws.send(JSON.stringify({
+              type: 'audio_chunk',
+              audio: base64Audio,
+            }));
+          }
+        };
+        
+        // Connect source to processor, but NOT to destination (prevents feedback)
+        source.connect(processor);
+        // Connect processor to a dummy node (required for it to process)
+        const dummyGain = audioContext.createGain();
+        dummyGain.gain.value = 0;
+        processor.connect(dummyGain);
+        dummyGain.connect(audioContext.destination);
+      };
+      
+      ws.onmessage = async (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          
+          if (message.type === 'audio' && message.audio) {
+            // Decode base64 audio and queue for playback
+            const audioData = base64ToArrayBuffer(message.audio);
+            audioQueueRef.current.push(audioData);
+            
+            // Also show the text in chat if provided
+            if (message.text) {
+              setTestMessages(prev => {
+                // Avoid duplicates - check if last message is same
+                if (prev.length > 0 && prev[prev.length - 1].content === message.text) {
+                  return prev;
+                }
+                return [...prev, { role: 'assistant', content: message.text }];
+              });
+            }
+            
+            playNextAudio();
+          } else if (message.type === 'greeting' && message.text) {
+            setTestMessages([{ role: 'assistant', content: message.text }]);
+          } else if (message.type === 'transcript' && message.text) {
+            // Server sends user's transcribed speech
+            setTestMessages(prev => [...prev, { role: 'user', content: message.text }]);
+          } else if (message.type === 'response' && message.text) {
+            setTestMessages(prev => [...prev, { role: 'assistant', content: message.text }]);
+          } else if (message.type === 'error') {
+            toast({ title: "Call Error", description: message.message, variant: "destructive" });
+          } else if (message.type === 'state') {
+            // State updates from server (listening, processing, speaking)
+            console.log('[VoiceCall] State:', message.state);
+          }
+        } catch (e) {
+          console.error('[VoiceCall] Error parsing message:', e);
+        }
+      };
+      
+      ws.onerror = (error) => {
+        console.error('[VoiceCall] WebSocket error:', error);
+        toast({ title: "Connection Error", description: "Failed to connect to voice server", variant: "destructive" });
+      };
+      
+      ws.onclose = () => {
+        console.log('[VoiceCall] WebSocket closed');
+        // Only call stopVoiceCall if we're still in a call (prevents recursive calls)
+        if (isInVoiceCall) {
+          setIsInVoiceCall(false);
+          setIsVoiceCallConnecting(false);
+        }
+      };
+      
+    } catch (error: any) {
+      console.error('[VoiceCall] Error starting call:', error);
+      setIsVoiceCallConnecting(false);
+      
+      if (error.name === 'NotAllowedError') {
+        toast({ title: "Microphone Access Denied", description: "Please allow microphone access to use voice testing", variant: "destructive" });
+      } else {
+        toast({ title: "Error", description: "Failed to start voice call", variant: "destructive" });
+      }
+    }
+  }, [isNew, id, user, toast, playNextAudio, isInVoiceCall, arrayBufferToBase64, base64ToArrayBuffer]);
+
+  // Voice call - stop call
+  const stopVoiceCall = useCallback(() => {
+    // Close WebSocket
+    if (voiceWsRef.current) {
+      voiceWsRef.current.close();
+      voiceWsRef.current = null;
+    }
+    
+    // Stop audio processor
+    if (audioProcessorRef.current) {
+      audioProcessorRef.current.disconnect();
+      audioProcessorRef.current = null;
+    }
+    
+    // Stop media stream
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    
+    // Close capture audio context
+    if (captureContextRef.current) {
+      captureContextRef.current.close();
+      captureContextRef.current = null;
+    }
+    
+    // Close playback audio context (let any playing audio finish first)
+    if (playbackContextRef.current) {
+      playbackContextRef.current.close();
+      playbackContextRef.current = null;
+    }
+    
+    // Clear audio queue
+    audioQueueRef.current = [];
+    isPlayingAudioRef.current = false;
+    
+    setIsInVoiceCall(false);
+    setIsVoiceCallConnecting(false);
+  }, []);
+
+  // Cleanup voice call on unmount
+  useEffect(() => {
+    return () => {
+      stopVoiceCall();
+    };
+  }, [stopVoiceCall]);
 
   // Inject callbacks into nodes
   useEffect(() => {
@@ -1456,21 +1704,62 @@ function AgentEditorInner() {
                 </div>
 
                 {/* Voice Call Option */}
-                <div className="mt-4 p-4 bg-white dark:bg-gray-900 rounded-xl border">
+                <div className={`mt-4 p-4 rounded-xl border transition-colors ${
+                  isInVoiceCall 
+                    ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' 
+                    : 'bg-white dark:bg-gray-900'
+                }`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                        <Mic className="h-5 w-5 text-emerald-600" />
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                        isInVoiceCall 
+                          ? 'bg-emerald-500 animate-pulse' 
+                          : 'bg-emerald-100 dark:bg-emerald-900/30'
+                      }`}>
+                        <Mic className={`h-5 w-5 ${isInVoiceCall ? 'text-white' : 'text-emerald-600'}`} />
                       </div>
                       <div>
-                        <h4 className="font-medium">Voice Call Test</h4>
-                        <p className="text-xs text-muted-foreground">Test with real voice using your microphone</p>
+                        <h4 className="font-medium">
+                          {isInVoiceCall ? 'Voice Call Active' : 'Voice Call Test'}
+                        </h4>
+                        <p className="text-xs text-muted-foreground">
+                          {isInVoiceCall 
+                            ? 'Speaking with your agent... Speak clearly into your microphone' 
+                            : 'Test with real voice using your microphone'}
+                        </p>
                       </div>
                     </div>
-                    <Button variant="outline" className="gap-2">
-                      <Phone className="h-4 w-4" />
-                      Start Call
-                    </Button>
+                    {isInVoiceCall ? (
+                      <Button 
+                        variant="destructive" 
+                        className="gap-2"
+                        onClick={stopVoiceCall}
+                        data-testid="button-end-call"
+                      >
+                        <PhoneOff className="h-4 w-4" />
+                        End Call
+                      </Button>
+                    ) : (
+                      <Button 
+                        variant="outline" 
+                        className="gap-2"
+                        onClick={startVoiceCall}
+                        disabled={isVoiceCallConnecting || isNew}
+                        data-testid="button-start-call"
+                      >
+                        {isVoiceCallConnecting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Connecting...
+                          </>
+                        ) : (
+                          <>
+                            <Phone className="h-4 w-4" />
+                            Start Call
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>

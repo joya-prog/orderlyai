@@ -661,3 +661,68 @@ export const insertInvoiceSchema = createInsertSchema(invoices).omit({
 
 export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 export type Invoice = typeof invoices.$inferSelect;
+
+// API Keys table for user-generated API keys
+export const apiKeys = pgTable("api_keys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar("name").notNull(),
+  keyPrefix: varchar("key_prefix").notNull(), // First 8 chars of key for display (e.g., "ord_abc1...")
+  keyHash: varchar("key_hash").notNull(), // Hashed version of the full key
+  lastUsedAt: timestamp("last_used_at"),
+  expiresAt: timestamp("expires_at"), // Optional expiration
+  scopes: text("scopes").array().default(sql`'{}'::text[]`), // API scopes/permissions
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertApiKeySchema = createInsertSchema(apiKeys).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
+export type ApiKey = typeof apiKeys.$inferSelect;
+
+// User preferences table for settings
+export const userPreferences = pgTable("user_preferences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  timezone: varchar("timezone").default('America/Los_Angeles'),
+  language: varchar("language").default('en'),
+  theme: varchar("theme").default('system'), // 'light', 'dark', 'system'
+  emailNotifications: boolean("email_notifications").default(true),
+  smsNotifications: boolean("sms_notifications").default(false),
+  marketingEmails: boolean("marketing_emails").default(true),
+  weeklyDigest: boolean("weekly_digest").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertUserPreferencesSchema = createInsertSchema(userPreferences).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertUserPreferences = z.infer<typeof insertUserPreferencesSchema>;
+export type UserPreferences = typeof userPreferences.$inferSelect;
+
+// Two-factor authentication table
+export const twoFactorAuth = pgTable("two_factor_auth", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  secret: varchar("secret").notNull(), // TOTP secret (encrypted)
+  isEnabled: boolean("is_enabled").default(false),
+  backupCodes: text("backup_codes").array().default(sql`'{}'::text[]`), // Hashed backup codes
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertTwoFactorAuthSchema = createInsertSchema(twoFactorAuth).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertTwoFactorAuth = z.infer<typeof insertTwoFactorAuthSchema>;
+export type TwoFactorAuth = typeof twoFactorAuth.$inferSelect;

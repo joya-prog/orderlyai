@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Bot, Edit, Trash2, Play, Pause } from "lucide-react";
+import { Plus, Bot, Edit, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import {
   AlertDialog,
@@ -21,12 +21,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useState } from "react";
+import { CreateAgentDialog } from "@/components/create-agent-dialog";
 
 export default function Agents() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [deleteAgentId, setDeleteAgentId] = useState<string | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   const { data: agents, isLoading } = useQuery<Agent[]>({
     queryKey: ["/api/agents"],
@@ -128,11 +129,13 @@ export default function Agents() {
               Manage your AI voice agents for reservations and customer service
             </p>
           </div>
-          <Button asChild data-testid="button-create-agent" className="shadow-sm">
-            <Link href="/agents/new">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Agent
-            </Link>
+          <Button 
+            onClick={() => setShowCreateDialog(true)} 
+            data-testid="button-create-agent" 
+            className="shadow-sm"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Agent
           </Button>
         </div>
 
@@ -146,17 +149,14 @@ export default function Agents() {
             <p className="text-muted-foreground text-center mb-8 max-w-md text-sm">
               Create your first voice agent or start from a template to handle calls for your restaurant
             </p>
-            <div className="flex gap-4">
-              <Button asChild data-testid="button-create-first-agent" className="shadow-sm">
-                <Link href="/agents/new">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Agent
-                </Link>
-              </Button>
-              <Button variant="outline" asChild data-testid="button-browse-templates">
-                <Link href="/templates">Browse Templates</Link>
-              </Button>
-            </div>
+            <Button 
+              onClick={() => setShowCreateDialog(true)} 
+              data-testid="button-create-first-agent" 
+              className="shadow-sm"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create Agent
+            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -229,6 +229,11 @@ export default function Agents() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CreateAgentDialog 
+        open={showCreateDialog} 
+        onOpenChange={setShowCreateDialog} 
+      />
       </div>
     </div>
   );

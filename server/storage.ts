@@ -20,6 +20,9 @@ import {
   callLogs,
   orders,
   passwordResetTokens,
+  apiKeys,
+  userPreferences,
+  twoFactorAuth,
   type User,
   type UpsertUser,
   type Agent,
@@ -60,6 +63,12 @@ import {
   type Order,
   type PasswordResetToken,
   type InsertPasswordResetToken,
+  type ApiKey,
+  type InsertApiKey,
+  type UserPreferences,
+  type InsertUserPreferences,
+  type TwoFactorAuth,
+  type InsertTwoFactorAuth,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, like, or, sql } from "drizzle-orm";
@@ -203,6 +212,25 @@ export interface IStorage {
   invalidatePriorResetTokens(userId: string): Promise<number>;
   deleteExpiredPasswordResetTokens(): Promise<number>;
   updateUserPassword(userId: string, passwordHash: string): Promise<User | null>;
+
+  // API Key operations
+  getApiKeys(userId: string): Promise<ApiKey[]>;
+  getApiKeyById(id: string, userId: string): Promise<ApiKey | null>;
+  createApiKey(apiKey: InsertApiKey): Promise<ApiKey>;
+  updateApiKeyLastUsed(id: string): Promise<ApiKey | null>;
+  revokeApiKey(id: string, userId: string): Promise<boolean>;
+  deleteApiKey(id: string, userId: string): Promise<boolean>;
+
+  // User preferences operations
+  getUserPreferences(userId: string): Promise<UserPreferences | null>;
+  createUserPreferences(prefs: InsertUserPreferences): Promise<UserPreferences>;
+  updateUserPreferences(userId: string, prefs: Partial<InsertUserPreferences>): Promise<UserPreferences | null>;
+
+  // Two-factor auth operations
+  getTwoFactorAuth(userId: string): Promise<TwoFactorAuth | null>;
+  createTwoFactorAuth(twoFactor: InsertTwoFactorAuth): Promise<TwoFactorAuth>;
+  updateTwoFactorAuth(userId: string, twoFactor: Partial<InsertTwoFactorAuth>): Promise<TwoFactorAuth | null>;
+  deleteTwoFactorAuth(userId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1038,6 +1066,113 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId))
       .returning();
     return updated || null;
+  }
+
+  // API Key operations
+  async getApiKeys(userId: string): Promise<ApiKey[]> {
+    return await db
+      .select()
+      .from(apiKeys)
+      .where(eq(apiKeys.userId, userId));
+  }
+
+  async getApiKeyById(id: string, userId: string): Promise<ApiKey | null> {
+    const [key] = await db
+      .select()
+      .from(apiKeys)
+      .where(and(eq(apiKeys.id, id), eq(apiKeys.userId, userId)));
+    return key || null;
+  }
+
+  async createApiKey(apiKey: InsertApiKey): Promise<ApiKey> {
+    const [created] = await db
+      .insert(apiKeys)
+      .values(apiKey)
+      .returning();
+    return created;
+  }
+
+  async updateApiKeyLastUsed(id: string): Promise<ApiKey | null> {
+    const [updated] = await db
+      .update(apiKeys)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(apiKeys.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async revokeApiKey(id: string, userId: string): Promise<boolean> {
+    const result = await db
+      .update(apiKeys)
+      .set({ isActive: false })
+      .where(and(eq(apiKeys.id, id), eq(apiKeys.userId, userId)));
+    return true;
+  }
+
+  async deleteApiKey(id: string, userId: string): Promise<boolean> {
+    await db
+      .delete(apiKeys)
+      .where(and(eq(apiKeys.id, id), eq(apiKeys.userId, userId)));
+    return true;
+  }
+
+  // User preferences operations
+  async getUserPreferences(userId: string): Promise<UserPreferences | null> {
+    const [prefs] = await db
+      .select()
+      .from(userPreferences)
+      .where(eq(userPreferences.userId, userId));
+    return prefs || null;
+  }
+
+  async createUserPreferences(prefs: InsertUserPreferences): Promise<UserPreferences> {
+    const [created] = await db
+      .insert(userPreferences)
+      .values(prefs)
+      .returning();
+    return created;
+  }
+
+  async updateUserPreferences(userId: string, prefs: Partial<InsertUserPreferences>): Promise<UserPreferences | null> {
+    const [updated] = await db
+      .update(userPreferences)
+      .set({ ...prefs, updatedAt: new Date() })
+      .where(eq(userPreferences.userId, userId))
+      .returning();
+    return updated || null;
+  }
+
+  // Two-factor auth operations
+  async getTwoFactorAuth(userId: string): Promise<TwoFactorAuth | null> {
+    const [twoFactor] = await db
+      .select()
+      .from(twoFactorAuth)
+      .where(eq(twoFactorAuth.userId, userId));
+    return twoFactor || null;
+  }
+
+  async createTwoFactorAuth(twoFactor: InsertTwoFactorAuth): Promise<TwoFactorAuth> {
+    const [created] = await db
+      .insert(twoFactorAuth)
+      .values(twoFactor)
+      .returning();
+    return created;
+  }
+
+  async updateTwoFactorAuth(userId: string, twoFactor: Partial<InsertTwoFactorAuth>): Promise<TwoFactorAuth | null> {
+    const [updated] = await db
+      .update(twoFactorAuth)
+      .set(twoFactor)
+      .where(eq(twoFactorAuth.userId, userId))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteTwoFactorAuth(userId: string): Promise<boolean> {
+    await db
+      .delete(twoFactorAuth)
+      .where(eq(twoFactorAuth.userId, userId));
+    return true;
   }
 }
 

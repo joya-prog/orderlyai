@@ -33,7 +33,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.id;
       const user = await storage.getUser(userId);
-      res.json(user);
+      // Include phoneNumber alias for frontend compatibility
+      res.json({
+        ...user,
+        phoneNumber: user?.restaurantPhone || '',
+      });
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
@@ -2886,7 +2890,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/auth/profile", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const { firstName, lastName, email } = req.body;
+      const { firstName, lastName, email, phoneNumber, restaurantName } = req.body;
       
       const user = await storage.getUser(userId);
       if (!user) {
@@ -2899,9 +2903,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         firstName: firstName !== undefined ? firstName : user.firstName,
         lastName: lastName !== undefined ? lastName : user.lastName,
         email: email !== undefined ? email : user.email,
+        restaurantPhone: phoneNumber !== undefined ? phoneNumber : user.restaurantPhone,
+        restaurantName: restaurantName !== undefined ? restaurantName : user.restaurantName,
       });
       
-      res.json(updated);
+      // Return with phoneNumber alias for frontend compatibility
+      res.json({
+        ...updated,
+        phoneNumber: updated.restaurantPhone,
+      });
     } catch (error) {
       console.error("Error updating profile:", error);
       res.status(500).json({ message: "Failed to update profile" });

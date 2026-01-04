@@ -36,7 +36,10 @@ import {
   Moon,
   Sun,
   Monitor,
+  Wrench,
+  Building2,
 } from "lucide-react";
+import { useTheme } from "@/components/theme-provider";
 import type { Subscription, UsageMetric, Invoice, CallLog, User as UserType, UserPreferences, ApiKey } from "@shared/schema";
 import {
   Dialog,
@@ -282,6 +285,7 @@ export default function SettingsPage() {
 
 function PreferencesTab() {
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
 
   const { data: user } = useQuery<UserType>({
     queryKey: ["/api/auth/user"],
@@ -294,9 +298,10 @@ function PreferencesTab() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [restaurantName, setRestaurantName] = useState("");
   const [timezone, setTimezone] = useState("America/New_York");
   const [language, setLanguage] = useState("en");
-  const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [smsNotifications, setSmsNotifications] = useState(false);
   const [marketingEmails, setMarketingEmails] = useState(false);
@@ -307,6 +312,8 @@ function PreferencesTab() {
       setFirstName(user.firstName || "");
       setLastName(user.lastName || "");
       setEmail(user.email || "");
+      setPhoneNumber((user as any).phoneNumber || "");
+      setRestaurantName((user as any).restaurantName || "");
     }
   }, [user]);
 
@@ -314,7 +321,6 @@ function PreferencesTab() {
     if (preferences) {
       setTimezone(preferences.timezone || "America/New_York");
       setLanguage(preferences.language || "en");
-      setTheme((preferences.theme as "light" | "dark" | "system") || "system");
       setEmailNotifications(preferences.emailNotifications ?? true);
       setSmsNotifications(preferences.smsNotifications ?? false);
       setMarketingEmails(preferences.marketingEmails ?? false);
@@ -323,7 +329,7 @@ function PreferencesTab() {
   }, [preferences]);
 
   const updateProfile = useMutation({
-    mutationFn: async (data: { firstName: string; lastName: string; email: string }) => {
+    mutationFn: async (data: { firstName: string; lastName: string; email: string; phoneNumber?: string; restaurantName?: string }) => {
       return await apiRequest('PATCH', '/api/auth/profile', data);
     },
     onSuccess: () => {
@@ -349,14 +355,13 @@ function PreferencesTab() {
   });
 
   const handleSaveProfile = () => {
-    updateProfile.mutate({ firstName, lastName, email });
+    updateProfile.mutate({ firstName, lastName, email, phoneNumber, restaurantName });
   };
 
   const handleSavePreferences = () => {
     updatePreferences.mutate({
       timezone,
       language,
-      theme,
       emailNotifications,
       smsNotifications,
       marketingEmails,
@@ -385,7 +390,7 @@ function PreferencesTab() {
             <User className="h-5 w-5" />
             Profile Information
           </CardTitle>
-          <CardDescription>Update your personal details</CardDescription>
+          <CardDescription>Update your personal and business details</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -420,6 +425,31 @@ function PreferencesTab() {
               placeholder="your@email.com"
               data-testid="input-email"
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="phoneNumber">Phone Number</Label>
+            <Input
+              id="phoneNumber"
+              type="tel"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              placeholder="+1 (555) 123-4567"
+              data-testid="input-phone-number"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="restaurantName">Restaurant Name</Label>
+            <div className="relative">
+              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="restaurantName"
+                value={restaurantName}
+                onChange={(e) => setRestaurantName(e.target.value)}
+                placeholder="Enter your restaurant name"
+                className="pl-10"
+                data-testid="input-restaurant-name"
+              />
+            </div>
           </div>
           <Button
             onClick={handleSaveProfile}
@@ -583,6 +613,7 @@ function PreferencesTab() {
 
 function SecurityTab() {
   const { toast } = useToast();
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -616,6 +647,7 @@ function SecurityTab() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      setShowPasswordChange(false);
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Failed to change password", variant: "destructive" });
@@ -751,71 +783,104 @@ function SecurityTab() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!isGoogleOnly && (
-            <div className="space-y-2">
-              <Label htmlFor="currentPassword">Current Password</Label>
-              <div className="relative">
-                <Input
-                  id="currentPassword"
-                  type={showCurrentPassword ? "text" : "password"}
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="Enter current password"
-                  data-testid="input-current-password"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-0 top-0 h-full"
-                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                >
-                  {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
+          {!showPasswordChange ? (
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                {isGoogleOnly 
+                  ? "You're signed in with Google. Set a password to also log in with email."
+                  : "Last changed: Never"}
               </div>
-            </div>
-          )}
-          <div className="space-y-2">
-            <Label htmlFor="newPassword">New Password</Label>
-            <div className="relative">
-              <Input
-                id="newPassword"
-                type={showNewPassword ? "text" : "password"}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Enter new password"
-                data-testid="input-new-password"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-0 top-0 h-full"
-                onClick={() => setShowNewPassword(!showNewPassword)}
+              <Button 
+                variant="outline" 
+                onClick={() => setShowPasswordChange(true)}
+                data-testid="button-initiate-password-change"
               >
-                {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {isGoogleOnly ? "Set Password" : "Change Password"}
               </Button>
             </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm New Password</Label>
-            <Input
-              id="confirmPassword"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm new password"
-              data-testid="input-confirm-password"
-            />
-          </div>
-          <Button
-            onClick={handleChangePassword}
-            disabled={changePassword.isPending || (!isGoogleOnly && !currentPassword) || !newPassword || !confirmPassword}
-            data-testid="button-change-password"
-          >
-            {changePassword.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {isGoogleOnly ? "Set Password" : "Change Password"}
-          </Button>
+          ) : (
+            <>
+              {!isGoogleOnly && (
+                <div className="space-y-2">
+                  <Label htmlFor="currentPassword">Current Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="currentPassword"
+                      type={showCurrentPassword ? "text" : "password"}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="Enter current password"
+                      data-testid="input-current-password"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    >
+                      {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="newPassword">New Password</Label>
+                <div className="relative">
+                  <Input
+                    id="newPassword"
+                    type={showNewPassword ? "text" : "password"}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    data-testid="input-new-password"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                  >
+                    {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                  data-testid="input-confirm-password"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleChangePassword}
+                  disabled={changePassword.isPending || (!isGoogleOnly && !currentPassword) || !newPassword || !confirmPassword}
+                  data-testid="button-change-password"
+                >
+                  {changePassword.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {isGoogleOnly ? "Set Password" : "Update Password"}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowPasswordChange(false);
+                    setCurrentPassword("");
+                    setNewPassword("");
+                    setConfirmPassword("");
+                  }}
+                  data-testid="button-cancel-password-change"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -1145,255 +1210,17 @@ function SecurityTab() {
 }
 
 function ApiKeysTab() {
-  const { toast } = useToast();
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [newKeyName, setNewKeyName] = useState("");
-  const [createdKey, setCreatedKey] = useState<string | null>(null);
-  const [showCreatedKey, setShowCreatedKey] = useState(false);
-
-  const { data: apiKeys = [], isLoading } = useQuery<ApiKey[]>({
-    queryKey: ["/api/api-keys"],
-  });
-
-  const createApiKey = useMutation({
-    mutationFn: async (name: string) => {
-      return await apiRequest<{ id: string; name: string; key: string; keyPrefix: string }>('POST', '/api/api-keys', { name });
-    },
-    onSuccess: (data) => {
-      setCreatedKey(data.key);
-      setShowCreatedKey(true);
-      setNewKeyName("");
-      setShowCreateDialog(false);
-      queryClient.invalidateQueries({ queryKey: ['/api/api-keys'] });
-      toast({ title: "API Key Created", description: "Make sure to copy your key now. You won't be able to see it again." });
-    },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to create API key", variant: "destructive" });
-    },
-  });
-
-  const revokeApiKey = useMutation({
-    mutationFn: async (id: string) => {
-      return await apiRequest('PATCH', `/api/api-keys/${id}/revoke`, {});
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/api-keys'] });
-      toast({ title: "API Key Revoked", description: "The API key has been disabled." });
-    },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to revoke API key", variant: "destructive" });
-    },
-  });
-
-  const deleteApiKey = useMutation({
-    mutationFn: async (id: string) => {
-      return await apiRequest('DELETE', `/api/api-keys/${id}`, {});
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/api-keys'] });
-      toast({ title: "API Key Deleted", description: "The API key has been permanently deleted." });
-    },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to delete API key", variant: "destructive" });
-    },
-  });
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({ title: "Copied", description: "API key copied to clipboard" });
-  };
-
-  const formatDate = (dateStr: string | Date | null) => {
-    if (!dateStr) return 'Never';
-    const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
   return (
-    <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-8" data-testid="settings-api-keys">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight mb-2">API Keys</h1>
-          <p className="text-muted-foreground">Manage API keys for programmatic access</p>
+    <div className="p-4 md:p-8 max-w-4xl mx-auto" data-testid="settings-api-keys">
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+        <div className="p-4 rounded-full bg-amber-100 dark:bg-amber-500/20 mb-6">
+          <Wrench className="h-12 w-12 text-amber-600 dark:text-amber-400" />
         </div>
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-create-api-key">
-              <Plus className="h-4 w-4 mr-2" />
-              Create API Key
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New API Key</DialogTitle>
-              <DialogDescription>Give your API key a descriptive name to identify its purpose.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="keyName">Key Name</Label>
-                <Input
-                  id="keyName"
-                  value={newKeyName}
-                  onChange={(e) => setNewKeyName(e.target.value)}
-                  placeholder="e.g., Production Server"
-                  data-testid="input-api-key-name"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>Cancel</Button>
-              <Button
-                onClick={() => createApiKey.mutate(newKeyName)}
-                disabled={createApiKey.isPending || !newKeyName.trim()}
-                data-testid="button-confirm-create-api-key"
-              >
-                {createApiKey.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Create Key
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <h1 className="text-2xl font-bold tracking-tight mb-3">API Dashboard Under Maintenance</h1>
+        <p className="text-muted-foreground max-w-md">
+          We're currently enhancing this section to provide a better experience. Thank you for your patience.
+        </p>
       </div>
-
-      {showCreatedKey && createdKey && (
-        <Card className="shadow-md border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-500/10">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              <Check className="h-5 w-5 text-green-600 mt-0.5" />
-              <div className="flex-1 space-y-2">
-                <div className="font-medium text-green-700 dark:text-green-400">API Key Created Successfully</div>
-                <p className="text-sm text-green-600 dark:text-green-500">
-                  Copy this key now. For security, it won't be shown again.
-                </p>
-                <div className="flex items-center gap-2 mt-3">
-                  <code className="flex-1 bg-white dark:bg-background px-3 py-2 rounded text-sm font-mono break-all">
-                    {createdKey}
-                  </code>
-                  <Button variant="outline" size="icon" onClick={() => copyToClipboard(createdKey)}>
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-                <Button variant="ghost" size="sm" className="mt-2" onClick={() => { setShowCreatedKey(false); setCreatedKey(null); }}>
-                  Dismiss
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card className="shadow-md">
-        <CardHeader>
-          <CardTitle>Your API Keys</CardTitle>
-          <CardDescription>Keys are used to authenticate API requests</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : apiKeys.length > 0 ? (
-            <div className="space-y-3">
-              {apiKeys.map((key) => (
-                <div key={key.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg" data-testid={`api-key-row-${key.id}`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-full ${key.isActive ? 'bg-green-100 text-green-600 dark:bg-green-500/20' : 'bg-gray-100 text-gray-400 dark:bg-gray-500/20'}`}>
-                      <Key className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <div className="font-medium flex items-center gap-2">
-                        {key.name}
-                        {!key.isActive && <Badge variant="secondary" className="text-xs">Revoked</Badge>}
-                      </div>
-                      <div className="text-sm text-muted-foreground font-mono">{key.keyPrefix}</div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Created {formatDate(key.createdAt)}
-                        {key.lastUsedAt && ` • Last used ${formatDate(key.lastUsedAt)}`}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {key.isActive && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm" data-testid={`button-revoke-key-${key.id}`}>
-                            Revoke
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Revoke API Key?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This will immediately disable the API key "{key.name}". Any applications using this key will stop working.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => revokeApiKey.mutate(key.id)}>
-                              Revoke Key
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" data-testid={`button-delete-key-${key.id}`}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete API Key?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will permanently delete the API key "{key.name}". This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => deleteApiKey.mutate(key.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <Key className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No API keys yet</p>
-              <p className="text-sm">Create an API key to get started</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="shadow-md">
-        <CardHeader>
-          <CardTitle>API Documentation</CardTitle>
-          <CardDescription>Learn how to use the Orderly AI API</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="p-4 bg-muted/50 rounded-lg">
-              <h4 className="font-medium mb-2">Authentication</h4>
-              <p className="text-sm text-muted-foreground mb-3">Include your API key in the Authorization header:</p>
-              <code className="block bg-background p-3 rounded text-sm font-mono">
-                Authorization: Bearer ord_xxxxxxxxxxxx
-              </code>
-            </div>
-            <div className="p-4 bg-muted/50 rounded-lg">
-              <h4 className="font-medium mb-2">Base URL</h4>
-              <code className="block bg-background p-3 rounded text-sm font-mono">
-                https://api.orderly.ai/v1
-              </code>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
@@ -1647,59 +1474,6 @@ function BillingTab({
         </CardContent>
       </Card>
 
-      <Card className="shadow-md">
-        <CardHeader>
-          <CardTitle>Your Pricing</CardTitle>
-          <CardDescription>Simple, transparent pricing for your restaurant</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="p-6 rounded-xl bg-primary/5 border border-primary/10">
-              <div className="text-sm text-muted-foreground mb-2">Base Subscription</div>
-              <div className="text-4xl font-bold text-primary">${BASE_MONTHLY_FEE}</div>
-              <div className="text-sm text-muted-foreground">per location / month</div>
-            </div>
-            <div className="p-6 rounded-xl bg-muted/50 border">
-              <div className="text-sm text-muted-foreground mb-2">Usage Rate</div>
-              <div className="text-4xl font-bold">from $0.29</div>
-              <div className="text-sm text-muted-foreground">per minute (AI + Voice included)</div>
-            </div>
-          </div>
-          <div className="mt-6 pt-6 border-t">
-            <h4 className="font-medium mb-3">What's Included</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {[
-                "Unlimited AI agents",
-                "All POS integrations",
-                "Real-time analytics",
-                "Phone number management",
-                "Custom voice agents",
-                "Priority support",
-              ].map((feature, idx) => (
-                <div key={idx} className="flex items-center gap-2 text-sm">
-                  <Check className="h-4 w-4 text-primary shrink-0" />
-                  <span>{feature}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          {!subscription && (
-            <div className="mt-6 pt-6 border-t">
-              <Button 
-                className="w-full md:w-auto"
-                onClick={handleSubscribe}
-                disabled={createCheckoutSession.isPending}
-                data-testid="button-subscribe"
-              >
-                {createCheckoutSession.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : null}
-                Subscribe Now
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

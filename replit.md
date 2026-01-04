@@ -44,8 +44,16 @@ Preferred communication style: Simple, everyday language.
 - **2FA Routes**:
   - `GET /api/auth/2fa/pending-token` - Retrieve pending 2FA token from session (for Google OAuth flow)
   - `POST /api/auth/2fa/verify-login` - Complete login with TOTP code verification
+  - `POST /api/auth/2fa/verify-sms` - Complete login with SMS code verification
   - `POST /api/auth/2fa/verify-backup` - Complete login with backup code (consumes code)
   - `POST /api/auth/2fa/cancel` - Cancel pending 2FA session
+  - `POST /api/auth/2fa/sms/setup` - Setup SMS 2FA with phone number (sends verification code)
+  - `POST /api/auth/2fa/sms/verify` - Verify SMS setup code and enable SMS 2FA
+  - `POST /api/auth/2fa/resend-sms` - Resend SMS verification code during login
+  - `POST /api/auth/2fa/preferred-method` - Update preferred 2FA method (TOTP or SMS)
+- **2FA Methods**: Users can choose between:
+  - **Authenticator App (TOTP)**: Google Authenticator or similar apps with 6-digit codes
+  - **SMS Text Message**: Verification codes sent via Twilio to registered phone number (5-minute expiry)
 - **Auth Environment Variables**:
   - `SESSION_SECRET` - Required for session encryption
   - `GOOGLE_CLIENT_ID` - Optional, for Google OAuth

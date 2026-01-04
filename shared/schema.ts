@@ -717,6 +717,11 @@ export const twoFactorAuth = pgTable("two_factor_auth", {
   backupCodes: text("backup_codes").array().default(sql`'{}'::text[]`), // Hashed backup codes
   lastUsedAt: timestamp("last_used_at"),
   createdAt: timestamp("created_at").defaultNow(),
+  
+  // SMS 2FA fields
+  phoneNumber: varchar("phone_number"), // Phone number for SMS verification
+  smsEnabled: boolean("sms_enabled").default(false), // Whether SMS 2FA is enabled
+  preferredMethod: varchar("preferred_method").default('totp'), // 'totp' or 'sms'
 });
 
 export const insertTwoFactorAuthSchema = createInsertSchema(twoFactorAuth).omit({

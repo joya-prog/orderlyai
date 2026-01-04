@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
   Dialog,
@@ -10,11 +10,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import type { Template } from "@shared/schema";
 import { 
   Plus, 
   LayoutTemplate, 
@@ -24,7 +23,6 @@ import {
   Calendar,
   MessageSquare,
   ClipboardList,
-  X
 } from "lucide-react";
 
 type DialogStep = "choice" | "templates" | "detail";
@@ -82,11 +80,6 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
   const [selectedTemplate, setSelectedTemplate] = useState<typeof RESTAURANT_TEMPLATES[0] | null>(null);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-
-  const { data: dbTemplates, isLoading: templatesLoading } = useQuery<Template[]>({
-    queryKey: ["/api/templates"],
-    enabled: open && step === "templates",
-  });
 
   const installMutation = useMutation({
     mutationFn: async (template: typeof RESTAURANT_TEMPLATES[0]) => {
@@ -154,45 +147,56 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
     setStep("templates");
   };
 
+  const getDialogSize = () => {
+    switch (step) {
+      case "choice":
+        return "sm:max-w-[700px]";
+      case "templates":
+        return "sm:max-w-[900px]";
+      case "detail":
+        return "sm:max-w-[700px]";
+      default:
+        return "sm:max-w-[700px]";
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[600px] p-0 gap-0">
+      <DialogContent className={`${getDialogSize()} p-0 gap-0 overflow-hidden`}>
         {step === "choice" && (
           <>
-            <DialogHeader className="p-6 pb-4">
-              <div className="flex items-center justify-between">
-                <DialogTitle className="text-lg font-semibold">Create New Agent</DialogTitle>
-              </div>
+            <DialogHeader className="px-8 pt-8 pb-6">
+              <DialogTitle className="text-xl font-semibold">Create New Agent</DialogTitle>
             </DialogHeader>
-            <div className="p-6 pt-2">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="px-8 pb-8">
+              <div className="grid grid-cols-2 gap-6">
                 <Card 
-                  className="cursor-pointer hover-elevate transition-all border-2 hover:border-primary/50"
+                  className="cursor-pointer hover-elevate transition-all border-2 border-border/60 hover:border-primary/50 rounded-xl"
                   onClick={handleStartFromScratch}
                   data-testid="card-start-from-scratch"
                 >
-                  <CardContent className="flex flex-col items-center justify-center py-10 px-6 text-center">
-                    <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-4">
-                      <Plus className="h-6 w-6 text-muted-foreground" />
+                  <CardContent className="flex flex-col items-center justify-center py-16 px-8 text-center">
+                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-6">
+                      <Plus className="h-7 w-7 text-muted-foreground" />
                     </div>
-                    <h3 className="font-semibold mb-1">Start from Scratch</h3>
-                    <p className="text-sm text-muted-foreground">
+                    <h3 className="text-lg font-semibold mb-2">Start from Scratch</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
                       Build your AI Agent from the ground up
                     </p>
                   </CardContent>
                 </Card>
 
                 <Card 
-                  className="cursor-pointer hover-elevate transition-all border-2 hover:border-primary/50"
+                  className="cursor-pointer hover-elevate transition-all border-2 border-border/60 hover:border-primary/50 rounded-xl"
                   onClick={() => setStep("templates")}
                   data-testid="card-browse-templates"
                 >
-                  <CardContent className="flex flex-col items-center justify-center py-10 px-6 text-center">
-                    <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-4">
-                      <LayoutTemplate className="h-6 w-6 text-muted-foreground" />
+                  <CardContent className="flex flex-col items-center justify-center py-16 px-8 text-center">
+                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-6">
+                      <LayoutTemplate className="h-7 w-7 text-muted-foreground" />
                     </div>
-                    <h3 className="font-semibold mb-1">Browse our Templates</h3>
-                    <p className="text-sm text-muted-foreground">
+                    <h3 className="text-lg font-semibold mb-2">Browse our Templates</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
                       Get inspired by our templates to get started
                     </p>
                   </CardContent>
@@ -204,50 +208,49 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
 
         {step === "templates" && (
           <>
-            <DialogHeader className="p-6 pb-4 border-b">
-              <div className="flex items-center gap-3">
+            <DialogHeader className="px-8 pt-8 pb-6 border-b">
+              <div className="flex items-center gap-4">
                 <Button 
                   variant="ghost" 
                   size="icon" 
                   onClick={() => setStep("choice")}
+                  className="h-9 w-9"
                   data-testid="button-back-to-choice"
                 >
-                  <ArrowLeft className="h-4 w-4" />
+                  <ArrowLeft className="h-5 w-5" />
                 </Button>
-                <DialogTitle className="text-lg font-semibold">Select Template</DialogTitle>
+                <DialogTitle className="text-xl font-semibold">Select Template</DialogTitle>
               </div>
             </DialogHeader>
-            <div className="p-6 max-h-[400px] overflow-y-auto">
-              <div className="flex items-center gap-2 mb-4">
-                <Badge variant="outline" className="gap-1.5">
-                  <Phone className="h-3 w-3" />
+            <div className="p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <Badge variant="outline" className="gap-1.5 px-3 py-1.5 text-sm">
+                  <Phone className="h-3.5 w-3.5" />
                   Inbound
                 </Badge>
-                <Badge variant="outline" className="gap-1.5">
-                  <UtensilsCrossed className="h-3 w-3" />
+                <Badge variant="outline" className="gap-1.5 px-3 py-1.5 text-sm">
+                  <UtensilsCrossed className="h-3.5 w-3.5" />
                   Restaurant
                 </Badge>
               </div>
-              <div className="grid gap-3">
+              <div className="grid grid-cols-2 gap-4 max-h-[450px] overflow-y-auto pr-2">
                 {RESTAURANT_TEMPLATES.map((template) => {
                   const Icon = template.icon;
                   return (
                     <Card 
                       key={template.id}
-                      className="cursor-pointer hover-elevate transition-all border hover:border-primary/50"
+                      className="cursor-pointer hover-elevate transition-all border hover:border-primary/50 rounded-xl"
                       onClick={() => handleSelectTemplate(template)}
                       data-testid={`card-template-${template.id}`}
                     >
-                      <CardContent className="p-4">
+                      <CardContent className="p-5">
                         <div className="flex items-start gap-4">
-                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                            <Icon className="h-5 w-5 text-primary" />
+                          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <Icon className="h-6 w-6 text-primary" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-semibold">{template.name}</h3>
-                            </div>
-                            <p className="text-sm text-muted-foreground line-clamp-2">
+                            <h3 className="font-semibold text-base mb-1.5">{template.name}</h3>
+                            <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
                               {template.description}
                             </p>
                           </div>
@@ -263,32 +266,33 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
 
         {step === "detail" && selectedTemplate && (
           <>
-            <DialogHeader className="p-6 pb-4 border-b">
-              <div className="flex items-center gap-3">
+            <DialogHeader className="px-8 pt-8 pb-6 border-b">
+              <div className="flex items-center gap-4">
                 <Button 
                   variant="ghost" 
                   size="icon" 
                   onClick={handleBackToTemplates}
+                  className="h-9 w-9"
                   data-testid="button-back-to-templates"
                 >
-                  <ArrowLeft className="h-4 w-4" />
+                  <ArrowLeft className="h-5 w-5" />
                 </Button>
-                <DialogTitle className="text-lg font-semibold">Back to Templates</DialogTitle>
+                <DialogTitle className="text-xl font-semibold">Back to Templates</DialogTitle>
               </div>
             </DialogHeader>
-            <div className="p-6">
-              <div className="flex items-start gap-4 mb-6">
-                <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <selectedTemplate.icon className="h-7 w-7 text-primary" />
+            <div className="p-8">
+              <div className="flex items-start gap-5 mb-8">
+                <div className="w-16 h-16 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 border border-primary/20">
+                  <selectedTemplate.icon className="h-8 w-8 text-primary" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-semibold mb-2">{selectedTemplate.name}</h2>
+                  <h2 className="text-xl font-semibold mb-3">{selectedTemplate.name}</h2>
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="gap-1">
+                    <Badge variant="outline" className="gap-1.5 px-3 py-1">
                       <UtensilsCrossed className="h-3 w-3" />
                       Restaurant
                     </Badge>
-                    <Badge variant="outline" className="gap-1">
+                    <Badge variant="outline" className="gap-1.5 px-3 py-1">
                       <Phone className="h-3 w-3" />
                       Inbound
                     </Badge>
@@ -296,17 +300,21 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
                 </div>
               </div>
 
-              <div className="mb-6">
-                <h3 className="font-semibold mb-2">Description</h3>
-                <p className="text-muted-foreground leading-relaxed">
+              <Separator className="mb-6" />
+
+              <div className="mb-8">
+                <h3 className="font-semibold text-base mb-3">Description</h3>
+                <p className="text-muted-foreground leading-relaxed text-base">
                   {selectedTemplate.description}
                 </p>
               </div>
 
               <div className="flex justify-end">
                 <Button 
+                  size="lg"
                   onClick={handleInstallTemplate}
                   disabled={installMutation.isPending}
+                  className="px-6"
                   data-testid="button-install-template"
                 >
                   {installMutation.isPending ? "Installing..." : "Install Template"}

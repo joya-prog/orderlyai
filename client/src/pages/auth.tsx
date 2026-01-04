@@ -39,6 +39,9 @@ export default function Auth() {
   const [twoFactorCode, setTwoFactorCode] = useState("");
   const [useBackupCode, setUseBackupCode] = useState(false);
   const [backupCode, setBackupCode] = useState("");
+  const [twoFactorMethod, setTwoFactorMethod] = useState<'totp' | 'sms'>('totp');
+  const [phoneLastFour, setPhoneLastFour] = useState("");
+  const [resendingCode, setResendingCode] = useState(false);
 
   // Clear form state when switching views
   const resetFormState = () => {
@@ -76,7 +79,15 @@ export default function Auth() {
           })
           .then(data => {
             setPendingToken(data.pendingToken);
+            setTwoFactorMethod(data.method || 'totp');
+            setPhoneLastFour(data.phoneLastFour || '');
             setAuthView('2fa-verify');
+            if (data.method === 'sms') {
+              toast({
+                title: "Verification Code Sent",
+                description: `A code has been sent to your phone ending in ${data.phoneLastFour}.`,
+              });
+            }
           })
           .catch(() => {
             toast({
@@ -111,10 +122,14 @@ export default function Auth() {
       // Check if 2FA is required
       if (data.requires2FA && data.pendingToken) {
         setPendingToken(data.pendingToken);
+        setTwoFactorMethod(data.method || 'totp');
+        setPhoneLastFour(data.phoneLastFour || '');
         setAuthView('2fa-verify');
         toast({
           title: "Two-Factor Authentication",
-          description: "Please enter your verification code to continue.",
+          description: data.method === 'sms' 
+            ? `A verification code has been sent to your phone ending in ${data.phoneLastFour}.`
+            : "Please enter your verification code to continue.",
         });
         return;
       }
@@ -286,13 +301,19 @@ export default function Auth() {
     setIsLoading(true);
 
     try {
-      const endpoint = useBackupCode 
-        ? "/api/auth/2fa/verify-backup" 
-        : "/api/auth/2fa/verify-login";
+      let endpoint: string;
+      let body: object;
       
-      const body = useBackupCode
-        ? { pendingToken, backupCode }
-        : { pendingToken, code: twoFactorCode };
+      if (useBackupCode) {
+        endpoint = "/api/auth/2fa/verify-backup";
+        body = { pendingToken, backupCode };
+      } else if (twoFactorMethod === 'sms') {
+        endpoint = "/api/auth/2fa/verify-sms";
+        body = { pendingToken, code: twoFactorCode };
+      } else {
+        endpoint = "/api/auth/2fa/verify-login";
+        body = { pendingToken, code: twoFactorCode };
+      }
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -517,8 +538,52 @@ export default function Auth() {
         setBackupCode("");
         setUseBackupCode(false);
         setPendingToken("");
+        setTwoFactorMethod('totp');
+        setPhoneLastFour("");
         setIsLoading(false);
         setAuthView('login');
+      };
+
+      const handleResendSmsCode = async () => {
+        if (resendingCode) return;
+        setResendingCode(true);
+        try {
+          const response = await fetch('/api/auth/2fa/resend-sms', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pendingToken }),
+            credentials: 'include',
+          });
+          const data = await response.json();
+          if (response.ok) {
+            toast({
+              title: "Code Sent",
+              description: `A new verification code has been sent to your phone.`,
+            });
+          } else {
+            throw new Error(data.message || 'Failed to resend code');
+          }
+        } catch (error: any) {
+          toast({
+            title: "Error",
+            description: error.message || "Failed to resend verification code",
+            variant: "destructive",
+          });
+        } finally {
+          setResendingCode(false);
+        }
+      };
+
+      const getVerificationMessage = () => {
+        if (useBackupCode) {
+          return "Enter one of your backup codes to continue.";
+        }
+        if (twoFactorMethod === 'sms') {
+          return phoneLastFour 
+            ? `Enter the 6-digit code sent to your phone ending in ${phoneLastFour}.`
+            : "Enter the 6-digit code sent to your phone.";
+        }
+        return "Enter the 6-digit code from your authenticator app.";
       };
 
       return (
@@ -538,9 +603,7 @@ export default function Auth() {
               Two-Factor Authentication
             </h1>
             <p className="text-gray-500 dark:text-gray-400">
-              {useBackupCode 
-                ? "Enter one of your backup codes to continue."
-                : "Enter the 6-digit code from your authenticator app."}
+              {getVerificationMessage()}
             </p>
           </div>
 
@@ -595,20 +658,35 @@ export default function Auth() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setUseBackupCode(!useBackupCode);
-                setTwoFactorCode("");
-                setBackupCode("");
-                setIsLoading(false); // Reset loading state on toggle
-              }}
-              className="text-sm text-indigo-600 hover:text-indigo-500 font-medium"
-              data-testid="button-toggle-backup-code"
-            >
-              {useBackupCode ? "Use authenticator app instead" : "Use a backup code"}
-            </button>
+          <div className="mt-6 text-center space-y-2">
+            {twoFactorMethod === 'sms' && !useBackupCode && (
+              <button
+                type="button"
+                onClick={handleResendSmsCode}
+                className="text-sm text-indigo-600 hover:text-indigo-500 font-medium disabled:opacity-50"
+                disabled={resendingCode}
+                data-testid="button-resend-sms"
+              >
+                {resendingCode ? "Sending..." : "Resend verification code"}
+              </button>
+            )}
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  setUseBackupCode(!useBackupCode);
+                  setTwoFactorCode("");
+                  setBackupCode("");
+                  setIsLoading(false);
+                }}
+                className="text-sm text-indigo-600 hover:text-indigo-500 font-medium"
+                data-testid="button-toggle-backup-code"
+              >
+                {useBackupCode 
+                  ? (twoFactorMethod === 'sms' ? "Enter SMS code instead" : "Use authenticator app instead") 
+                  : "Use a backup code"}
+              </button>
+            </div>
           </div>
         </>
       );

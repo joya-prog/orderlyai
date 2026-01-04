@@ -2644,9 +2644,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User not found" });
       }
       
-      // Generate a random secret (32 bytes = 256 bits)
-      const secretBytes = crypto.randomBytes(20);
-      const secret = secretBytes.toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 32);
+      // Use otplib for proper TOTP secret generation (base32 format)
+      const { authenticator } = await import("otplib");
+      const secret = authenticator.generateSecret();
       
       // Generate backup codes
       const backupCodes: string[] = [];
@@ -2676,9 +2676,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Return setup info (secret shown only once during setup)
+      // Generate proper otpauth URL using otplib
       const issuer = 'Orderly AI';
-      const otpauthUrl = `otpauth://totp/${issuer}:${user.email}?secret=${secret}&issuer=${issuer}`;
+      const otpauthUrl = authenticator.keyuri(user.email || user.id, issuer, secret);
       
       res.json({
         secret,
@@ -2702,14 +2702,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const twoFactor = await storage.getTwoFactorAuth(userId);
-      if (!twoFactor) {
+      if (!twoFactor || !twoFactor.secret) {
         return res.status(400).json({ message: "2FA not set up. Please run setup first." });
       }
       
-      // For now, simple verification - in production you'd use a proper TOTP library
-      // This is a placeholder that accepts any 6-digit code for demo purposes
+      // Validate code format
       if (!/^\d{6}$/.test(code)) {
         return res.status(400).json({ message: "Invalid code format. Enter 6 digits." });
+      }
+      
+      // Verify the TOTP code using otplib
+      const { authenticator } = await import("otplib");
+      const isValid = authenticator.verify({ token: code, secret: twoFactor.secret });
+      
+      if (!isValid) {
+        return res.status(400).json({ message: "Invalid verification code. Please try again." });
       }
       
       await storage.updateTwoFactorAuth(userId, { isEnabled: true });

@@ -50,6 +50,19 @@ export const users = pgTable("users", {
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 
+// Password reset tokens table
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  token: varchar("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
+
 export const onboardingSchema = z.object({
   restaurantName: z.string().min(2, "Restaurant name must be at least 2 characters"),
   restaurantType: z.enum(['fine_dining', 'casual_dining', 'fast_casual', 'cafe', 'bar', 'catering', 'hotel', 'other']),

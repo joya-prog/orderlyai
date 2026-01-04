@@ -12,7 +12,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema, insertIntegrationConfigSchema, insertAnalyticsEventSchema, onboardingSchema } from "@shared/schema";
 import twilio from "twilio";
 import crypto from "crypto";
-import { getTwilioClient, getTwilioAccountSid, getTwilioAuthToken } from "./twilioClient";
+import { getTwilioClient, getTwilioAccountSid, getTwilioAuthToken, sendSms2FACode, verifySms2FACode } from "./twilioClient";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
@@ -2627,6 +2627,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         isEnabled: twoFactor?.isEnabled || false,
         hasBackupCodes: (twoFactor?.backupCodes?.length || 0) > 0,
+        smsEnabled: twoFactor?.smsEnabled || false,
+        phoneNumber: twoFactor?.phoneNumber ? `***-***-${twoFactor.phoneNumber.slice(-4)}` : null,
+        preferredMethod: twoFactor?.preferredMethod || 'totp',
       });
     } catch (error) {
       console.error("Error fetching 2FA status:", error);
@@ -2754,6 +2757,128 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error disabling 2FA:", error);
       res.status(500).json({ message: "Failed to disable 2FA" });
+    }
+  });
+
+  // Setup SMS 2FA - send verification code to phone number
+  app.post("/api/auth/2fa/sms/setup", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { phoneNumber } = req.body;
+      
+      if (!phoneNumber) {
+        return res.status(400).json({ message: "Phone number is required" });
+      }
+      
+      // Validate phone number format (basic validation)
+      const cleanPhone = phoneNumber.replace(/\D/g, '');
+      if (cleanPhone.length < 10 || cleanPhone.length > 15) {
+        return res.status(400).json({ message: "Invalid phone number format" });
+      }
+      
+      // Format phone number with country code if not present
+      const formattedPhone = cleanPhone.startsWith('1') ? `+${cleanPhone}` : `+1${cleanPhone}`;
+      
+      // Send verification code
+      const smsResult = await sendSms2FACode(formattedPhone, userId);
+      if (!smsResult.success) {
+        return res.status(500).json({ message: smsResult.error || "Failed to send verification code" });
+      }
+      
+      // Store the phone number temporarily in the user's 2FA record (not enabled yet)
+      const existing = await storage.getTwoFactorAuth(userId);
+      if (existing) {
+        await storage.updateTwoFactorAuth(userId, {
+          phoneNumber: formattedPhone,
+          smsEnabled: false, // Not enabled until verified
+        });
+      } else {
+        // Create a placeholder 2FA record with just the phone
+        const { authenticator } = await import("otplib");
+        await storage.createTwoFactorAuth({
+          userId,
+          secret: authenticator.generateSecret(), // Generate a secret in case they want TOTP later
+          phoneNumber: formattedPhone,
+          smsEnabled: false,
+          isEnabled: false,
+        });
+      }
+      
+      res.json({ 
+        message: "Verification code sent",
+        phoneLastFour: formattedPhone.slice(-4)
+      });
+    } catch (error) {
+      console.error("Error setting up SMS 2FA:", error);
+      res.status(500).json({ message: "Failed to setup SMS 2FA" });
+    }
+  });
+
+  // Verify SMS 2FA setup and enable
+  app.post("/api/auth/2fa/sms/verify", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { code } = req.body;
+      
+      if (!code) {
+        return res.status(400).json({ message: "Verification code is required" });
+      }
+      
+      const twoFactor = await storage.getTwoFactorAuth(userId);
+      if (!twoFactor?.phoneNumber) {
+        return res.status(400).json({ message: "Phone number not configured. Please start SMS setup first." });
+      }
+      
+      // Verify the SMS code
+      const isValid = verifySms2FACode(twoFactor.phoneNumber, userId, code);
+      if (!isValid) {
+        return res.status(400).json({ message: "Invalid or expired verification code" });
+      }
+      
+      // Enable SMS 2FA
+      await storage.updateTwoFactorAuth(userId, {
+        smsEnabled: true,
+        isEnabled: true,
+        preferredMethod: 'sms',
+      });
+      
+      res.json({ message: "SMS two-factor authentication enabled" });
+    } catch (error) {
+      console.error("Error verifying SMS 2FA:", error);
+      res.status(500).json({ message: "Failed to verify SMS 2FA" });
+    }
+  });
+
+  // Update preferred 2FA method
+  app.post("/api/auth/2fa/preferred-method", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { method } = req.body;
+      
+      if (!method || !['totp', 'sms'].includes(method)) {
+        return res.status(400).json({ message: "Invalid method. Must be 'totp' or 'sms'" });
+      }
+      
+      const twoFactor = await storage.getTwoFactorAuth(userId);
+      if (!twoFactor?.isEnabled) {
+        return res.status(400).json({ message: "2FA is not enabled" });
+      }
+      
+      // Check if the selected method is available
+      if (method === 'sms' && !twoFactor.smsEnabled) {
+        return res.status(400).json({ message: "SMS 2FA is not set up. Please add a phone number first." });
+      }
+      
+      if (method === 'totp' && !twoFactor.secret) {
+        return res.status(400).json({ message: "Authenticator app is not set up. Please set it up first." });
+      }
+      
+      await storage.updateTwoFactorAuth(userId, { preferredMethod: method });
+      
+      res.json({ message: `Preferred 2FA method set to ${method === 'totp' ? 'authenticator app' : 'SMS'}` });
+    } catch (error) {
+      console.error("Error updating preferred method:", error);
+      res.status(500).json({ message: "Failed to update preferred method" });
     }
   });
 

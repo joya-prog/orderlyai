@@ -75,6 +75,9 @@ interface StripeConfig {
 interface TwoFactorStatus {
   isEnabled: boolean;
   hasBackupCodes: boolean;
+  smsEnabled: boolean;
+  phoneNumber: string | null;
+  preferredMethod: 'totp' | 'sms';
 }
 
 interface TwoFactorSetup {
@@ -589,6 +592,12 @@ function SecurityTab() {
   const [showSetup2FA, setShowSetup2FA] = useState(false);
   const [setupData, setSetupData] = useState<TwoFactorSetup | null>(null);
   const [disablePassword, setDisablePassword] = useState("");
+  
+  // SMS 2FA state
+  const [showSmsSetup, setShowSmsSetup] = useState(false);
+  const [smsPhoneNumber, setSmsPhoneNumber] = useState("");
+  const [smsVerifyCode, setSmsVerifyCode] = useState("");
+  const [smsSent, setSmsSent] = useState(false);
 
   const { data: user } = useQuery<UserType>({
     queryKey: ["/api/auth/user"],
@@ -653,6 +662,49 @@ function SecurityTab() {
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Failed to disable 2FA", variant: "destructive" });
+    },
+  });
+
+  const setupSms2FA = useMutation({
+    mutationFn: async (phoneNumber: string) => {
+      return await apiRequest<{ message: string; phoneLastFour: string }>('POST', '/api/auth/2fa/sms/setup', { phoneNumber });
+    },
+    onSuccess: () => {
+      setSmsSent(true);
+      toast({ title: "Code Sent", description: "A verification code has been sent to your phone." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to send verification code", variant: "destructive" });
+    },
+  });
+
+  const verifySms2FA = useMutation({
+    mutationFn: async (code: string) => {
+      return await apiRequest('POST', '/api/auth/2fa/sms/verify', { code });
+    },
+    onSuccess: () => {
+      toast({ title: "SMS 2FA Enabled", description: "SMS two-factor authentication is now active." });
+      setShowSmsSetup(false);
+      setSmsSent(false);
+      setSmsPhoneNumber("");
+      setSmsVerifyCode("");
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/2fa/status'] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Invalid verification code", variant: "destructive" });
+    },
+  });
+
+  const updatePreferredMethod = useMutation({
+    mutationFn: async (method: 'totp' | 'sms') => {
+      return await apiRequest('POST', '/api/auth/2fa/preferred-method', { method });
+    },
+    onSuccess: (_, method) => {
+      toast({ title: "Preferred Method Updated", description: `Your preferred 2FA method is now ${method === 'totp' ? 'authenticator app' : 'SMS'}.` });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/2fa/status'] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to update preferred method", variant: "destructive" });
     },
   });
 
@@ -781,11 +833,143 @@ function SecurityTab() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : twoFactorStatus?.isEnabled ? (
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div className="flex items-center gap-2 p-4 bg-green-50 dark:bg-green-500/10 rounded-lg">
                 <Check className="h-5 w-5 text-green-600" />
                 <span className="text-green-700 dark:text-green-400 font-medium">Two-factor authentication is enabled</span>
               </div>
+              
+              <div className="space-y-4">
+                <div className="text-sm font-medium">Verification Methods</div>
+                
+                <div className="space-y-3">
+                  <div className={`flex items-center justify-between p-3 border rounded-lg ${twoFactorStatus.preferredMethod === 'totp' ? 'border-primary bg-primary/5' : ''}`}>
+                    <div className="flex items-center gap-3">
+                      <Smartphone className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <div className="font-medium">Authenticator App</div>
+                        <div className="text-sm text-muted-foreground">Use Google Authenticator or similar</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {twoFactorStatus.preferredMethod === 'totp' && (
+                        <Badge variant="secondary">Primary</Badge>
+                      )}
+                      {twoFactorStatus.preferredMethod !== 'totp' && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => updatePreferredMethod.mutate('totp')}
+                          disabled={updatePreferredMethod.isPending}
+                          data-testid="button-set-totp-primary"
+                        >
+                          Set as Primary
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className={`flex items-center justify-between p-3 border rounded-lg ${twoFactorStatus.preferredMethod === 'sms' ? 'border-primary bg-primary/5' : ''}`}>
+                    <div className="flex items-center gap-3">
+                      <Phone className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <div className="font-medium">SMS Text Message</div>
+                        <div className="text-sm text-muted-foreground">
+                          {twoFactorStatus.smsEnabled && twoFactorStatus.phoneNumber 
+                            ? `Receive codes at ${twoFactorStatus.phoneNumber}` 
+                            : 'Not set up'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {twoFactorStatus.smsEnabled ? (
+                        <>
+                          {twoFactorStatus.preferredMethod === 'sms' && (
+                            <Badge variant="secondary">Primary</Badge>
+                          )}
+                          {twoFactorStatus.preferredMethod !== 'sms' && (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => updatePreferredMethod.mutate('sms')}
+                              disabled={updatePreferredMethod.isPending}
+                              data-testid="button-set-sms-primary"
+                            >
+                              Set as Primary
+                            </Button>
+                          )}
+                        </>
+                      ) : (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => setShowSmsSetup(true)}
+                          data-testid="button-add-sms"
+                        >
+                          Add Phone
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {showSmsSetup && (
+                <div className="p-4 bg-muted rounded-lg space-y-4">
+                  <div className="text-sm font-medium">Add SMS Verification</div>
+                  {!smsSent ? (
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Phone number (e.g., 555-123-4567)"
+                        value={smsPhoneNumber}
+                        onChange={(e) => setSmsPhoneNumber(e.target.value)}
+                        data-testid="input-sms-phone"
+                      />
+                      <Button 
+                        onClick={() => setupSms2FA.mutate(smsPhoneNumber)}
+                        disabled={setupSms2FA.isPending || !smsPhoneNumber}
+                        data-testid="button-send-sms-code"
+                      >
+                        {setupSms2FA.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Send Code
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="text-sm text-muted-foreground">Enter the 6-digit code sent to your phone</div>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="000000"
+                          value={smsVerifyCode}
+                          onChange={(e) => setSmsVerifyCode(e.target.value)}
+                          maxLength={6}
+                          data-testid="input-sms-verify-code"
+                        />
+                        <Button 
+                          onClick={() => verifySms2FA.mutate(smsVerifyCode)}
+                          disabled={verifySms2FA.isPending || smsVerifyCode.length !== 6}
+                          data-testid="button-verify-sms"
+                        >
+                          {verifySms2FA.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                          Verify
+                        </Button>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        className="p-0 h-auto text-primary underline-offset-4 hover:underline"
+                        onClick={() => setupSms2FA.mutate(smsPhoneNumber)}
+                        disabled={setupSms2FA.isPending}
+                      >
+                        Resend code
+                      </Button>
+                    </div>
+                  )}
+                  <Button variant="ghost" size="sm" onClick={() => { setShowSmsSetup(false); setSmsSent(false); setSmsPhoneNumber(""); setSmsVerifyCode(""); }}>
+                    Cancel
+                  </Button>
+                </div>
+              )}
+              
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" data-testid="button-disable-2fa">
@@ -875,16 +1059,83 @@ function SecurityTab() {
                 Cancel Setup
               </Button>
             </div>
+          ) : showSmsSetup ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-muted rounded-lg space-y-4">
+                <div className="text-sm font-medium">Setup SMS Verification</div>
+                {!smsSent ? (
+                  <div className="space-y-3">
+                    <div className="text-sm text-muted-foreground">Enter your phone number to receive verification codes via SMS</div>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Phone number (e.g., 555-123-4567)"
+                        value={smsPhoneNumber}
+                        onChange={(e) => setSmsPhoneNumber(e.target.value)}
+                        data-testid="input-sms-phone-setup"
+                      />
+                      <Button 
+                        onClick={() => setupSms2FA.mutate(smsPhoneNumber)}
+                        disabled={setupSms2FA.isPending || !smsPhoneNumber}
+                        data-testid="button-send-sms-code-setup"
+                      >
+                        {setupSms2FA.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Send Code
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="text-sm text-muted-foreground">Enter the 6-digit code sent to your phone</div>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="000000"
+                        value={smsVerifyCode}
+                        onChange={(e) => setSmsVerifyCode(e.target.value)}
+                        maxLength={6}
+                        data-testid="input-sms-verify-code-setup"
+                      />
+                      <Button 
+                        onClick={() => verifySms2FA.mutate(smsVerifyCode)}
+                        disabled={verifySms2FA.isPending || smsVerifyCode.length !== 6}
+                        data-testid="button-verify-sms-setup"
+                      >
+                        {verifySms2FA.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Verify & Enable
+                      </Button>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      className="p-0 h-auto text-primary underline-offset-4 hover:underline"
+                      onClick={() => setupSms2FA.mutate(smsPhoneNumber)}
+                      disabled={setupSms2FA.isPending}
+                    >
+                      Resend code
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <Button variant="outline" onClick={() => { setShowSmsSetup(false); setSmsSent(false); setSmsPhoneNumber(""); setSmsVerifyCode(""); }}>
+                Cancel
+              </Button>
+            </div>
           ) : (
             <div className="space-y-4">
               <div className="flex items-center gap-2 p-4 bg-amber-50 dark:bg-amber-500/10 rounded-lg">
                 <AlertTriangle className="h-5 w-5 text-amber-600" />
                 <span className="text-amber-700 dark:text-amber-400">Two-factor authentication is not enabled</span>
               </div>
-              <Button onClick={() => setup2FA.mutate()} disabled={setup2FA.isPending} data-testid="button-setup-2fa">
-                {setup2FA.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Setup Two-Factor Authentication
-              </Button>
+              <div className="text-sm text-muted-foreground mb-4">Choose how you want to verify your identity when logging in:</div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button onClick={() => setup2FA.mutate()} disabled={setup2FA.isPending} data-testid="button-setup-2fa" className="flex-1">
+                  <Smartphone className="h-4 w-4 mr-2" />
+                  {setup2FA.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Authenticator App
+                </Button>
+                <Button onClick={() => setShowSmsSetup(true)} variant="outline" data-testid="button-setup-sms" className="flex-1">
+                  <Phone className="h-4 w-4 mr-2" />
+                  SMS Text Message
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

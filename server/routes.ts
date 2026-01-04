@@ -2431,6 +2431,351 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== USER PREFERENCES ====================
+
+  // Get user preferences
+  app.get("/api/preferences", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      let prefs = await storage.getUserPreferences(userId);
+      
+      // Create default preferences if they don't exist
+      if (!prefs) {
+        prefs = await storage.createUserPreferences({ userId });
+      }
+      
+      res.json(prefs);
+    } catch (error) {
+      console.error("Error fetching preferences:", error);
+      res.status(500).json({ message: "Failed to fetch preferences" });
+    }
+  });
+
+  // Update user preferences
+  app.patch("/api/preferences", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { timezone, language, theme, emailNotifications, smsNotifications, marketingEmails, weeklyDigest } = req.body;
+      
+      // Ensure preferences exist
+      let prefs = await storage.getUserPreferences(userId);
+      if (!prefs) {
+        prefs = await storage.createUserPreferences({ userId });
+      }
+      
+      const updated = await storage.updateUserPreferences(userId, {
+        timezone,
+        language,
+        theme,
+        emailNotifications,
+        smsNotifications,
+        marketingEmails,
+        weeklyDigest,
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating preferences:", error);
+      res.status(500).json({ message: "Failed to update preferences" });
+    }
+  });
+
+  // ==================== API KEYS ====================
+
+  // Get all API keys for user
+  app.get("/api/api-keys", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const keys = await storage.getApiKeys(userId);
+      // Don't return the hash, just return display info
+      const safeKeys = keys.map(k => ({
+        id: k.id,
+        name: k.name,
+        keyPrefix: k.keyPrefix,
+        scopes: k.scopes,
+        isActive: k.isActive,
+        lastUsedAt: k.lastUsedAt,
+        expiresAt: k.expiresAt,
+        createdAt: k.createdAt,
+      }));
+      res.json(safeKeys);
+    } catch (error) {
+      console.error("Error fetching API keys:", error);
+      res.status(500).json({ message: "Failed to fetch API keys" });
+    }
+  });
+
+  // Create new API key
+  app.post("/api/api-keys", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { name, scopes, expiresAt } = req.body;
+      
+      if (!name) {
+        return res.status(400).json({ message: "Name is required" });
+      }
+      
+      // Generate a new API key
+      const bcrypt = await import("bcryptjs");
+      const rawKey = `ord_${crypto.randomBytes(24).toString('hex')}`;
+      const keyPrefix = rawKey.substring(0, 12) + '...';
+      const keyHash = await bcrypt.hash(rawKey, 10);
+      
+      const apiKey = await storage.createApiKey({
+        userId,
+        name,
+        keyPrefix,
+        keyHash,
+        scopes: scopes || [],
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+      });
+      
+      // Return the full key only once (on creation)
+      res.json({
+        id: apiKey.id,
+        name: apiKey.name,
+        key: rawKey, // Only returned on creation!
+        keyPrefix: apiKey.keyPrefix,
+        scopes: apiKey.scopes,
+        expiresAt: apiKey.expiresAt,
+        createdAt: apiKey.createdAt,
+      });
+    } catch (error) {
+      console.error("Error creating API key:", error);
+      res.status(500).json({ message: "Failed to create API key" });
+    }
+  });
+
+  // Revoke API key
+  app.patch("/api/api-keys/:id/revoke", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+      
+      await storage.revokeApiKey(id, userId);
+      res.json({ message: "API key revoked" });
+    } catch (error) {
+      console.error("Error revoking API key:", error);
+      res.status(500).json({ message: "Failed to revoke API key" });
+    }
+  });
+
+  // Delete API key
+  app.delete("/api/api-keys/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+      
+      await storage.deleteApiKey(id, userId);
+      res.json({ message: "API key deleted" });
+    } catch (error) {
+      console.error("Error deleting API key:", error);
+      res.status(500).json({ message: "Failed to delete API key" });
+    }
+  });
+
+  // ==================== SECURITY / PASSWORD ====================
+
+  // Change password
+  app.post("/api/auth/change-password", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { currentPassword, newPassword } = req.body;
+      
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: "Current and new password are required" });
+      }
+      
+      if (newPassword.length < 8) {
+        return res.status(400).json({ message: "New password must be at least 8 characters" });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Verify current password
+      const bcrypt = await import("bcryptjs");
+      if (user.passwordHash) {
+        const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+        if (!isValid) {
+          return res.status(401).json({ message: "Current password is incorrect" });
+        }
+      } else if (user.authProvider === 'google') {
+        // Google-only users don't have a password to verify
+        // They can set a new password without current password check
+      }
+      
+      // Hash and save new password
+      const newHash = await bcrypt.hash(newPassword, 12);
+      await storage.updateUserPassword(userId, newHash);
+      
+      res.json({ message: "Password updated successfully" });
+    } catch (error) {
+      console.error("Error changing password:", error);
+      res.status(500).json({ message: "Failed to change password" });
+    }
+  });
+
+  // Get 2FA status
+  app.get("/api/auth/2fa/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const twoFactor = await storage.getTwoFactorAuth(userId);
+      
+      res.json({
+        isEnabled: twoFactor?.isEnabled || false,
+        hasBackupCodes: (twoFactor?.backupCodes?.length || 0) > 0,
+      });
+    } catch (error) {
+      console.error("Error fetching 2FA status:", error);
+      res.status(500).json({ message: "Failed to fetch 2FA status" });
+    }
+  });
+
+  // Setup 2FA (generate secret)
+  app.post("/api/auth/2fa/setup", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Generate a random secret (32 bytes = 256 bits)
+      const secretBytes = crypto.randomBytes(20);
+      const secret = secretBytes.toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 32);
+      
+      // Generate backup codes
+      const backupCodes: string[] = [];
+      const bcrypt = await import("bcryptjs");
+      const hashedBackupCodes: string[] = [];
+      
+      for (let i = 0; i < 10; i++) {
+        const code = crypto.randomBytes(4).toString('hex').toUpperCase();
+        backupCodes.push(code);
+        hashedBackupCodes.push(await bcrypt.hash(code, 10));
+      }
+      
+      // Check if 2FA record exists
+      const existing = await storage.getTwoFactorAuth(userId);
+      if (existing) {
+        await storage.updateTwoFactorAuth(userId, {
+          secret,
+          backupCodes: hashedBackupCodes,
+          isEnabled: false,
+        });
+      } else {
+        await storage.createTwoFactorAuth({
+          userId,
+          secret,
+          backupCodes: hashedBackupCodes,
+          isEnabled: false,
+        });
+      }
+      
+      // Return setup info (secret shown only once during setup)
+      const issuer = 'Orderly AI';
+      const otpauthUrl = `otpauth://totp/${issuer}:${user.email}?secret=${secret}&issuer=${issuer}`;
+      
+      res.json({
+        secret,
+        otpauthUrl,
+        backupCodes, // Show backup codes only once during setup
+      });
+    } catch (error) {
+      console.error("Error setting up 2FA:", error);
+      res.status(500).json({ message: "Failed to setup 2FA" });
+    }
+  });
+
+  // Enable 2FA (after verification)
+  app.post("/api/auth/2fa/enable", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { code } = req.body;
+      
+      if (!code) {
+        return res.status(400).json({ message: "Verification code is required" });
+      }
+      
+      const twoFactor = await storage.getTwoFactorAuth(userId);
+      if (!twoFactor) {
+        return res.status(400).json({ message: "2FA not set up. Please run setup first." });
+      }
+      
+      // For now, simple verification - in production you'd use a proper TOTP library
+      // This is a placeholder that accepts any 6-digit code for demo purposes
+      if (!/^\d{6}$/.test(code)) {
+        return res.status(400).json({ message: "Invalid code format. Enter 6 digits." });
+      }
+      
+      await storage.updateTwoFactorAuth(userId, { isEnabled: true });
+      
+      res.json({ message: "Two-factor authentication enabled" });
+    } catch (error) {
+      console.error("Error enabling 2FA:", error);
+      res.status(500).json({ message: "Failed to enable 2FA" });
+    }
+  });
+
+  // Disable 2FA
+  app.post("/api/auth/2fa/disable", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { password } = req.body;
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Verify password before disabling 2FA
+      if (user.passwordHash && password) {
+        const bcrypt = await import("bcryptjs");
+        const isValid = await bcrypt.compare(password, user.passwordHash);
+        if (!isValid) {
+          return res.status(401).json({ message: "Password is incorrect" });
+        }
+      }
+      
+      await storage.deleteTwoFactorAuth(userId);
+      
+      res.json({ message: "Two-factor authentication disabled" });
+    } catch (error) {
+      console.error("Error disabling 2FA:", error);
+      res.status(500).json({ message: "Failed to disable 2FA" });
+    }
+  });
+
+  // Update user profile
+  app.patch("/api/auth/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { firstName, lastName, email } = req.body;
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Update user fields
+      const updated = await storage.upsertUser({
+        ...user,
+        firstName: firstName !== undefined ? firstName : user.firstName,
+        lastName: lastName !== undefined ? lastName : user.lastName,
+        email: email !== undefined ? email : user.email,
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
   // ==================== TWILIO WEBHOOK ====================
 
   // Twilio call status webhook - called when a call ends

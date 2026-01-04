@@ -200,6 +200,7 @@ export interface IStorage {
   createPasswordResetToken(token: InsertPasswordResetToken): Promise<PasswordResetToken>;
   getPasswordResetToken(token: string): Promise<PasswordResetToken | null>;
   markPasswordResetTokenUsed(token: string): Promise<boolean>;
+  invalidatePriorResetTokens(userId: string): Promise<number>;
   deleteExpiredPasswordResetTokens(): Promise<number>;
   updateUserPassword(userId: string, passwordHash: string): Promise<User | null>;
 }
@@ -1010,6 +1011,17 @@ export class DatabaseStorage implements IStorage {
       .set({ used: true })
       .where(eq(passwordResetTokens.token, token));
     return true;
+  }
+
+  async invalidatePriorResetTokens(userId: string): Promise<number> {
+    const result = await db
+      .update(passwordResetTokens)
+      .set({ used: true })
+      .where(and(
+        eq(passwordResetTokens.userId, userId),
+        eq(passwordResetTokens.used, false)
+      ));
+    return 0;
   }
 
   async deleteExpiredPasswordResetTokens(): Promise<number> {

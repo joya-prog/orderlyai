@@ -339,6 +339,9 @@ export async function setupAuth(app: Express) {
         return res.json({ message: "If an account exists with that email, you will receive a password reset link." });
       }
       
+      // Invalidate any prior reset tokens for this user
+      await storage.invalidatePriorResetTokens(user.id);
+      
       // Generate secure reset token
       const token = crypto.randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour expiry

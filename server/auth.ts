@@ -8,6 +8,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { authenticator } from "otplib";
 import { storage } from "./storage";
+import { sendSms2FACode, verifySms2FACode } from "./twilioClient";
 
 const SALT_ROUNDS = 12;
 
@@ -253,9 +254,36 @@ export async function setupAuth(app: Express) {
           // Create a pending 2FA session token (invalidates any existing)
           const pendingToken = createPending2FASession(user.id);
           
+          // Check if SMS is the preferred method and phone is set up
+          const usesSms = twoFactor.smsEnabled && twoFactor.phoneNumber && twoFactor.preferredMethod === 'sms';
+          
+          if (usesSms && twoFactor.phoneNumber) {
+            // Send SMS code
+            const smsResult = await sendSms2FACode(twoFactor.phoneNumber, user.id);
+            if (!smsResult.success) {
+              console.error("Failed to send SMS 2FA code:", smsResult.error);
+              // Fall back to TOTP if SMS fails
+              return res.json({
+                requires2FA: true,
+                pendingToken,
+                method: 'totp',
+                message: "SMS failed, please use your authenticator app"
+              });
+            }
+            
+            return res.json({
+              requires2FA: true,
+              pendingToken,
+              method: 'sms',
+              phoneLastFour: twoFactor.phoneNumber.slice(-4),
+              message: "Verification code sent to your phone"
+            });
+          }
+          
           return res.json({
             requires2FA: true,
             pendingToken,
+            method: 'totp',
             message: "Two-factor authentication required"
           });
         }
@@ -352,8 +380,23 @@ export async function setupAuth(app: Express) {
           // Create a pending 2FA session (invalidates any existing)
           const pendingToken = createPending2FASession(user.id);
           
+          // Check if SMS is the preferred method
+          const usesSms = twoFactor.smsEnabled && twoFactor.phoneNumber && twoFactor.preferredMethod === 'sms';
+          let method = 'totp';
+          
+          if (usesSms && twoFactor.phoneNumber) {
+            const smsResult = await sendSms2FACode(twoFactor.phoneNumber, user.id);
+            if (smsResult.success) {
+              method = 'sms';
+            }
+          }
+          
           // Store token in session instead of URL for better security
           req.session.pending2FAToken = pendingToken;
+          req.session.pending2FAMethod = method;
+          if (method === 'sms' && twoFactor.phoneNumber) {
+            req.session.pending2FAPhoneLast4 = twoFactor.phoneNumber.slice(-4);
+          }
           req.session.save((saveErr: any) => {
             if (saveErr) {
               console.error("Failed to save 2FA token to session:", saveErr);
@@ -381,9 +424,15 @@ export async function setupAuth(app: Express) {
   app.get("/api/auth/2fa/pending-token", (req: any, res) => {
     const pendingToken = req.session?.pending2FAToken;
     if (pendingToken) {
+      const method = req.session?.pending2FAMethod || 'totp';
+      const phoneLastFour = req.session?.pending2FAPhoneLast4;
+      
       // Clear from session after retrieval (single use)
       delete req.session.pending2FAToken;
-      return res.json({ pendingToken });
+      delete req.session.pending2FAMethod;
+      delete req.session.pending2FAPhoneLast4;
+      
+      return res.json({ pendingToken, method, phoneLastFour });
     }
     return res.status(404).json({ message: "No pending 2FA session" });
   });
@@ -403,6 +452,112 @@ export async function setupAuth(app: Express) {
     }
     
     res.json({ message: "2FA session cancelled" });
+  });
+
+  // Verify SMS 2FA code and complete login
+  app.post("/api/auth/2fa/verify-sms", async (req: any, res) => {
+    try {
+      const { pendingToken, code } = req.body;
+      
+      if (!pendingToken || !code) {
+        return res.status(400).json({ message: "Token and code are required" });
+      }
+      
+      // Validate pending session
+      const pendingSession = pending2FASessions.get(pendingToken);
+      if (!pendingSession) {
+        return res.status(401).json({ message: "Invalid or expired session. Please log in again." });
+      }
+      
+      // Check if pending session expired
+      if (pendingSession.expiresAt < new Date()) {
+        clearPending2FASession(pendingToken);
+        return res.status(401).json({ message: "Session expired. Please log in again." });
+      }
+      
+      // Get user and 2FA config
+      const user = await storage.getUser(pendingSession.userId);
+      if (!user) {
+        clearPending2FASession(pendingToken);
+        return res.status(401).json({ message: "User not found" });
+      }
+      
+      const twoFactor = await storage.getTwoFactorAuth(pendingSession.userId);
+      if (!twoFactor?.smsEnabled || !twoFactor?.phoneNumber) {
+        clearPending2FASession(pendingToken);
+        return res.status(400).json({ message: "SMS 2FA not configured" });
+      }
+      
+      // Verify SMS code
+      const isValid = verifySms2FACode(twoFactor.phoneNumber, user.id, code);
+      
+      if (!isValid) {
+        return res.status(401).json({ message: "Invalid or expired verification code" });
+      }
+      
+      // Clear pending session
+      clearPending2FASession(pendingToken);
+      
+      // Complete login
+      req.login(user, (loginErr: any) => {
+        if (loginErr) {
+          return res.status(500).json({ message: "Login failed" });
+        }
+        return res.json({
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          onboardingCompleted: user.onboardingCompleted
+        });
+      });
+    } catch (error) {
+      console.error("Error verifying SMS 2FA:", error);
+      res.status(500).json({ message: "Verification failed" });
+    }
+  });
+
+  // Resend SMS 2FA code
+  app.post("/api/auth/2fa/resend-sms", async (req: any, res) => {
+    try {
+      const { pendingToken } = req.body;
+      
+      if (!pendingToken) {
+        return res.status(400).json({ message: "Token is required" });
+      }
+      
+      // Validate pending session
+      const pendingSession = pending2FASessions.get(pendingToken);
+      if (!pendingSession) {
+        return res.status(401).json({ message: "Invalid or expired session. Please log in again." });
+      }
+      
+      // Check if pending session expired
+      if (pendingSession.expiresAt < new Date()) {
+        clearPending2FASession(pendingToken);
+        return res.status(401).json({ message: "Session expired. Please log in again." });
+      }
+      
+      // Get 2FA config
+      const twoFactor = await storage.getTwoFactorAuth(pendingSession.userId);
+      if (!twoFactor?.smsEnabled || !twoFactor?.phoneNumber) {
+        return res.status(400).json({ message: "SMS 2FA not configured" });
+      }
+      
+      // Send new SMS code
+      const smsResult = await sendSms2FACode(twoFactor.phoneNumber, pendingSession.userId);
+      if (!smsResult.success) {
+        return res.status(500).json({ message: "Failed to send SMS code" });
+      }
+      
+      res.json({ 
+        message: "Verification code sent",
+        phoneLastFour: twoFactor.phoneNumber.slice(-4)
+      });
+    } catch (error) {
+      console.error("Error resending SMS 2FA:", error);
+      res.status(500).json({ message: "Failed to send code" });
+    }
   });
 
   // Verify 2FA code and complete login

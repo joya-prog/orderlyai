@@ -6,9 +6,53 @@ import type { Express, RequestHandler } from "express";
 import connectPg from "connect-pg-simple";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import { authenticator } from "otplib";
 import { storage } from "./storage";
 
 const SALT_ROUNDS = 12;
+
+// Store pending 2FA sessions temporarily (in production, use Redis)
+const pending2FASessions = new Map<string, { userId: string; expiresAt: Date }>();
+// Track which user has a pending session to enforce single token per user
+const userToPendingToken = new Map<string, string>();
+
+// Clean up expired pending sessions periodically
+setInterval(() => {
+  const now = new Date();
+  const entries = Array.from(pending2FASessions.entries());
+  for (const [token, session] of entries) {
+    if (session.expiresAt < now) {
+      pending2FASessions.delete(token);
+      userToPendingToken.delete(session.userId);
+    }
+  }
+}, 60000); // Clean up every minute
+
+// Helper to create a new pending 2FA session (invalidates any existing for this user)
+function createPending2FASession(userId: string): string {
+  // Invalidate any existing pending session for this user
+  const existingToken = userToPendingToken.get(userId);
+  if (existingToken) {
+    pending2FASessions.delete(existingToken);
+  }
+  
+  // Create new pending session
+  const pendingToken = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+  pending2FASessions.set(pendingToken, { userId, expiresAt });
+  userToPendingToken.set(userId, pendingToken);
+  
+  return pendingToken;
+}
+
+// Helper to clear pending session
+function clearPending2FASession(token: string) {
+  const session = pending2FASessions.get(token);
+  if (session) {
+    userToPendingToken.delete(session.userId);
+    pending2FASessions.delete(token);
+  }
+}
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
@@ -194,13 +238,32 @@ export async function setupAuth(app: Express) {
   });
 
   app.post("/api/auth/login", (req, res, next) => {
-    passport.authenticate("local", (err: any, user: any, info: any) => {
+    passport.authenticate("local", async (err: any, user: any, info: any) => {
       if (err) {
         return res.status(500).json({ message: "Authentication error" });
       }
       if (!user) {
         return res.status(401).json({ message: info?.message || "Invalid credentials" });
       }
+      
+      // Check if user has 2FA enabled
+      try {
+        const twoFactor = await storage.getTwoFactorAuth(user.id);
+        if (twoFactor?.isEnabled) {
+          // Create a pending 2FA session token (invalidates any existing)
+          const pendingToken = createPending2FASession(user.id);
+          
+          return res.json({
+            requires2FA: true,
+            pendingToken,
+            message: "Two-factor authentication required"
+          });
+        }
+      } catch (error) {
+        console.error("Error checking 2FA status:", error);
+        // Continue with login if 2FA check fails
+      }
+      
       req.login(user, (loginErr) => {
         if (loginErr) {
           return res.status(500).json({ message: "Login failed" });
@@ -277,11 +340,209 @@ export async function setupAuth(app: Express) {
     delete req.session.oauthState;
     delete req.session.oauthStateCreatedAt;
     
-    passport.authenticate("google", { 
-      failureRedirect: "/auth?error=google_failed" 
+    passport.authenticate("google", async (err: any, user: any) => {
+      if (err || !user) {
+        return res.redirect("/auth?error=google_failed");
+      }
+      
+      // Check if user has 2FA enabled
+      try {
+        const twoFactor = await storage.getTwoFactorAuth(user.id);
+        if (twoFactor?.isEnabled) {
+          // Create a pending 2FA session (invalidates any existing)
+          const pendingToken = createPending2FASession(user.id);
+          
+          // Store token in session instead of URL for better security
+          req.session.pending2FAToken = pendingToken;
+          req.session.save((saveErr: any) => {
+            if (saveErr) {
+              console.error("Failed to save 2FA token to session:", saveErr);
+              return res.redirect("/auth?error=session_error");
+            }
+            return res.redirect("/auth?requires2fa=true");
+          });
+          return;
+        }
+      } catch (error) {
+        console.error("Error checking 2FA status for Google auth:", error);
+      }
+      
+      // Complete login if no 2FA
+      req.login(user, (loginErr: any) => {
+        if (loginErr) {
+          return res.redirect("/auth?error=login_failed");
+        }
+        return res.redirect("/");
+      });
     })(req, res, next);
-  }, (req, res) => {
-    res.redirect("/");
+  });
+
+  // Get pending 2FA token from session (for Google OAuth flow)
+  app.get("/api/auth/2fa/pending-token", (req: any, res) => {
+    const pendingToken = req.session?.pending2FAToken;
+    if (pendingToken) {
+      // Clear from session after retrieval (single use)
+      delete req.session.pending2FAToken;
+      return res.json({ pendingToken });
+    }
+    return res.status(404).json({ message: "No pending 2FA session" });
+  });
+
+  // Cancel pending 2FA session (user abandoned verification)
+  app.post("/api/auth/2fa/cancel", (req: any, res) => {
+    const { pendingToken } = req.body;
+    
+    // Clear from session if present
+    if (req.session?.pending2FAToken) {
+      delete req.session.pending2FAToken;
+    }
+    
+    // Clear from Map if token provided
+    if (pendingToken) {
+      clearPending2FASession(pendingToken);
+    }
+    
+    res.json({ message: "2FA session cancelled" });
+  });
+
+  // Verify 2FA code and complete login
+  app.post("/api/auth/2fa/verify-login", async (req: any, res) => {
+    try {
+      const { pendingToken, code } = req.body;
+      
+      if (!pendingToken || !code) {
+        return res.status(400).json({ message: "Token and code are required" });
+      }
+      
+      // Validate pending session
+      const pendingSession = pending2FASessions.get(pendingToken);
+      if (!pendingSession) {
+        return res.status(401).json({ message: "Invalid or expired session. Please log in again." });
+      }
+      
+      // Check if pending session expired
+      if (pendingSession.expiresAt < new Date()) {
+        clearPending2FASession(pendingToken);
+        return res.status(401).json({ message: "Session expired. Please log in again." });
+      }
+      
+      // Get user and 2FA config
+      const user = await storage.getUser(pendingSession.userId);
+      if (!user) {
+        clearPending2FASession(pendingToken);
+        return res.status(401).json({ message: "User not found" });
+      }
+      
+      const twoFactor = await storage.getTwoFactorAuth(pendingSession.userId);
+      if (!twoFactor?.secret) {
+        clearPending2FASession(pendingToken);
+        return res.status(400).json({ message: "2FA not configured" });
+      }
+      
+      // Verify TOTP code
+      const isValid = authenticator.verify({ token: code, secret: twoFactor.secret });
+      
+      if (!isValid) {
+        return res.status(401).json({ message: "Invalid verification code" });
+      }
+      
+      // Clear pending session
+      clearPending2FASession(pendingToken);
+      
+      // Complete login
+      req.login(user, (loginErr: any) => {
+        if (loginErr) {
+          return res.status(500).json({ message: "Login failed" });
+        }
+        return res.json({
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          onboardingCompleted: user.onboardingCompleted
+        });
+      });
+    } catch (error) {
+      console.error("Error verifying 2FA:", error);
+      res.status(500).json({ message: "Verification failed" });
+    }
+  });
+
+  // Verify backup code and complete login
+  app.post("/api/auth/2fa/verify-backup", async (req: any, res) => {
+    try {
+      const { pendingToken, backupCode } = req.body;
+      
+      if (!pendingToken || !backupCode) {
+        return res.status(400).json({ message: "Token and backup code are required" });
+      }
+      
+      // Validate pending session
+      const pendingSession = pending2FASessions.get(pendingToken);
+      if (!pendingSession) {
+        return res.status(401).json({ message: "Invalid or expired session. Please log in again." });
+      }
+      
+      // Check if pending session expired
+      if (pendingSession.expiresAt < new Date()) {
+        clearPending2FASession(pendingToken);
+        return res.status(401).json({ message: "Session expired. Please log in again." });
+      }
+      
+      // Get user and 2FA config
+      const user = await storage.getUser(pendingSession.userId);
+      if (!user) {
+        clearPending2FASession(pendingToken);
+        return res.status(401).json({ message: "User not found" });
+      }
+      
+      const twoFactor = await storage.getTwoFactorAuth(pendingSession.userId);
+      if (!twoFactor?.backupCodes || twoFactor.backupCodes.length === 0) {
+        return res.status(400).json({ message: "No backup codes available" });
+      }
+      
+      // Check backup code against hashed codes
+      const normalizedCode = backupCode.trim().toUpperCase();
+      let matchedIndex = -1;
+      
+      for (let i = 0; i < twoFactor.backupCodes.length; i++) {
+        const isMatch = await bcrypt.compare(normalizedCode, twoFactor.backupCodes[i]);
+        if (isMatch) {
+          matchedIndex = i;
+          break;
+        }
+      }
+      
+      if (matchedIndex === -1) {
+        return res.status(401).json({ message: "Invalid backup code" });
+      }
+      
+      // Remove used backup code
+      const updatedCodes = [...twoFactor.backupCodes];
+      updatedCodes.splice(matchedIndex, 1);
+      await storage.updateTwoFactorAuth(pendingSession.userId, { backupCodes: updatedCodes });
+      
+      // Clear pending session
+      clearPending2FASession(pendingToken);
+      
+      // Complete login
+      req.login(user, (loginErr: any) => {
+        if (loginErr) {
+          return res.status(500).json({ message: "Login failed" });
+        }
+        return res.json({
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          onboardingCompleted: user.onboardingCompleted,
+          remainingBackupCodes: updatedCodes.length
+        });
+      });
+    } catch (error) {
+      console.error("Error verifying backup code:", error);
+      res.status(500).json({ message: "Verification failed" });
+    }
   });
 
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {

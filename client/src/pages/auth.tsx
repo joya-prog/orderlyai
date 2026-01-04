@@ -11,7 +11,7 @@ import { queryClient } from "@/lib/queryClient";
 import { PricingCalculator } from "@/components/pricing-calculator";
 import orderlyLogo from "@assets/WXdQJT24YKxTTzIwCPlW3AJf4Y_1763761787840.avif";
 
-type AuthView = 'login' | 'signup' | 'forgot-password' | 'reset-password' | 'reset-success';
+type AuthView = 'login' | 'signup' | 'forgot-password' | 'reset-password' | 'reset-success' | '2fa-verify';
 
 export default function Auth() {
   const [, setLocation] = useLocation();
@@ -33,6 +33,12 @@ export default function Auth() {
   // Separate state for reset password flow
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  
+  // 2FA verification state
+  const [pendingToken, setPendingToken] = useState("");
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [useBackupCode, setUseBackupCode] = useState(false);
+  const [backupCode, setBackupCode] = useState("");
 
   // Clear form state when switching views
   const resetFormState = () => {
@@ -43,15 +49,46 @@ export default function Auth() {
     setShowPassword(false);
   };
 
-  // Check for reset token in URL
+  // Check for reset token or 2FA params in URL
   useEffect(() => {
     const params = new URLSearchParams(search);
     const token = params.get('token');
+    const requires2fa = params.get('requires2fa');
+    const pendingFromUrl = params.get('pendingToken');
+    
     if (token) {
       setResetToken(token);
       setAuthView('reset-password');
+    } else if (requires2fa === 'true') {
+      // Clear URL params first
+      window.history.replaceState({}, document.title, '/auth');
+      
+      if (pendingFromUrl) {
+        // Token from email/password login (passed in response)
+        setPendingToken(pendingFromUrl);
+        setAuthView('2fa-verify');
+      } else {
+        // Token from Google OAuth (stored in session, fetch it)
+        fetch('/api/auth/2fa/pending-token', { credentials: 'include' })
+          .then(res => {
+            if (res.ok) return res.json();
+            throw new Error('No pending session');
+          })
+          .then(data => {
+            setPendingToken(data.pendingToken);
+            setAuthView('2fa-verify');
+          })
+          .catch(() => {
+            toast({
+              title: "Session expired",
+              description: "Please log in again.",
+              variant: "destructive",
+            });
+            setAuthView('login');
+          });
+      }
     }
-  }, [search]);
+  }, [search, toast]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +106,17 @@ export default function Auth() {
 
       if (!response.ok) {
         throw new Error(data.message || "Login failed");
+      }
+
+      // Check if 2FA is required
+      if (data.requires2FA && data.pendingToken) {
+        setPendingToken(data.pendingToken);
+        setAuthView('2fa-verify');
+        toast({
+          title: "Two-Factor Authentication",
+          description: "Please enter your verification code to continue.",
+        });
+        return;
       }
 
       toast({
@@ -226,6 +274,59 @@ export default function Auth() {
       toast({
         title: "Reset failed",
         description: error.message || "Failed to reset password",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handle2FAVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const endpoint = useBackupCode 
+        ? "/api/auth/2fa/verify-backup" 
+        : "/api/auth/2fa/verify-login";
+      
+      const body = useBackupCode
+        ? { pendingToken, backupCode }
+        : { pendingToken, code: twoFactorCode };
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        credentials: "include",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Verification failed");
+      }
+
+      // Show warning about remaining backup codes if applicable
+      if (data.remainingBackupCodes !== undefined && data.remainingBackupCodes < 3) {
+        toast({
+          title: "Low Backup Codes",
+          description: `You have ${data.remainingBackupCodes} backup codes remaining. Consider regenerating them in Settings.`,
+          variant: "destructive",
+        });
+      }
+
+      toast({
+        title: "Welcome back!",
+        description: "You have been signed in successfully.",
+      });
+
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      setLocation("/");
+    } catch (error: any) {
+      toast({
+        title: "Verification failed",
+        description: error.message || "Invalid code. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -393,6 +494,122 @@ export default function Auth() {
               Reset Password
             </Button>
           </form>
+        </>
+      );
+    }
+
+    // 2FA Verification View
+    if (authView === '2fa-verify') {
+      const handleCancel2FA = async () => {
+        // Cancel the pending session on the server
+        try {
+          await fetch('/api/auth/2fa/cancel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pendingToken }),
+            credentials: 'include',
+          });
+        } catch (e) {
+          // Ignore errors, just cleaning up
+        }
+        resetFormState();
+        setTwoFactorCode("");
+        setBackupCode("");
+        setUseBackupCode(false);
+        setPendingToken("");
+        setIsLoading(false);
+        setAuthView('login');
+      };
+
+      return (
+        <>
+          <button
+            type="button"
+            onClick={handleCancel2FA}
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 mb-6"
+            data-testid="button-cancel-2fa"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Cancel and try again
+          </button>
+
+          <div className="mb-8">
+            <h1 className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-white mb-3" style={{ fontFamily: "'Inter', sans-serif" }}>
+              Two-Factor Authentication
+            </h1>
+            <p className="text-gray-500 dark:text-gray-400">
+              {useBackupCode 
+                ? "Enter one of your backup codes to continue."
+                : "Enter the 6-digit code from your authenticator app."}
+            </p>
+          </div>
+
+          <form onSubmit={handle2FAVerify} className="space-y-5">
+            {useBackupCode ? (
+              <div className="space-y-2">
+                <Label htmlFor="backup-code" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Backup Code
+                </Label>
+                <Input
+                  id="backup-code"
+                  type="text"
+                  placeholder="Enter your backup code"
+                  className="h-12 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 focus:border-indigo-500 focus:ring-indigo-500 text-center font-mono text-lg tracking-wider"
+                  value={backupCode}
+                  onChange={(e) => setBackupCode(e.target.value.toUpperCase())}
+                  required
+                  data-testid="input-backup-code"
+                />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="totp-code" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Verification Code
+                </Label>
+                <Input
+                  id="totp-code"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  placeholder="000000"
+                  className="h-12 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 focus:border-indigo-500 focus:ring-indigo-500 text-center font-mono text-2xl tracking-[0.5em]"
+                  value={twoFactorCode}
+                  onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  required
+                  data-testid="input-totp-code"
+                />
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg"
+              disabled={isLoading || (!useBackupCode && twoFactorCode.length !== 6) || (useBackupCode && !backupCode)}
+              data-testid="button-verify-2fa"
+            >
+              {isLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Verify
+            </Button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setUseBackupCode(!useBackupCode);
+                setTwoFactorCode("");
+                setBackupCode("");
+                setIsLoading(false); // Reset loading state on toggle
+              }}
+              className="text-sm text-indigo-600 hover:text-indigo-500 font-medium"
+              data-testid="button-toggle-backup-code"
+            >
+              {useBackupCode ? "Use authenticator app instead" : "Use a backup code"}
+            </button>
+          </div>
         </>
       );
     }

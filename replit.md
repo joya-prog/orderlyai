@@ -36,11 +36,16 @@ Preferred communication style: Simple, everyday language.
   - **Google OAuth**: OAuth 2.0 via passport-google-oauth20 with CSRF-protected state tokens stored in session
 - **Auth Routes**:
   - `POST /api/auth/register` - Create account with email/password
-  - `POST /api/auth/login` - Login with email/password
+  - `POST /api/auth/login` - Login with email/password (returns requires2FA + pendingToken if 2FA enabled)
   - `GET /api/auth/google` - Initiate Google OAuth flow
-  - `GET /api/auth/google/callback` - Google OAuth callback with state validation
+  - `GET /api/auth/google/callback` - Google OAuth callback with state validation (redirects to 2FA if enabled)
   - `GET /api/auth/user` - Get current authenticated user
   - `POST /api/auth/logout` - Logout current user
+- **2FA Routes**:
+  - `GET /api/auth/2fa/pending-token` - Retrieve pending 2FA token from session (for Google OAuth flow)
+  - `POST /api/auth/2fa/verify-login` - Complete login with TOTP code verification
+  - `POST /api/auth/2fa/verify-backup` - Complete login with backup code (consumes code)
+  - `POST /api/auth/2fa/cancel` - Cancel pending 2FA session
 - **Auth Environment Variables**:
   - `SESSION_SECRET` - Required for session encryption
   - `GOOGLE_CLIENT_ID` - Optional, for Google OAuth

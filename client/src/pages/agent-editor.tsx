@@ -74,6 +74,7 @@ import {
   BarChart3,
   Languages,
   Send,
+  MessageSquare,
   TestTube,
   MoreHorizontal,
   Share2,
@@ -565,6 +566,25 @@ function AgentEditorInner() {
   const [maxCallDuration, setMaxCallDuration] = useState([3600000]);
   const [inactivityTimeout, setInactivityTimeout] = useState([30000]);
   
+  // Voice settings state
+  const [voiceSpeed, setVoiceSpeed] = useState([1]);
+  const [voiceTemperature, setVoiceTemperature] = useState([1]);
+  const [voiceVolume, setVoiceVolume] = useState([1]);
+  
+  // Call configuration state
+  const [voicemailDetection, setVoicemailDetection] = useState(false);
+  const [warmTransferEnabled, setWarmTransferEnabled] = useState(false);
+  const [warmTransferNumber, setWarmTransferNumber] = useState("");
+  const [warmTransferMessage, setWarmTransferMessage] = useState("");
+  
+  // Track if greeting fetch is in progress to prevent duplicate requests
+  const [isGreetingLoading, setIsGreetingLoading] = useState(false);
+  
+  // Test conversation state
+  const [testMessages, setTestMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
+  const [testInput, setTestInput] = useState("");
+  const [isTestLoading, setIsTestLoading] = useState(false);
+  
   // ReactFlow state - properly typed
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -613,6 +633,22 @@ function AgentEditorInner() {
       setResponsiveness([(agent as any).responsiveness ? parseFloat((agent as any).responsiveness) : 1]);
       setInterruptionSensitivity([agent.interruptionSensitivity ? parseFloat(agent.interruptionSensitivity) : 0.6]);
       setBackgroundSound((agent as any).ambientSound || "none");
+      // Voice settings
+      setVoiceProvider(agent.voiceProvider || "elevenlabs");
+      setSelectedVoiceId(agent.voiceId || "11labs-Adrian");
+      setVoiceSpeed([parseFloat(agent.voiceSpeed || "1")]);
+      setVoiceTemperature([parseFloat(agent.voiceTemperature || "1")]);
+      setVoiceVolume([parseFloat(agent.voiceVolume || "1")]);
+      // Call settings
+      setBeginMessageDelay([parseInt(agent.beginMessageDelayMs || "1000")]);
+      setMaxCallDuration([parseInt(agent.maxCallDurationMs || "3600000")]);
+      setInactivityTimeout([parseInt(agent.inactivityTimeoutMs || "30000")]);
+      setVoicemailDetection(agent.voicemailDetection || false);
+      const warmEnabled = agent.warmTransferEnabled || false;
+      setWarmTransferEnabled(warmEnabled);
+      // Only populate warm transfer fields if enabled
+      setWarmTransferNumber(warmEnabled ? (agent.warmTransferNumber || "") : "");
+      setWarmTransferMessage(warmEnabled ? (agent.warmTransferMessage || "") : "");
     }
   }, [agent]);
 
@@ -775,15 +811,88 @@ function AgentEditorInner() {
         systemPrompt: globalPrompt,
         aiModel,
         voiceName: selectedVoiceName,
+        voiceProvider,
+        voiceId: selectedVoiceId,
+        voiceSpeed: voiceSpeed[0].toString(),
+        voiceTemperature: voiceTemperature[0].toString(),
+        voiceVolume: voiceVolume[0].toString(),
         responsiveness: responsiveness[0].toString(),
         interruptionSensitivity: interruptionSensitivity[0].toString(),
         ambientSound: backgroundSound,
+        beginMessageDelayMs: beginMessageDelay[0].toString(),
+        maxCallDurationMs: maxCallDuration[0].toString(),
+        inactivityTimeoutMs: inactivityTimeout[0].toString(),
+        voicemailDetection,
+        warmTransferEnabled,
+        warmTransferNumber: warmTransferEnabled ? warmTransferNumber : null,
+        warmTransferMessage: warmTransferEnabled ? warmTransferMessage : null,
       });
       await saveFlowMutation.mutateAsync({ nodes, edges });
     } finally {
       setIsSaving(false);
     }
-  }, [agentName, language, globalPrompt, aiModel, selectedVoiceName, responsiveness, interruptionSensitivity, backgroundSound, nodes, edges, saveMutation, saveFlowMutation]);
+  }, [agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, nodes, edges, saveMutation, saveFlowMutation]);
+
+  // Initialize chat when switching to simulation tab - fetch greeting
+  // Runs whenever: entering simulation tab with no messages, or messages are cleared
+  useEffect(() => {
+    if (activeTab === "simulation" && testMessages.length === 0 && !isGreetingLoading && !isNew && id) {
+      const fetchGreeting = async () => {
+        setIsGreetingLoading(true);
+        try {
+          const response = await apiRequest("POST", `/api/agents/${id}/start-chat`, {});
+          const data = await response.json();
+          if (data.greeting) {
+            setTestMessages([{ role: 'assistant', content: data.greeting }]);
+          }
+        } catch (error) {
+          console.error("Failed to load agent greeting:", error);
+        } finally {
+          setIsGreetingLoading(false);
+        }
+      };
+      fetchGreeting();
+    }
+  }, [activeTab, testMessages.length, isGreetingLoading, isNew, id]);
+
+  // Reset chat when agent changes
+  useEffect(() => {
+    setTestMessages([]);
+    setIsGreetingLoading(false);
+  }, [id]);
+
+
+  // Clear warm transfer fields when toggle is turned off
+  const handleWarmTransferToggle = useCallback((enabled: boolean) => {
+    setWarmTransferEnabled(enabled);
+    if (!enabled) {
+      setWarmTransferNumber("");
+      setWarmTransferMessage("");
+    }
+  }, []);
+
+  // Test conversation handler
+  const handleSendTestMessage = useCallback(async () => {
+    if (!testInput.trim() || isTestLoading) return;
+    
+    const userMessage = testInput.trim();
+    setTestInput("");
+    setTestMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setIsTestLoading(true);
+    
+    try {
+      const response = await apiRequest("POST", `/api/agents/${id}/test`, {
+        message: userMessage,
+        history: testMessages,
+      });
+      const data = await response.json();
+      setTestMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to get response", variant: "destructive" });
+    } finally {
+      setIsTestLoading(false);
+    }
+  }, [testInput, testMessages, isTestLoading, id, toast]);
 
   // Inject callbacks into nodes
   useEffect(() => {
@@ -1064,15 +1173,67 @@ function AgentEditorInner() {
                 </div>
               </SettingsSection>
 
-              <SettingsSection title="Security & Fallback" icon={Shield}>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm">Voicemail Detection</label>
-                    <Switch />
+              <SettingsSection title="Voice Tuning" icon={Volume2}>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <label className="text-xs font-medium text-gray-500">Voice Speed</label>
+                      <span className="text-xs text-muted-foreground">{voiceSpeed[0].toFixed(1)}x</span>
+                    </div>
+                    <Slider value={voiceSpeed} onValueChange={setVoiceSpeed} min={0.5} max={2} step={0.1} />
+                    <p className="text-xs text-muted-foreground mt-1">Adjust how fast the voice speaks.</p>
                   </div>
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <label className="text-xs font-medium text-gray-500">Voice Temperature</label>
+                      <span className="text-xs text-muted-foreground">{voiceTemperature[0].toFixed(1)}</span>
+                    </div>
+                    <Slider value={voiceTemperature} onValueChange={setVoiceTemperature} min={0} max={2} step={0.1} />
+                    <p className="text-xs text-muted-foreground mt-1">Higher = more expressive, lower = more consistent.</p>
+                  </div>
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <label className="text-xs font-medium text-gray-500">Voice Volume</label>
+                      <span className="text-xs text-muted-foreground">{voiceVolume[0].toFixed(1)}</span>
+                    </div>
+                    <Slider value={voiceVolume} onValueChange={setVoiceVolume} min={0} max={2} step={0.1} />
+                  </div>
+                </div>
+              </SettingsSection>
+
+              <SettingsSection title="Security & Fallback" icon={Shield}>
+                <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm">Warm Transfer</label>
-                    <Switch />
+                    <div>
+                      <label className="text-sm font-medium">Voicemail Detection</label>
+                      <p className="text-xs text-muted-foreground">Detect and leave voicemails</p>
+                    </div>
+                    <Switch checked={voicemailDetection} onCheckedChange={setVoicemailDetection} />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-sm font-medium">Warm Transfer</label>
+                        <p className="text-xs text-muted-foreground">Transfer to human operator</p>
+                      </div>
+                      <Switch checked={warmTransferEnabled} onCheckedChange={handleWarmTransferToggle} />
+                    </div>
+                    {warmTransferEnabled && (
+                      <div className="space-y-2 pl-2 border-l-2 border-primary/30">
+                        <Input
+                          placeholder="Transfer phone number"
+                          value={warmTransferNumber}
+                          onChange={(e) => setWarmTransferNumber(e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                        <Textarea
+                          placeholder="Transfer message (what the agent says before transferring)"
+                          value={warmTransferMessage}
+                          onChange={(e) => setWarmTransferMessage(e.target.value)}
+                          className="min-h-[60px] text-sm"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </SettingsSection>
@@ -1084,63 +1245,66 @@ function AgentEditorInner() {
           </ScrollArea>
         </div>
 
-        {/* Center - Flow Canvas */}
-        <div ref={reactFlowWrapper} className="flex-1 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-indigo-50/20 to-slate-100 dark:from-gray-950 dark:via-indigo-950/10 dark:to-gray-900" />
-          
-          <ReactFlow
-            nodes={nodes.map(n => ({ ...n, selected: n.id === selectedNodeId }))}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onNodeClick={onNodeClick}
-            onPaneClick={onPaneClick}
-            onDrop={onDrop}
-            onDragOver={onDragOver}
-            nodeTypes={nodeTypes}
-            defaultEdgeOptions={defaultEdgeOptions}
-            fitView
-            className="bg-transparent"
-            data-testid="flow-canvas"
-          >
-            <Panel position="bottom-left" className="flex items-center gap-1 bg-white dark:bg-gray-900 rounded-lg shadow-sm border p-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleUndo} disabled={!canUndo}>
-                <Undo2 className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleRedo} disabled={!canRedo}>
-                <Redo2 className="h-4 w-4" />
-              </Button>
-              <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => zoomOut()}>
-                <ZoomOut className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => zoomIn()}>
-                <ZoomIn className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => fitView()}>
-                <Maximize className="h-4 w-4" />
-              </Button>
-            </Panel>
+        {/* Center - Content Area */}
+        {activeTab === "create" ? (
+          <>
+            {/* Flow Canvas */}
+            <div ref={reactFlowWrapper} className="flex-1 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-indigo-50/20 to-slate-100 dark:from-gray-950 dark:via-indigo-950/10 dark:to-gray-900" />
+              
+              <ReactFlow
+                nodes={nodes.map(n => ({ ...n, selected: n.id === selectedNodeId }))}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onNodeClick={onNodeClick}
+                onPaneClick={onPaneClick}
+                onDrop={onDrop}
+                onDragOver={onDragOver}
+                nodeTypes={nodeTypes}
+                defaultEdgeOptions={defaultEdgeOptions}
+                fitView
+                className="bg-transparent"
+                data-testid="flow-canvas"
+              >
+                <Panel position="bottom-left" className="flex items-center gap-1 bg-white dark:bg-gray-900 rounded-lg shadow-sm border p-1">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleUndo} disabled={!canUndo}>
+                    <Undo2 className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleRedo} disabled={!canRedo}>
+                    <Redo2 className="h-4 w-4" />
+                  </Button>
+                  <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => zoomOut()}>
+                    <ZoomOut className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => zoomIn()}>
+                    <ZoomIn className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => fitView()}>
+                    <Maximize className="h-4 w-4" />
+                  </Button>
+                </Panel>
 
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#cbd5e1" className="dark:opacity-20" />
-            
-            <MiniMap 
-              nodeColor={(node) => {
-                const nodeConfig = getNodeConfig(node.data?.type as string);
-                return nodeConfig ? nodeColors[nodeConfig.color].hex : '#6b7280';
-              }}
-              maskColor="rgba(0, 0, 0, 0.08)"
-              className="!bg-white/90 dark:!bg-gray-900/90 !rounded-lg !border !shadow-sm"
-              style={{ width: 120, height: 80 }}
-              pannable
-              zoomable
-            />
-          </ReactFlow>
-        </div>
+                <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#cbd5e1" className="dark:opacity-20" />
+                
+                <MiniMap 
+                  nodeColor={(node) => {
+                    const nodeConfig = getNodeConfig(node.data?.type as string);
+                    return nodeConfig ? nodeColors[nodeConfig.color].hex : '#6b7280';
+                  }}
+                  maskColor="rgba(0, 0, 0, 0.08)"
+                  className="!bg-white/90 dark:!bg-gray-900/90 !rounded-lg !border !shadow-sm"
+                  style={{ width: 120, height: 80 }}
+                  pannable
+                  zoomable
+                />
+              </ReactFlow>
+            </div>
 
-        {/* Right Sidebar - Node Library */}
-        <div className="w-64 border-l bg-white dark:bg-gray-900 flex flex-col overflow-hidden flex-shrink-0">
+            {/* Right Sidebar - Node Library */}
+            <div className="w-64 border-l bg-white dark:bg-gray-900 flex flex-col overflow-hidden flex-shrink-0">
           <div className="p-3 border-b">
             <Tabs defaultValue="nodes">
               <TabsList className="w-full grid grid-cols-2">
@@ -1201,7 +1365,118 @@ function AgentEditorInner() {
               })}
             </div>
           </ScrollArea>
-        </div>
+            </div>
+          </>
+        ) : (
+          /* Simulation Tab - Chat Testing Interface */
+          <div className="flex-1 flex flex-col bg-gray-50 dark:bg-gray-950">
+            <div className="flex-1 flex items-center justify-center">
+              <div className="w-full max-w-2xl mx-auto p-6">
+                <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border overflow-hidden">
+                  {/* Chat Header */}
+                  <div className="p-4 border-b bg-gradient-to-r from-primary/10 to-primary/5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                        <Phone className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">{agentName}</h3>
+                        <p className="text-xs text-muted-foreground">Test your agent via text conversation</p>
+                      </div>
+                      <div className="ml-auto flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setTestMessages([])}
+                          className="gap-1"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Clear
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Chat Messages */}
+                  <div className="h-[400px] overflow-y-auto p-4 space-y-4">
+                    {testMessages.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-center">
+                        <div className="space-y-2">
+                          <MessageSquare className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto" />
+                          <p className="text-muted-foreground">Start a conversation to test your agent</p>
+                          <p className="text-xs text-gray-400">Type a message below to begin</p>
+                        </div>
+                      </div>
+                    ) : (
+                      testMessages.map((msg, idx) => (
+                        <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
+                            msg.role === 'user' 
+                              ? 'bg-primary text-primary-foreground rounded-br-md' 
+                              : 'bg-gray-100 dark:bg-gray-800 rounded-bl-md'
+                          }`}>
+                            <p className="text-sm">{msg.content}</p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                    {isTestLoading && (
+                      <div className="flex justify-start">
+                        <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-bl-md px-4 py-2.5">
+                          <div className="flex gap-1">
+                            <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Chat Input */}
+                  <div className="p-4 border-t bg-gray-50 dark:bg-gray-900/50">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Type a message to test your agent..."
+                        value={testInput}
+                        onChange={(e) => setTestInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendTestMessage()}
+                        className="flex-1"
+                        data-testid="input-test-message"
+                      />
+                      <Button 
+                        onClick={handleSendTestMessage} 
+                        disabled={isTestLoading || !testInput.trim()}
+                        data-testid="button-send-test"
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Voice Call Option */}
+                <div className="mt-4 p-4 bg-white dark:bg-gray-900 rounded-xl border">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                        <Mic className="h-5 w-5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium">Voice Call Test</h4>
+                        <p className="text-xs text-muted-foreground">Test with real voice using your microphone</p>
+                      </div>
+                    </div>
+                    <Button variant="outline" className="gap-2">
+                      <Phone className="h-4 w-4" />
+                      Start Call
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Voice Selector Modal */}

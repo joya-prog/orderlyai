@@ -1268,10 +1268,6 @@ function AgentEditorInner() {
               Auto saved at {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
-          <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon"><Share2 className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon"><History className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon"><Play className="h-4 w-4" /></Button>
           <Button onClick={handleSave} disabled={isSaving} className="gap-2" data-testid="button-publish">
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
             Publish

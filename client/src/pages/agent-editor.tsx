@@ -1539,6 +1539,7 @@ function AgentEditorInner() {
                 defaultEdgeOptions={defaultEdgeOptions}
                 fitView
                 className="bg-transparent"
+                proOptions={{ hideAttribution: true }}
                 data-testid="flow-canvas"
               >
                 <Panel position="bottom-center" className="flex items-center gap-1 bg-white dark:bg-gray-900 rounded-lg shadow-sm border p-1">

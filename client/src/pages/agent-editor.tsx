@@ -1115,18 +1115,18 @@ function AgentEditorInner() {
     setIsTestLoading(true);
     
     try {
-      const response = await apiRequest("POST", `/api/agents/${id}/test`, {
+      const data = await apiRequest("POST", `/api/agents/${id}/test`, {
         message: userMessage,
         history: testMessages,
         currentNodeId: currentWorkflowNodeId,
       });
-      const data = await response.json();
       setTestMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
       // Update workflow node ID for next message
       if (data.currentNodeId !== undefined) {
         setCurrentWorkflowNodeId(data.currentNodeId);
       }
     } catch (error) {
+      console.error("Test message error:", error);
       toast({ title: "Error", description: "Failed to get response", variant: "destructive" });
     } finally {
       setIsTestLoading(false);

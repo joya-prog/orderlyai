@@ -1022,10 +1022,11 @@ function AgentEditorInner() {
   const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
-      await saveMutation.mutateAsync({
+      // Include all required fields with sensible defaults for new agents
+      const agentData: Record<string, any> = {
         name: agentName,
         language,
-        systemPrompt: globalPrompt,
+        systemPrompt: globalPrompt || "You are a helpful restaurant AI assistant. Help customers with reservations, orders, and inquiries.",
         aiModel,
         voiceName: selectedVoiceName,
         voiceProvider,
@@ -1043,12 +1044,25 @@ function AgentEditorInner() {
         warmTransferEnabled,
         warmTransferNumber: warmTransferEnabled ? warmTransferNumber : null,
         warmTransferMessage: warmTransferEnabled ? warmTransferMessage : null,
-      });
-      await saveFlowMutation.mutateAsync({ nodes, edges });
+      };
+      
+      // Add required fields with defaults for new agents
+      if (isNew) {
+        agentData.industry = "casual_dining";
+        agentData.greetingMessage = "Hello! Thank you for calling. How can I help you today?";
+        agentData.personality = "friendly";
+      }
+      
+      const savedAgent = await saveMutation.mutateAsync(agentData);
+      
+      // Only save flow for existing agents (new agents need to redirect first)
+      if (!isNew) {
+        await saveFlowMutation.mutateAsync({ nodes, edges });
+      }
     } finally {
       setIsSaving(false);
     }
-  }, [agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, nodes, edges, saveMutation, saveFlowMutation]);
+  }, [agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, nodes, edges, saveMutation, saveFlowMutation, isNew]);
 
   // Initialize chat when switching to test tab - fetch greeting once
   useEffect(() => {
@@ -1057,10 +1071,9 @@ function AgentEditorInner() {
       greetingFetchedRef.current = true; // Mark as fetched immediately to prevent duplicate calls
       setIsGreetingLoading(true);
       
-      apiRequest("POST", `/api/agents/${id}/start-chat`, {})
-        .then(response => response.json())
+      apiRequest<{ greeting: string }>("POST", `/api/agents/${id}/start-chat`, {})
         .then(data => {
-          if (data.greeting) {
+          if (data?.greeting) {
             setTestMessages([{ role: 'assistant', content: data.greeting }]);
           }
         })

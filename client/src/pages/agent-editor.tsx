@@ -1284,11 +1284,8 @@ function AgentEditorInner() {
       <div className="flex-1 flex min-h-0">
         {/* Left Sidebar - Agent Settings */}
         <div className="w-72 border-r bg-white dark:bg-gray-900 flex flex-col overflow-hidden flex-shrink-0">
-          <div className="p-4 border-b flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold">Global Settings</span>
-            </div>
-            <button className="text-sm text-gray-500 hover:text-gray-700">Test Agent</button>
+          <div className="p-4 border-b">
+            <span className="font-semibold">Global Settings</span>
           </div>
           
           <ScrollArea className="flex-1">

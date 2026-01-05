@@ -357,6 +357,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create a Retell web call for voice testing (real-time, phone-quality experience)
+  app.post("/api/agents/:id/web-call", isAuthenticated, async (req: any, res) => {
+    try {
+      const agent = await storage.getAgent(req.params.id);
+      if (!agent) {
+        return res.status(404).json({ message: "Agent not found" });
+      }
+      if (agent.userId !== req.user.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Check if Retell is configured
+      if (!await retell.isRetellConfigured()) {
+        return res.status(400).json({ message: "Retell AI is not configured. Please add RETELL_API_KEY." });
+      }
+
+      // If agent is not synced to Retell, sync it first
+      let retellAgentId = agent.retellAgentId;
+      
+      if (!retellAgentId) {
+        console.log(`[Retell] Agent ${agent.id} not synced, syncing now for web call...`);
+        
+        // Create Conversation Flow in Retell
+        const flowId = await retell.createRetellConversationFlow({
+          generalPrompt: agent.systemPrompt || "You are a helpful restaurant assistant.",
+          beginMessage: agent.greetingMessage || "Hello! Thank you for calling. How can I help you today?",
+          model: 'gpt-4o-mini',
+          modelTemperature: 0.7,
+        });
+        
+        if (!flowId) {
+          return res.status(500).json({ message: "Failed to create Retell conversation flow" });
+        }
+        
+        // Create Agent in Retell
+        retellAgentId = await retell.createRetellAgent({
+          agentName: agent.name,
+          voiceId: agent.voiceId || '11labs-Adrian',
+          voiceModel: agent.voiceModel || 'eleven_turbo_v2',
+          voiceSpeed: parseFloat(agent.voiceSpeed || '1.0'),
+          voiceTemperature: agent.voiceTemperature ? parseFloat(String(agent.voiceTemperature)) : 1.0,
+          volume: agent.voiceVolume ? parseFloat(String(agent.voiceVolume)) : 1.0,
+          responsiveness: agent.responsiveness ? parseFloat(String(agent.responsiveness)) : 1.0,
+          interruptionSensitivity: parseFloat(agent.interruptionSensitivity || '1.0'),
+          language: agent.language || 'en-US',
+          enableBackchannel: agent.enableBackchannel ?? true,
+          backchannelFrequency: typeof agent.backchannelFrequency === 'number' ? agent.backchannelFrequency : 0.9,
+          backchannelWords: agent.backchannelWords || ['yeah', 'uh-huh', 'I see'],
+          ambientSound: agent.ambientSound || undefined,
+          ambientSoundVolume: typeof agent.ambientSoundVolume === 'number' ? agent.ambientSoundVolume : 1.0,
+          beginMessageDelayMs: typeof agent.beginMessageDelayMs === 'number' ? agent.beginMessageDelayMs : 1000,
+        }, flowId);
+
+        if (!retellAgentId) {
+          return res.status(500).json({ message: "Failed to create Retell agent" });
+        }
+
+        // Update our agent with Retell IDs
+        await storage.updateAgent(agent.id, {
+          retellAgentId,
+          retellLlmId: flowId,
+        });
+        
+        console.log(`[Retell] Auto-synced agent ${agent.id} -> Retell ${retellAgentId} for web call`);
+      }
+
+      // Create the web call
+      const webCall = await retell.createRetellWebCall(retellAgentId, {
+        orderlyAgentId: agent.id,
+        userId: req.user.id,
+        testCall: true,
+      });
+
+      if (!webCall) {
+        return res.status(500).json({ message: "Failed to create web call" });
+      }
+
+      console.log(`[Retell] Created web call for agent ${agent.id}: ${webCall.callId}`);
+      res.json({
+        callId: webCall.callId,
+        accessToken: webCall.accessToken,
+        retellAgentId,
+      });
+    } catch (error: any) {
+      console.error("Error creating web call:", error);
+      res.status(500).json({ message: error.message || "Failed to create web call" });
+    }
+  });
+
   // Knowledge base routes
   // Get all knowledge items for the current user (across all agents)
   app.get("/api/knowledge", isAuthenticated, async (req: any, res) => {

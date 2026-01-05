@@ -1220,9 +1220,6 @@ function AgentEditorInner() {
       <div className="h-14 border-b flex items-center justify-between px-4 bg-white dark:bg-gray-900 flex-shrink-0">
         <div className="flex items-center gap-4">
           <SidebarTrigger data-testid="button-sidebar-toggle" className="h-9 w-9" />
-          <Button variant="ghost" size="icon" onClick={() => navigate("/agents")} data-testid="button-back">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
           
           <div className="flex items-center gap-2">
             {isEditingName ? (

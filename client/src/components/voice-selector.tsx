@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Play, ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
+import { Play, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Voice {
@@ -101,20 +101,34 @@ export function VoiceSelector({ open, onOpenChange, provider: initialProvider, s
 
   const getVoiceId = (voice: Voice) => voice.voice_id || voice.id || "";
 
-  const filteredVoices = voices.filter((voice) => {
-    const voiceId = getVoiceId(voice);
-    const matchesSearch = voice.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      voiceId.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesGender = genderFilter === "all" || voice.labels?.gender?.toLowerCase() === genderFilter.toLowerCase();
-    const matchesAccent = accentFilter === "all" || voice.labels?.accent?.toLowerCase() === accentFilter.toLowerCase();
-    const matchesType = typeFilter === "all" || voice.labels?.use_case?.toLowerCase() === typeFilter.toLowerCase();
-    return matchesSearch && matchesGender && matchesAccent && matchesType;
-  });
+  const filteredVoices = useMemo(() => {
+    const searchLower = searchQuery.toLowerCase();
+    const genderLower = genderFilter.toLowerCase();
+    const accentLower = accentFilter.toLowerCase();
+    const typeLower = typeFilter.toLowerCase();
+    
+    return voices.filter((voice) => {
+      const voiceId = getVoiceId(voice);
+      const matchesSearch = voice.name.toLowerCase().includes(searchLower) ||
+        voiceId.toLowerCase().includes(searchLower);
+      const matchesGender = genderFilter === "all" || voice.labels?.gender?.toLowerCase() === genderLower;
+      const matchesAccent = accentFilter === "all" || voice.labels?.accent?.toLowerCase() === accentLower;
+      const matchesType = typeFilter === "all" || voice.labels?.use_case?.toLowerCase() === typeLower;
+      return matchesSearch && matchesGender && matchesAccent && matchesType;
+    });
+  }, [voices, searchQuery, genderFilter, accentFilter, typeFilter]);
 
-  const uniqueAccents = Array.from(new Set(voices.map(v => v.labels?.accent).filter(Boolean)));
-  const uniqueTypes = Array.from(new Set(voices.map(v => v.labels?.use_case).filter(Boolean)));
+  const uniqueAccents = useMemo(() => 
+    Array.from(new Set(voices.map(v => v.labels?.accent).filter(Boolean))), 
+    [voices]
+  );
+  
+  const uniqueTypes = useMemo(() => 
+    Array.from(new Set(voices.map(v => v.labels?.use_case).filter(Boolean))), 
+    [voices]
+  );
 
-  const recommendedVoices = voices.slice(0, 4);
+  const recommendedVoices = useMemo(() => voices.slice(0, 4), [voices]);
 
   const playVoice = async (voiceId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -172,23 +186,12 @@ export function VoiceSelector({ open, onOpenChange, provider: initialProvider, s
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6 pb-4">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-xl font-semibold">Select Voice</DialogTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => onOpenChange(false)}
-              data-testid="voice-selector-close"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+      <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0 shadow-2xl border-0 ring-1 ring-black/5 dark:ring-white/10">
+        <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
+          <DialogTitle className="text-xl font-semibold">Select Voice</DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col">
           {/* Provider Tabs */}
           <div className="px-6 border-b">
             <div className="flex gap-6">
@@ -359,9 +362,9 @@ export function VoiceSelector({ open, onOpenChange, provider: initialProvider, s
               )}
 
               {/* Voice List Table */}
-              <div className="flex-1 overflow-hidden flex flex-col">
+              <div className="flex-1 min-h-0 flex flex-col">
                 {/* Table Header */}
-                <div className="px-6 py-3 grid grid-cols-[40px_1fr_1fr_1fr] gap-4 text-xs font-medium text-muted-foreground uppercase tracking-wider border-b bg-gray-50/50 dark:bg-gray-900/50">
+                <div className="px-6 py-3 grid grid-cols-[40px_1fr_1fr_1fr] gap-4 text-xs font-medium text-muted-foreground uppercase tracking-wider border-b bg-gray-50/50 dark:bg-gray-900/50 shrink-0">
                   <div></div>
                   <div>Voice</div>
                   <div>Trait</div>
@@ -369,7 +372,7 @@ export function VoiceSelector({ open, onOpenChange, provider: initialProvider, s
                 </div>
 
                 {/* Table Body */}
-                <ScrollArea className="flex-1">
+                <ScrollArea className="flex-1 min-h-0">
                   <div className="divide-y">
                     {filteredVoices.length === 0 ? (
                       <div className="px-6 py-12 text-center text-muted-foreground">

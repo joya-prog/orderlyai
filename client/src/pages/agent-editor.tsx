@@ -9,7 +9,6 @@ import type { Agent, KnowledgeBase } from "@shared/schema";
 import type { Node, Edge, Connection, NodeTypes } from '@xyflow/react';
 import {
   ReactFlow,
-  MiniMap,
   Background,
   useNodesState,
   useEdgesState,
@@ -30,7 +29,6 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { 
@@ -289,6 +287,21 @@ const nodeCategories: NodeCategory[] = [
         icon: PhoneOff,
         color: 'red',
         defaultTransitions: [],
+      },
+    ],
+  },
+  {
+    id: 'custom',
+    label: 'Custom',
+    icon: Plus,
+    nodes: [
+      {
+        type: 'custom',
+        label: 'Custom Node',
+        subtitle: 'Build your own',
+        icon: Plus,
+        color: 'gray',
+        defaultTransitions: [{ id: 'next', label: 'Continue', color: 'emerald' }],
       },
     ],
   },
@@ -1193,14 +1206,14 @@ function AgentEditorInner() {
 
   if (authLoading || isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="absolute inset-0 flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background" data-testid="agent-editor">
+    <div className="absolute inset-0 flex flex-col bg-background overflow-hidden" data-testid="agent-editor">
       {/* Header Bar */}
       <div className="h-14 border-b flex items-center justify-between px-4 bg-white dark:bg-gray-900 flex-shrink-0">
         <div className="flex items-center gap-4">
@@ -1264,7 +1277,7 @@ function AgentEditorInner() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex min-h-0">
         {/* Left Sidebar - Agent Settings */}
         <div className="w-72 border-r bg-white dark:bg-gray-900 flex flex-col overflow-hidden flex-shrink-0">
           <div className="p-4 border-b flex items-center justify-between">
@@ -1550,47 +1563,30 @@ function AgentEditorInner() {
                   </Button>
                 </Panel>
 
-                <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#cbd5e1" className="dark:opacity-20" />
-                
-                <MiniMap 
-                  nodeColor={(node) => {
-                    const nodeConfig = getNodeConfig(node.data?.type as string);
-                    return nodeConfig ? nodeColors[nodeConfig.color].hex : '#6b7280';
-                  }}
-                  maskColor="rgba(0, 0, 0, 0.08)"
-                  className="!bg-white/90 dark:!bg-gray-900/90 !rounded-lg !border !shadow-sm"
-                  style={{ width: 120, height: 80 }}
-                  pannable
-                  zoomable
-                />
+                <Background variant={BackgroundVariant.Dots} gap={20} size={0.5} color="#e2e8f0" />
               </ReactFlow>
             </div>
 
             {/* Right Sidebar - Node Library */}
-            <div className="w-64 border-l bg-white dark:bg-gray-900 flex flex-col overflow-hidden flex-shrink-0">
-          <div className="p-3 border-b">
-            <Tabs defaultValue="nodes">
-              <TabsList className="w-full grid grid-cols-2">
-                <TabsTrigger value="nodes" className="text-xs">Node</TabsTrigger>
-                <TabsTrigger value="components" className="text-xs">Components</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-          
-          <div className="px-3 py-2 border-b">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Search nodes..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 h-8 text-sm"
-                data-testid="input-search-nodes"
-              />
-            </div>
-          </div>
+            <div className="w-64 border-l bg-white dark:bg-gray-900 flex flex-col min-h-0 flex-shrink-0">
+              <div className="p-3 border-b flex-shrink-0">
+                <h3 className="font-semibold text-sm">Nodes</h3>
+              </div>
+              
+              <div className="px-3 py-2 border-b flex-shrink-0">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Search nodes..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-8 h-8 text-sm"
+                    data-testid="input-search-nodes"
+                  />
+                </div>
+              </div>
 
-          <ScrollArea className="flex-1">
+              <ScrollArea className="flex-1">
             <div className="p-3 space-y-4">
               {filteredCategories.map((category) => {
                 const CategoryIcon = category.icon;
@@ -1626,8 +1622,8 @@ function AgentEditorInner() {
                   </div>
                 );
               })}
-            </div>
-          </ScrollArea>
+              </div>
+              </ScrollArea>
             </div>
           </>
         ) : (

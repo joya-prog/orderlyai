@@ -76,30 +76,27 @@ function Router() {
 function SidebarResponsiveWrapper() {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const { setOpen } = useSidebar();
-  const isFirstRender = useRef(true);
+  const prevLocation = useRef<string | null>(null);
   const [location] = useLocation();
   
   // Check if we're on the agent editor page (should auto-collapse sidebar)
   const isAgentEditorPage = location.startsWith('/agents/') && location !== '/agents';
 
-  // Sync sidebar state with breakpoint changes after initial mount
-  // But respect auto-collapse for agent editor page
+  // Only auto-collapse/expand when navigating between pages, not on every render
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      // On first render, collapse if on agent editor page
-      if (isAgentEditorPage) {
-        setOpen(false);
-      }
-      return;
-    }
-    // Don't auto-open sidebar on agent editor pages
-    if (isAgentEditorPage) {
+    const prevIsAgentEditor = prevLocation.current?.startsWith('/agents/') && prevLocation.current !== '/agents';
+    
+    // When navigating TO agent editor from another page, collapse on desktop
+    if (isAgentEditorPage && !prevIsAgentEditor && isDesktop) {
       setOpen(false);
-    } else {
-      setOpen(isDesktop);
     }
-  }, [isDesktop, setOpen, isAgentEditorPage]);
+    // When navigating AWAY from agent editor, expand on desktop
+    else if (!isAgentEditorPage && prevIsAgentEditor && isDesktop) {
+      setOpen(true);
+    }
+    
+    prevLocation.current = location;
+  }, [location, isDesktop, setOpen, isAgentEditorPage]);
 
   return (
     <div className="flex h-screen w-full">
@@ -109,7 +106,7 @@ function SidebarResponsiveWrapper() {
           <SidebarTrigger data-testid="button-sidebar-toggle" className="h-9 w-9" />
           <ThemeToggle />
         </header>
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto relative">
           <Router />
         </main>
       </div>

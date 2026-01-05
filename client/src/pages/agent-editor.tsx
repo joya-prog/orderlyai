@@ -1636,24 +1636,27 @@ function AgentEditorInner() {
               <SettingsSection title="Call Settings" icon={Phone}>
                 <div className="space-y-4">
                   <div>
-                    <div className="flex justify-between mb-2">
+                    <div className="flex justify-between mb-1">
                       <label className="text-xs font-medium text-gray-500">Begin Message Delay</label>
-                      <span className="text-xs text-muted-foreground">{beginMessageDelay[0]}ms</span>
+                      <span className="text-xs text-muted-foreground">{(beginMessageDelay[0] / 1000).toFixed(1)}s</span>
                     </div>
+                    <p className="text-xs text-muted-foreground mb-2">How long to wait before the agent starts speaking after the call connects</p>
                     <Slider value={beginMessageDelay} onValueChange={setBeginMessageDelay} min={0} max={5000} step={100} />
                   </div>
                   <div>
-                    <div className="flex justify-between mb-2">
+                    <div className="flex justify-between mb-1">
                       <label className="text-xs font-medium text-gray-500">Max Call Duration</label>
-                      <span className="text-xs text-muted-foreground">{Math.round(maxCallDuration[0] / 60000)}min</span>
+                      <span className="text-xs text-muted-foreground">{Math.round(maxCallDuration[0] / 60000)} min</span>
                     </div>
+                    <p className="text-xs text-muted-foreground mb-2">Maximum length of a single call before automatic disconnect</p>
                     <Slider value={maxCallDuration} onValueChange={setMaxCallDuration} min={60000} max={7200000} step={60000} />
                   </div>
                   <div>
-                    <div className="flex justify-between mb-2">
+                    <div className="flex justify-between mb-1">
                       <label className="text-xs font-medium text-gray-500">Inactivity Timeout</label>
                       <span className="text-xs text-muted-foreground">{Math.round(inactivityTimeout[0] / 1000)}s</span>
                     </div>
+                    <p className="text-xs text-muted-foreground mb-2">How long to wait for caller response before ending the call</p>
                     <Slider value={inactivityTimeout} onValueChange={setInactivityTimeout} min={5000} max={120000} step={1000} />
                   </div>
                 </div>
@@ -1683,6 +1686,7 @@ function AgentEditorInner() {
                       <span className="text-xs text-muted-foreground">{voiceVolume[0].toFixed(1)}</span>
                     </div>
                     <Slider value={voiceVolume} onValueChange={setVoiceVolume} min={0} max={2} step={0.1} />
+                    <p className="text-xs text-muted-foreground mt-1">Adjust the loudness of the agent's voice output.</p>
                   </div>
                 </div>
               </SettingsSection>

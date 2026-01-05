@@ -82,6 +82,8 @@ import {
   Minus,
   GripVertical,
   Maximize2,
+  Check,
+  AlertCircle,
 } from "lucide-react";
 import { VoiceSelector } from "@/components/voice-selector";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -573,6 +575,16 @@ function AgentEditorInner() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Auto-save state
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const statusTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasLoadedRef = useRef(false); // Track if initial data has loaded
+  const isSavingRef = useRef(false); // Prevent concurrent saves
+  const pendingSaveRef = useRef(false); // Track if there's a pending save request
+  const isMountedRef = useRef(true); // Track component mount state
+  const dataVersionRef = useRef(0); // Track data changes for debounce
+  
   // Agent settings state
   const [language, setLanguage] = useState("en-US");
   const [executionMode, setExecutionMode] = useState<"flex" | "rigid">("flex");
@@ -656,12 +668,12 @@ function AgentEditorInner() {
     enabled: isAuthenticated && !isNew,
   });
 
-  const { data: flowNodesData = [] } = useQuery<any[]>({
+  const { data: flowNodesData = [], isLoading: isLoadingFlowNodes } = useQuery<any[]>({
     queryKey: ["/api/agents", id, "flow-nodes"],
     enabled: isAuthenticated && !isNew,
   });
 
-  const { data: flowConnectionsData = [] } = useQuery<any[]>({
+  const { data: flowConnectionsData = [], isLoading: isLoadingFlowConnections } = useQuery<any[]>({
     queryKey: ["/api/agents", id, "flow-connections"],
     enabled: isAuthenticated && !isNew,
   });
@@ -709,6 +721,29 @@ function AgentEditorInner() {
       setWarmTransferMessage(warmEnabled ? (agent.warmTransferMessage || "") : "");
     }
   }, [agent]);
+  
+  // Mark as loaded only after ALL initial data is loaded (agent + flow nodes + flow connections)
+  useEffect(() => {
+    // Only set hasLoaded after ALL initial data queries have completed
+    const allQueriesComplete = !isLoading && !isLoadingFlowNodes && !isLoadingFlowConnections;
+    if (!isNew && agent && allQueriesComplete) {
+      // Wait a tick to ensure state has settled after loading
+      const timer = setTimeout(() => {
+        hasLoadedRef.current = true;
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [agent, isLoading, isLoadingFlowNodes, isLoadingFlowConnections, isNew]);
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    };
+  }, []);
 
   // Load flow nodes
   useEffect(() => {
@@ -800,6 +835,128 @@ function AgentEditorInner() {
       setLastSaved(new Date());
     },
   });
+
+  // Core save function (called by debounce or pending trigger)
+  const executeSave = useCallback(async () => {
+    if (isNew || !isMountedRef.current) return;
+    
+    isSavingRef.current = true;
+    pendingSaveRef.current = false;
+    setAutoSaveStatus('saving');
+    
+    try {
+      // Save agent settings
+      await apiRequest("PATCH", `/api/agents/${id}`, {
+        name: agentName,
+        language,
+        systemPrompt: globalPrompt,
+        aiModel,
+        voiceName: selectedVoiceName,
+        voiceProvider,
+        voiceId: selectedVoiceId,
+        voiceSpeed: voiceSpeed[0].toString(),
+        voiceTemperature: voiceTemperature[0].toString(),
+        voiceVolume: voiceVolume[0].toString(),
+        responsiveness: responsiveness[0].toString(),
+        interruptionSensitivity: interruptionSensitivity[0].toString(),
+        ambientSound: backgroundSound,
+        beginMessageDelayMs: beginMessageDelay[0].toString(),
+        maxCallDurationMs: maxCallDuration[0].toString(),
+        inactivityTimeoutMs: inactivityTimeout[0].toString(),
+        voicemailDetection,
+        warmTransferEnabled,
+        warmTransferNumber: warmTransferEnabled ? warmTransferNumber : null,
+        warmTransferMessage: warmTransferEnabled ? warmTransferMessage : null,
+      });
+      
+      // Save flow nodes and connections
+      const dbNodes = nodes.map((node) => ({
+        id: node.id,
+        agentId: id,
+        type: node.data.type,
+        label: node.data.label,
+        content: node.data.content || '',
+        position: node.position,
+        config: node.data.config || {},
+      }));
+      const dbEdges = edges.map((edge) => ({
+        agentId: id,
+        sourceNodeId: edge.source,
+        targetNodeId: edge.target,
+        label: edge.label || '',
+      }));
+      await apiRequest("POST", `/api/agents/${id}/flow-nodes/bulk`, { nodes: dbNodes });
+      await apiRequest("POST", `/api/agents/${id}/flow-connections/bulk`, { connections: dbEdges });
+      
+      if (!isMountedRef.current) return;
+      
+      setAutoSaveStatus('saved');
+      setLastSaved(new Date());
+      
+      // Reset status after 2 seconds with cleanup
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+      statusTimerRef.current = setTimeout(() => {
+        if (isMountedRef.current) setAutoSaveStatus('idle');
+      }, 2000);
+    } catch (error) {
+      console.error('Auto-save failed:', error);
+      if (!isMountedRef.current) return;
+      
+      setAutoSaveStatus('error');
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+      statusTimerRef.current = setTimeout(() => {
+        if (isMountedRef.current) setAutoSaveStatus('idle');
+      }, 3000);
+    } finally {
+      isSavingRef.current = false;
+    }
+  }, [id, isNew, agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, nodes, edges]);
+  
+  // Debounced auto-save trigger that handles concurrency properly
+  const triggerAutoSave = useCallback(() => {
+    if (isNew || !hasLoadedRef.current) return;
+    
+    // If currently saving, mark as pending and let the save complete hook re-trigger
+    if (isSavingRef.current) {
+      pendingSaveRef.current = true;
+      return;
+    }
+    
+    // Clear existing timer and set new one
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+    
+    autoSaveTimerRef.current = setTimeout(() => {
+      if (isMountedRef.current && hasLoadedRef.current) {
+        executeSave();
+      }
+    }, 1500); // 1.5 second debounce
+  }, [isNew, executeSave]);
+  
+  // Effect to re-trigger auto-save after a save completes if there were pending changes
+  useEffect(() => {
+    // When isSaving becomes false and there's a pending save, re-trigger
+    if (!isSavingRef.current && pendingSaveRef.current && hasLoadedRef.current && !isNew) {
+      pendingSaveRef.current = false;
+      // Schedule with fresh state
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = setTimeout(() => {
+        if (isMountedRef.current && hasLoadedRef.current) {
+          executeSave();
+        }
+      }, 500); // Shorter delay for pending saves
+    }
+  }, [autoSaveStatus, isNew, executeSave]); // Triggered when autoSaveStatus changes (especially from 'saving' to 'saved')
+
+  // Auto-save effect - triggers on any change with proper debounce
+  useEffect(() => {
+    if (!hasLoadedRef.current || isNew) return;
+    
+    // Use the debounced trigger which handles concurrency
+    triggerAutoSave();
+    
+  }, [agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, nodes, edges, triggerAutoSave, isNew]);
 
   // Handlers
   const updateNodeData = useCallback((nodeId: string, newData: any) => {
@@ -1730,14 +1887,41 @@ function AgentEditorInner() {
                 proOptions={{ hideAttribution: true }}
                 data-testid="flow-canvas"
               >
-                <Panel position="bottom-center" className="flex items-center gap-1 bg-white dark:bg-gray-900 rounded-lg shadow-sm border p-1">
+                <Panel position="bottom-center" className="flex items-center gap-2 bg-white dark:bg-gray-900 rounded-lg shadow-sm border p-1 px-2">
+                  {/* Auto-save indicator */}
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-[90px]">
+                    {autoSaveStatus === 'saving' && (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
+                        <span>Saving...</span>
+                      </>
+                    )}
+                    {autoSaveStatus === 'saved' && (
+                      <>
+                        <Check className="h-3 w-3 text-green-500" />
+                        <span className="text-green-600 dark:text-green-400">Saved</span>
+                      </>
+                    )}
+                    {autoSaveStatus === 'error' && (
+                      <>
+                        <AlertCircle className="h-3 w-3 text-red-500" />
+                        <span className="text-red-600 dark:text-red-400">Error</span>
+                      </>
+                    )}
+                    {autoSaveStatus === 'idle' && lastSaved && (
+                      <span className="text-muted-foreground/70">
+                        Saved {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+                  <div className="w-px h-5 bg-gray-200 dark:bg-gray-700" />
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleUndo} disabled={!canUndo}>
                     <Undo2 className="h-4 w-4" />
                   </Button>
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleRedo} disabled={!canRedo}>
                     <Redo2 className="h-4 w-4" />
                   </Button>
-                  <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+                  <div className="w-px h-5 bg-gray-200 dark:bg-gray-700" />
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => zoomOut()}>
                     <ZoomOut className="h-4 w-4" />
                   </Button>

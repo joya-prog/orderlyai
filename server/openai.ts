@@ -119,12 +119,22 @@ export function buildFlowContext(nodes: FlowNode[], connections: FlowConnection[
     return "";
   }
 
-  return `\n\nCONVERSATION FLOW:
-Follow this structured conversation flow to guide the interaction:
+  return `\n\n=== CONVERSATION WORKFLOW (MUST FOLLOW) ===
+You MUST follow this conversation workflow structure. This defines your conversation path:
 
 ${flowInstructions.join('\n')}
 
-IMPORTANT: Follow this flow as a guide, but remain natural and conversational. Adapt based on what the caller says while staying within the defined flow structure.`;
+WORKFLOW RULES:
+1. START with the greeting/start node when beginning a conversation
+2. FOLLOW the workflow path - move through nodes in the defined order
+3. At BRANCH points (conditions), choose the appropriate path based on user response
+4. COLLECT required information at each step before proceeding to the next
+5. Use the EXACT actions specified (book reservation, take order, transfer call, etc.)
+6. END the conversation only when reaching an END node or completing the flow
+7. Stay WITHIN the workflow - do not invent steps not defined in the flow
+8. Be natural and conversational while following the structure
+
+=== END WORKFLOW ===`;
 }
 
 // Default values for agents without custom configuration
@@ -167,7 +177,7 @@ KNOWLEDGE BASE:
 ${effectiveKnowledge}
 ${effectiveFlowContext}
 
-You are a helpful restaurant AI assistant. Use the knowledge base to answer questions accurately. Be conversational and helpful.${effectiveFlowContext ? ' Follow the conversation flow structure when guiding the interaction.' : ''}`;
+You are a helpful restaurant AI assistant. Use the knowledge base to answer questions accurately.${effectiveFlowContext ? ' You MUST follow the conversation workflow defined above - this is your primary directive. Guide the conversation according to the workflow steps while remaining natural and friendly.' : ' Be conversational and helpful.'}`;
 
     const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
       { role: "system", content: fullSystemPrompt },

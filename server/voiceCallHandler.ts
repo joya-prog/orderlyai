@@ -3,7 +3,8 @@ import { Readable } from 'stream';
 import { storage } from './storage';
 import { generateAgentResponse, transcribeAudio, synthesizeSpeech, VoiceConfig, buildFlowContext } from './openai';
 import { synthesizeElevenLabsSpeech } from './elevenlabs';
-import { Agent } from '@shared/schema';
+import { Agent, FlowNode, FlowConnection } from '@shared/schema';
+import { WorkflowExecutor, WorkflowState, createWorkflowExecutor } from './workflowExecutor';
 
 const MULAW_RATE = 8000;
 const CHUNK_SIZE = 320;
@@ -760,6 +761,10 @@ interface BrowserTestSession {
   audioBuffer: Buffer[];
   silenceTimer: NodeJS.Timeout | null;
   lastAudioTime: number;
+  workflowExecutor: WorkflowExecutor | null;
+  workflowState: WorkflowState | null;
+  flowNodes: FlowNode[];
+  flowConnections: FlowConnection[];
 }
 
 const browserTestSessions = new Map<string, BrowserTestSession>();
@@ -799,6 +804,13 @@ export async function handleBrowserTestWebSocket(ws: WebSocket, agentId: string,
   
   const callSid = `test-${Date.now()}-${Math.random().toString(36).substring(7)}`;
   
+  // Create workflow executor if flow nodes exist
+  const hasWorkflow = flowNodes.length > 0;
+  const workflowExecutor = hasWorkflow 
+    ? createWorkflowExecutor(flowNodes, flowConnections, agent, knowledgeContext + squareMenuContext)
+    : null;
+  const workflowState = workflowExecutor ? workflowExecutor.createInitialState() : null;
+  
   const session: BrowserTestSession = {
     callSid,
     agent,
@@ -814,6 +826,10 @@ export async function handleBrowserTestWebSocket(ws: WebSocket, agentId: string,
     audioBuffer: [],
     silenceTimer: null,
     lastAudioTime: 0,
+    workflowExecutor,
+    workflowState,
+    flowNodes,
+    flowConnections,
   };
   
   browserTestSessions.set(callSid, session);
@@ -915,8 +931,16 @@ export async function handleBrowserTestWebSocket(ws: WebSocket, agentId: string,
 
 async function sendBrowserGreeting(session: BrowserTestSession): Promise<void> {
   try {
-    // Use default greeting if agent doesn't have one configured
-    const greetingText = session.agent.greetingMessage?.trim() || DEFAULT_GREETING;
+    // Get greeting from workflow if available, otherwise fall back to agent greeting
+    let greetingText: string;
+    
+    if (session.workflowExecutor) {
+      greetingText = session.workflowExecutor.getGreeting();
+      console.log(`[BrowserTest ${session.callSid}] Using workflow greeting`);
+    } else {
+      greetingText = session.agent.greetingMessage?.trim() || DEFAULT_GREETING;
+      console.log(`[BrowserTest ${session.callSid}] Using agent default greeting (no workflow)`);
+    }
     
     // Send greeting text IMMEDIATELY so UI shows it right away
     session.ws.send(JSON.stringify({ 
@@ -1055,24 +1079,49 @@ async function processBrowserText(session: BrowserTestSession, text: string): Pr
 }
 
 async function generateAndSendResponse(session: BrowserTestSession, userInput: string): Promise<void> {
-  const fullKnowledgeContext = session.knowledgeContext + session.squareMenuContext;
+  let response: string;
   
-  const response = await generateAgentResponse(
-    session.agent.systemPrompt,
-    session.agent.greetingMessage,
-    session.agent.personality,
-    fullKnowledgeContext,
-    session.conversationHistory,
-    userInput,
-    session.flowContext
-  );
-  
-  console.log(`[BrowserTest ${session.callSid}] Agent response: "${response}"`);
-  
-  session.conversationHistory.push(
-    { role: 'user', content: userInput },
-    { role: 'assistant', content: response }
-  );
+  // Use workflow executor if available, otherwise fall back to free-form AI
+  if (session.workflowExecutor && session.workflowState) {
+    console.log(`[BrowserTest ${session.callSid}] Processing with workflow executor`);
+    
+    const result = await session.workflowExecutor.processUserInput(
+      session.workflowState,
+      userInput
+    );
+    
+    response = result.response;
+    session.workflowState = result.newState;
+    
+    // Update conversation history from workflow state (cast role types)
+    session.conversationHistory = session.workflowState.conversationHistory.map(msg => ({
+      role: msg.role as 'user' | 'assistant',
+      content: msg.content
+    }));
+    
+    console.log(`[BrowserTest ${session.callSid}] Workflow response: "${response}"`);
+    console.log(`[BrowserTest ${session.callSid}] Current node: ${session.workflowState.currentNodeId}`);
+  } else {
+    // Fallback to free-form AI response
+    const fullKnowledgeContext = session.knowledgeContext + session.squareMenuContext;
+    
+    response = await generateAgentResponse(
+      session.agent.systemPrompt,
+      session.agent.greetingMessage,
+      session.agent.personality,
+      fullKnowledgeContext,
+      session.conversationHistory,
+      userInput,
+      session.flowContext
+    );
+    
+    console.log(`[BrowserTest ${session.callSid}] AI response: "${response}"`);
+    
+    session.conversationHistory.push(
+      { role: 'user', content: userInput },
+      { role: 'assistant', content: response }
+    );
+  }
   
   session.ws.send(JSON.stringify({ 
     type: 'state', 

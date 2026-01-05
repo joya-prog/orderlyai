@@ -610,6 +610,7 @@ function AgentEditorInner() {
   
   // Track if greeting fetch is in progress to prevent duplicate requests
   const [isGreetingLoading, setIsGreetingLoading] = useState(false);
+  const greetingFetchedRef = useRef(false); // Tracks if greeting was already fetched for current agent
   
   // Test conversation state
   const [testMessages, setTestMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
@@ -1048,25 +1049,27 @@ function AgentEditorInner() {
     }
   }, [agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, nodes, edges, saveMutation, saveFlowMutation]);
 
-  // Initialize chat when switching to test tab - fetch greeting
-  // Runs whenever: entering test tab with no messages, or messages are cleared
+  // Initialize chat when switching to test tab - fetch greeting once
   useEffect(() => {
-    if (activeTab === "test" && testMessages.length === 0 && !isGreetingLoading && !isNew && id) {
-      const fetchGreeting = async () => {
-        setIsGreetingLoading(true);
-        try {
-          const response = await apiRequest("POST", `/api/agents/${id}/start-chat`, {});
-          const data = await response.json();
+    // Only fetch if: on test tab, no messages yet, not already loading, not already fetched, valid agent
+    if (activeTab === "test" && testMessages.length === 0 && !isGreetingLoading && !greetingFetchedRef.current && !isNew && id) {
+      greetingFetchedRef.current = true; // Mark as fetched immediately to prevent duplicate calls
+      setIsGreetingLoading(true);
+      
+      apiRequest("POST", `/api/agents/${id}/start-chat`, {})
+        .then(response => response.json())
+        .then(data => {
           if (data.greeting) {
             setTestMessages([{ role: 'assistant', content: data.greeting }]);
           }
-        } catch (error) {
+        })
+        .catch(error => {
           console.error("Failed to load agent greeting:", error);
-        } finally {
+          greetingFetchedRef.current = false; // Allow retry on error
+        })
+        .finally(() => {
           setIsGreetingLoading(false);
-        }
-      };
-      fetchGreeting();
+        });
     }
   }, [activeTab, testMessages.length, isGreetingLoading, isNew, id]);
 
@@ -1074,6 +1077,7 @@ function AgentEditorInner() {
   useEffect(() => {
     setTestMessages([]);
     setIsGreetingLoading(false);
+    greetingFetchedRef.current = false; // Reset ref when agent changes
   }, [id]);
 
 
@@ -2068,8 +2072,12 @@ function AgentEditorInner() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setTestMessages([])}
+                        onClick={() => {
+                          setTestMessages([]);
+                          greetingFetchedRef.current = false; // Allow re-fetch of greeting
+                        }}
                         className="gap-1"
+                        data-testid="button-clear-chat"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                         Clear

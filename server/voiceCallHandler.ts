@@ -915,13 +915,28 @@ export async function handleBrowserTestWebSocket(ws: WebSocket, agentId: string,
 
 async function sendBrowserGreeting(session: BrowserTestSession): Promise<void> {
   try {
+    // Use default greeting if agent doesn't have one configured
+    const greetingText = session.agent.greetingMessage?.trim() || DEFAULT_GREETING;
+    
+    // Send greeting text IMMEDIATELY so UI shows it right away
+    session.ws.send(JSON.stringify({ 
+      type: 'greeting', 
+      text: greetingText 
+    }));
+    
+    console.log(`[BrowserTest ${session.callSid}] Greeting text sent immediately: "${greetingText.substring(0, 50)}..."`);
+    
+    // Add to conversation history
+    session.conversationHistory.push({
+      role: 'assistant',
+      content: greetingText,
+    });
+    
+    // Now generate TTS audio (this takes time)
     session.ws.send(JSON.stringify({ 
       type: 'state', 
       state: 'speaking' 
     }));
-    
-    // Use default greeting if agent doesn't have one configured
-    const greetingText = session.agent.greetingMessage?.trim() || DEFAULT_GREETING;
     
     const voiceConfig: VoiceConfig = {
       provider: session.agent.voiceProvider || 'openai',
@@ -955,6 +970,7 @@ async function sendBrowserGreeting(session: BrowserTestSession): Promise<void> {
     
     console.log(`[BrowserTest ${session.callSid}] Generated greeting audio: ${audioBuffer.length} bytes`);
     
+    // Send audio for playback (include text for compatibility with chat history)
     session.ws.send(JSON.stringify({
       type: 'audio',
       audio: audioBuffer.toString('base64'),
@@ -963,11 +979,6 @@ async function sendBrowserGreeting(session: BrowserTestSession): Promise<void> {
     
     console.log(`[BrowserTest ${session.callSid}] Greeting audio sent to client`);
     
-    session.conversationHistory.push({
-      role: 'assistant',
-      content: greetingText,
-    });
-    
     session.ws.send(JSON.stringify({ 
       type: 'state', 
       state: 'listening' 
@@ -975,6 +986,11 @@ async function sendBrowserGreeting(session: BrowserTestSession): Promise<void> {
     
   } catch (error) {
     console.error('[BrowserTest] Error sending greeting:', error);
+    // Still transition to listening state on error
+    session.ws.send(JSON.stringify({ 
+      type: 'state', 
+      state: 'listening' 
+    }));
   }
 }
 

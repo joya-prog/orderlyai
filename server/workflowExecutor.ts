@@ -8,6 +8,7 @@ export interface Transition {
   label: string;
   condition?: string;
   color?: string;
+  targetNodeId?: string;
 }
 
 export interface WorkflowState {
@@ -69,8 +70,23 @@ export class WorkflowExecutor {
   }
 
   getTransitionsForNode(node: FlowNode): Transition[] {
-    const config = node.config as Record<string, any> | null;
-    return config?.transitions || [];
+    // Get transitions from outgoing connections instead of node.config
+    // The flow builder stores transition labels on FlowConnection objects
+    const outgoingConnections = this.getOutgoingConnections(node.id);
+    
+    if (outgoingConnections.length === 0) {
+      return [];
+    }
+    
+    // Build transitions from connection labels
+    const transitions: Transition[] = outgoingConnections.map((conn, index) => ({
+      id: conn.sourceHandle || conn.id,
+      label: conn.label || `Option ${index + 1}`,
+      condition: undefined,
+      targetNodeId: conn.targetNodeId
+    }));
+    
+    return transitions;
   }
 
   async evaluateTransition(
@@ -78,28 +94,23 @@ export class WorkflowExecutor {
     userInput: string,
     conversationHistory: Array<{ role: string; content: string }>
   ): Promise<{ nextNodeId: string | null; matchedTransition: Transition | null }> {
-    const outgoingConnections = this.getOutgoingConnections(currentNode.id);
-    
-    if (outgoingConnections.length === 0) {
-      return { nextNodeId: null, matchedTransition: null };
-    }
-
-    if (outgoingConnections.length === 1) {
-      return { 
-        nextNodeId: outgoingConnections[0].targetNodeId, 
-        matchedTransition: null 
-      };
-    }
-
     const transitions = this.getTransitionsForNode(currentNode);
     
     if (transitions.length === 0) {
+      return { nextNodeId: null, matchedTransition: null };
+    }
+
+    if (transitions.length === 1) {
+      // Only one path, take it directly
+      const transition = transitions[0];
+      console.log(`[WorkflowExecutor] Single transition "${transition.label}" -> ${transition.targetNodeId}`);
       return { 
-        nextNodeId: outgoingConnections[0].targetNodeId, 
-        matchedTransition: null 
+        nextNodeId: transition.targetNodeId || null, 
+        matchedTransition: transition 
       };
     }
 
+    // Multiple transitions - use GPT to classify which one matches user input
     const transitionDescriptions = transitions.map((t, i) => 
       `${i + 1}. "${t.label}" ${t.condition ? `(condition: ${t.condition})` : ''}`
     ).join('\n');
@@ -114,6 +125,11 @@ ${transitionDescriptions}
 User said: "${userInput}"
 
 Based on the user's response, which transition number (1-${transitions.length}) best matches?
+Think about what the user is asking for:
+- If they mention "order", "food", "pickup", "delivery" -> look for order-related transition
+- If they mention "reservation", "table", "booking" -> look for reservation-related transition
+- If they mention "hours", "open", "close" -> look for hours/info transition
+
 Reply with ONLY the number (e.g., "1" or "2"). If none clearly match, reply with "1" for the default path.`;
 
     try {
@@ -127,24 +143,24 @@ Reply with ONLY the number (e.g., "1" or "2"). If none clearly match, reply with
       const answer = response.choices[0]?.message?.content?.trim() || "1";
       const transitionIndex = parseInt(answer, 10) - 1;
       
-      const selectedTransition = transitions[transitionIndex] || transitions[0];
+      // Ensure valid index
+      const validIndex = Math.max(0, Math.min(transitionIndex, transitions.length - 1));
+      const selectedTransition = transitions[validIndex];
       
-      const matchingConnection = outgoingConnections.find(conn => {
-        if (conn.sourceHandle) {
-          return conn.sourceHandle.includes(selectedTransition.id);
-        }
-        return false;
-      }) || outgoingConnections[transitionIndex] || outgoingConnections[0];
+      console.log(`[WorkflowExecutor] User said: "${userInput}"`);
+      console.log(`[WorkflowExecutor] Available transitions: ${transitions.map(t => t.label).join(', ')}`);
+      console.log(`[WorkflowExecutor] GPT selected: #${validIndex + 1} "${selectedTransition.label}" -> ${selectedTransition.targetNodeId}`);
 
       return {
-        nextNodeId: matchingConnection.targetNodeId,
+        nextNodeId: selectedTransition.targetNodeId || null,
         matchedTransition: selectedTransition
       };
     } catch (error) {
       console.error('[WorkflowExecutor] Error evaluating transition:', error);
+      const fallbackTransition = transitions[0];
       return {
-        nextNodeId: outgoingConnections[0].targetNodeId,
-        matchedTransition: transitions[0] || null
+        nextNodeId: fallbackTransition.targetNodeId || null,
+        matchedTransition: fallbackTransition
       };
     }
   }

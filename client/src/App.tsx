@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { useEffect, useRef } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -77,15 +77,29 @@ function SidebarResponsiveWrapper() {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const { setOpen } = useSidebar();
   const isFirstRender = useRef(true);
+  const [location] = useLocation();
+  
+  // Check if we're on the agent editor page (should auto-collapse sidebar)
+  const isAgentEditorPage = location.startsWith('/agents/') && location !== '/agents';
 
   // Sync sidebar state with breakpoint changes after initial mount
+  // But respect auto-collapse for agent editor page
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
+      // On first render, collapse if on agent editor page
+      if (isAgentEditorPage) {
+        setOpen(false);
+      }
       return;
     }
-    setOpen(isDesktop);
-  }, [isDesktop, setOpen]);
+    // Don't auto-open sidebar on agent editor pages
+    if (isAgentEditorPage) {
+      setOpen(false);
+    } else {
+      setOpen(isDesktop);
+    }
+  }, [isDesktop, setOpen, isAgentEditorPage]);
 
   return (
     <div className="flex h-screen w-full">

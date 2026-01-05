@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef, DragEvent, memo } from "react";
 import { useParams, useLocation } from "wouter";
-import { useSidebar } from "@/components/ui/sidebar";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { 
   ArrowLeft, 
   Save, 
@@ -79,6 +79,8 @@ import {
   Share2,
   History,
   Upload,
+  ArrowUpRight,
+  Monitor,
 } from "lucide-react";
 import { VoiceSelector } from "@/components/voice-selector";
 
@@ -540,27 +542,8 @@ function AgentEditorInner() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
-  const { open: sidebarOpen, setOpen: setSidebarOpen } = useSidebar();
   const isNew = id === "new";
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const previousSidebarState = useRef<boolean | null>(null);
-  
-  // Collapse main sidebar on mount for more canvas space
-  useEffect(() => {
-    // Store the current sidebar state before collapsing
-    if (previousSidebarState.current === null) {
-      previousSidebarState.current = sidebarOpen;
-    }
-    setSidebarOpen(false);
-    
-    return () => {
-      // Restore sidebar to previous state when leaving
-      if (previousSidebarState.current) {
-        setSidebarOpen(true);
-      }
-      previousSidebarState.current = null;
-    };
-  }, []);
   
   // State
   const [activeTab, setActiveTab] = useState<"create" | "test">("create");
@@ -650,6 +633,15 @@ function AgentEditorInner() {
     queryKey: ["/api/agents", id, "knowledge"],
     enabled: isAuthenticated && !isNew,
   });
+  
+  // Fetch all knowledge bases for the dropdown
+  const { data: allKnowledgeBases = [] } = useQuery<KnowledgeBase[]>({
+    queryKey: ["/api/knowledge"],
+    enabled: isAuthenticated,
+  });
+  
+  // State for knowledge base popover
+  const [kbPopoverOpen, setKbPopoverOpen] = useState(false);
 
   // Load agent data
   useEffect(() => {
@@ -1365,15 +1357,61 @@ function AgentEditorInner() {
                   <p className="text-sm text-muted-foreground">
                     Add knowledge base to provide context to the agent.
                   </p>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="gap-2" 
-                    data-testid="button-add-knowledge-base"
-                    onClick={() => navigate("/knowledge-base")}
-                  >
-                    <Plus className="h-4 w-4" /> Add
-                  </Button>
+                  <Popover open={kbPopoverOpen} onOpenChange={setKbPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="gap-2" 
+                        data-testid="button-add-knowledge-base"
+                      >
+                        <Plus className="h-4 w-4" /> Add
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72 p-0" align="start">
+                      <div className="max-h-[300px] overflow-y-auto">
+                        {/* Get unique knowledge base names from all entries */}
+                        {(() => {
+                          const uniqueNames = Array.from(new Set(allKnowledgeBases.map(kb => kb.question)));
+                          if (uniqueNames.length === 0) {
+                            return (
+                              <div className="p-3 text-sm text-muted-foreground">
+                                No knowledge bases available.
+                              </div>
+                            );
+                          }
+                          return uniqueNames.map((name, index) => (
+                            <button
+                              key={index}
+                              className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-accent transition-colors border-b last:border-b-0"
+                              onClick={() => {
+                                // Find the knowledge base entry and navigate to it
+                                setKbPopoverOpen(false);
+                                navigate("/knowledge-base");
+                              }}
+                              data-testid={`button-kb-select-${index}`}
+                            >
+                              <Monitor className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                              <span className="text-sm truncate">{name}</span>
+                            </button>
+                          ));
+                        })()}
+                      </div>
+                      <div className="border-t">
+                        <button
+                          className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-accent transition-colors"
+                          onClick={() => {
+                            setKbPopoverOpen(false);
+                            navigate("/knowledge-base");
+                          }}
+                          data-testid="button-add-new-knowledge-base"
+                        >
+                          <ArrowUpRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                          <span className="text-sm">Add New Knowledge Base</span>
+                        </button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </SettingsSection>
 

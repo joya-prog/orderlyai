@@ -79,6 +79,9 @@ import {
   Upload,
   ArrowUpRight,
   Monitor,
+  Minus,
+  GripVertical,
+  Maximize2,
 } from "lucide-react";
 import { VoiceSelector } from "@/components/voice-selector";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -611,6 +614,24 @@ function AgentEditorInner() {
   const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const audioQueueRef = useRef<ArrayBuffer[]>([]);
   const isPlayingAudioRef = useRef(false);
+  
+  // Floating panel state - Settings panel (left)
+  const [settingsPanelPos, setSettingsPanelPos] = useState({ x: 16, y: 16 });
+  const [settingsPanelSize, setSettingsPanelSize] = useState({ width: 288, height: 0 }); // height 0 = auto
+  const [settingsPanelMinimized, setSettingsPanelMinimized] = useState(false);
+  const settingsPanelRef = useRef<HTMLDivElement>(null);
+  
+  // Floating panel state - Nodes panel (right)
+  const [nodesPanelPos, setNodesPanelPos] = useState({ x: -1, y: 16 }); // -1 = right-aligned
+  const [nodesPanelSize, setNodesPanelSize] = useState({ width: 256, height: 0 });
+  const [nodesPanelMinimized, setNodesPanelMinimized] = useState(false);
+  const nodesPanelRef = useRef<HTMLDivElement>(null);
+  
+  // Drag state
+  const [draggingPanel, setDraggingPanel] = useState<'settings' | 'nodes' | null>(null);
+  const [resizingPanel, setResizingPanel] = useState<'settings' | 'nodes' | null>(null);
+  const dragStartRef = useRef({ x: 0, y: 0, panelX: 0, panelY: 0 });
+  const resizeStartRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
   
   // ReactFlow state - properly typed
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -1200,6 +1221,66 @@ function AgentEditorInner() {
     }
   }, [nodes, edges]);
 
+  // Panel drag handlers
+  const handlePanelDragStart = useCallback((panel: 'settings' | 'nodes', e: React.MouseEvent) => {
+    e.preventDefault();
+    setDraggingPanel(panel);
+    const pos = panel === 'settings' ? settingsPanelPos : nodesPanelPos;
+    dragStartRef.current = { x: e.clientX, y: e.clientY, panelX: pos.x, panelY: pos.y };
+  }, [settingsPanelPos, nodesPanelPos]);
+
+  const handlePanelResizeStart = useCallback((panel: 'settings' | 'nodes', e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizingPanel(panel);
+    const size = panel === 'settings' ? settingsPanelSize : nodesPanelSize;
+    resizeStartRef.current = { x: e.clientX, y: e.clientY, width: size.width, height: size.height };
+  }, [settingsPanelSize, nodesPanelSize]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (draggingPanel) {
+        const dx = e.clientX - dragStartRef.current.x;
+        const dy = e.clientY - dragStartRef.current.y;
+        const newX = Math.max(0, dragStartRef.current.panelX + dx);
+        const newY = Math.max(0, dragStartRef.current.panelY + dy);
+        
+        if (draggingPanel === 'settings') {
+          setSettingsPanelPos({ x: newX, y: newY });
+        } else {
+          setNodesPanelPos({ x: newX, y: newY });
+        }
+      }
+      
+      if (resizingPanel) {
+        const dx = e.clientX - resizeStartRef.current.x;
+        const dy = e.clientY - resizeStartRef.current.y;
+        const newWidth = Math.max(200, Math.min(500, resizeStartRef.current.width + dx));
+        const newHeight = resizeStartRef.current.height + dy;
+        
+        if (resizingPanel === 'settings') {
+          setSettingsPanelSize({ width: newWidth, height: newHeight > 100 ? newHeight : 0 });
+        } else {
+          setNodesPanelSize({ width: newWidth, height: newHeight > 100 ? newHeight : 0 });
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      setDraggingPanel(null);
+      setResizingPanel(null);
+    };
+
+    if (draggingPanel || resizingPanel) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [draggingPanel, resizingPanel]);
+
   // Filter nodes
   const filteredCategories = nodeCategories.map(cat => ({
     ...cat,
@@ -1276,11 +1357,39 @@ function AgentEditorInner() {
       {/* Main Content */}
       <div className="flex-1 flex min-h-0 relative">
         {/* Left Sidebar - Agent Settings - Floating Panel */}
-        <div className="absolute left-4 top-4 bottom-4 w-72 z-10 bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-xl shadow-lg border">
-          <div className="p-4 border-b">
-            <span className="font-semibold">Global Settings</span>
+        <div 
+          ref={settingsPanelRef}
+          className={`absolute z-10 bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-xl shadow-lg border transition-all ${draggingPanel === 'settings' ? 'cursor-grabbing shadow-2xl' : ''}`}
+          style={{
+            left: settingsPanelPos.x,
+            top: settingsPanelPos.y,
+            width: settingsPanelSize.width,
+            height: settingsPanelMinimized ? 'auto' : (settingsPanelSize.height > 0 ? settingsPanelSize.height : 'calc(100% - 32px)'),
+            maxHeight: settingsPanelMinimized ? 'auto' : 'calc(100% - 32px)',
+          }}
+        >
+          <div 
+            className="p-3 border-b flex items-center justify-between cursor-grab select-none"
+            onMouseDown={(e) => handlePanelDragStart('settings', e)}
+          >
+            <div className="flex items-center gap-2">
+              <GripVertical className="h-4 w-4 text-gray-400" />
+              <span className="font-semibold text-sm">Global Settings</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => setSettingsPanelMinimized(!settingsPanelMinimized)}
+                data-testid="settings-panel-minimize"
+              >
+                {settingsPanelMinimized ? <Maximize2 className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+              </Button>
+            </div>
           </div>
           
+          {!settingsPanelMinimized && (
           <ScrollArea className="flex-1">
             <div className="pb-4">
               <SettingsSection title="Agent Settings" icon={Settings} defaultOpen={true}>
@@ -1513,6 +1622,17 @@ function AgentEditorInner() {
 
             </div>
           </ScrollArea>
+          )}
+          
+          {/* Resize handle */}
+          {!settingsPanelMinimized && (
+            <div 
+              className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
+              onMouseDown={(e) => handlePanelResizeStart('settings', e)}
+            >
+              <div className="absolute bottom-1 right-1 w-2 h-2 border-r-2 border-b-2 border-gray-400" />
+            </div>
+          )}
         </div>
 
         {/* Center - Content Area */}
@@ -1563,11 +1683,51 @@ function AgentEditorInner() {
             </div>
 
             {/* Right Sidebar - Node Library - Floating Panel */}
-            <div className="absolute right-4 top-4 bottom-4 w-64 z-10 bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-xl shadow-lg border">
-              <div className="p-3 border-b flex-shrink-0">
-                <h3 className="font-semibold text-sm">Nodes</h3>
+            <div 
+              ref={nodesPanelRef}
+              className={`absolute z-10 bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-xl shadow-lg border transition-all ${draggingPanel === 'nodes' ? 'cursor-grabbing shadow-2xl' : ''}`}
+              style={{
+                right: nodesPanelPos.x === -1 ? 16 : 'auto',
+                left: nodesPanelPos.x === -1 ? 'auto' : nodesPanelPos.x,
+                top: nodesPanelPos.y,
+                width: nodesPanelSize.width,
+                height: nodesPanelMinimized ? 'auto' : (nodesPanelSize.height > 0 ? nodesPanelSize.height : 'calc(100% - 32px)'),
+                maxHeight: nodesPanelMinimized ? 'auto' : 'calc(100% - 32px)',
+              }}
+            >
+              <div 
+                className="p-3 border-b flex items-center justify-between cursor-grab select-none flex-shrink-0"
+                onMouseDown={(e) => {
+                  // If first drag and using default right alignment, calculate absolute position
+                  if (nodesPanelPos.x === -1 && nodesPanelRef.current) {
+                    const rect = nodesPanelRef.current.getBoundingClientRect();
+                    const parentRect = nodesPanelRef.current.parentElement?.getBoundingClientRect();
+                    if (parentRect) {
+                      setNodesPanelPos({ x: rect.left - parentRect.left, y: rect.top - parentRect.top });
+                    }
+                  }
+                  handlePanelDragStart('nodes', e);
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <GripVertical className="h-4 w-4 text-gray-400" />
+                  <span className="font-semibold text-sm">Nodes</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => setNodesPanelMinimized(!nodesPanelMinimized)}
+                    data-testid="nodes-panel-minimize"
+                  >
+                    {nodesPanelMinimized ? <Maximize2 className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+                  </Button>
+                </div>
               </div>
               
+              {!nodesPanelMinimized && (
+              <>
               <div className="px-3 py-2 border-b flex-shrink-0">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -1619,6 +1779,18 @@ function AgentEditorInner() {
               })}
               </div>
               </ScrollArea>
+              </>
+              )}
+              
+              {/* Resize handle */}
+              {!nodesPanelMinimized && (
+                <div 
+                  className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
+                  onMouseDown={(e) => handlePanelResizeStart('nodes', e)}
+                >
+                  <div className="absolute bottom-1 right-1 w-2 h-2 border-r-2 border-b-2 border-gray-400" />
+                </div>
+              )}
             </div>
           </>
         ) : (

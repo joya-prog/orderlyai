@@ -751,8 +751,31 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
   }, [historyIndex, history, setNodes, setEdges]);
 
   const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges],
+    (params: Connection) => {
+      // Extract transition label from source node's transitions
+      // sourceHandle format is "${nodeId}-${transitionId}"
+      let edgeLabel = '';
+      
+      if (params.sourceHandle && params.source) {
+        const sourceNode = nodes.find(n => n.id === params.source);
+        const transitions = sourceNode?.data?.transitions as Array<{ id: string; condition?: string; label?: string }> | undefined;
+        if (transitions && Array.isArray(transitions)) {
+          // Parse transition ID by stripping the nodeId prefix
+          // Format: "${nodeId}-${transitionId}" - strip "${nodeId}-" to get transitionId
+          const prefix = `${params.source}-`;
+          if (params.sourceHandle.startsWith(prefix)) {
+            const transitionId = params.sourceHandle.slice(prefix.length);
+            const transition = transitions.find(t => t.id === transitionId);
+            if (transition) {
+              edgeLabel = transition.condition || transition.label || '';
+            }
+          }
+        }
+      }
+      
+      setEdges((eds) => addEdge({ ...params, label: edgeLabel }, eds));
+    },
+    [setEdges, nodes],
   );
 
   const onNodeClick = useCallback((_event: any, node: Node) => {
@@ -777,7 +800,33 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
           : node
       )
     );
-  }, [setNodes]);
+    
+    // If transitions were updated, sync edge labels for any edges coming from this node
+    if (newData.transitions && Array.isArray(newData.transitions)) {
+      setEdges((eds) =>
+        eds.map((edge) => {
+          if (edge.source === nodeId && edge.sourceHandle) {
+            // Parse transition ID by stripping the nodeId prefix
+            // Format: "${nodeId}-${transitionId}" - strip "${nodeId}-" to get transitionId
+            const prefix = `${nodeId}-`;
+            if (edge.sourceHandle.startsWith(prefix)) {
+              const transitionId = edge.sourceHandle.slice(prefix.length);
+              const transition = newData.transitions.find(
+                (t: { id: string; condition?: string; label?: string }) => t.id === transitionId
+              );
+              if (transition) {
+                const newLabel = transition.condition || transition.label || '';
+                if (edge.label !== newLabel) {
+                  return { ...edge, label: newLabel };
+                }
+              }
+            }
+          }
+          return edge;
+        })
+      );
+    }
+  }, [setNodes, setEdges]);
 
   const deleteNode = useCallback((nodeId: string) => {
     setNodes((nds) => nds.filter((node) => node.id !== nodeId));

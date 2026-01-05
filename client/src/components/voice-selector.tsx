@@ -130,6 +130,28 @@ export function VoiceSelector({ open, onOpenChange, provider: initialProvider, s
 
   const recommendedVoices = useMemo(() => voices.slice(0, 4), [voices]);
 
+  // Restaurant/hospitality voice preview phrases - varied and longer
+  const previewPhrases = useMemo(() => [
+    "Welcome to our restaurant! I'd be happy to help you with a reservation, take your order, or answer any questions about our menu.",
+    "Good evening and thank you for calling! Whether you're looking to book a table or hear about tonight's specials, I'm here to assist you.",
+    "Hi there! I can help you place an order for pickup or delivery, check on a reservation, or tell you about our hours and location.",
+    "Thanks for reaching out! I'm your virtual host and I'd love to help you find the perfect dining experience with us today.",
+    "Hello and welcome! I can assist with reservations, answer questions about dietary accommodations, or walk you through our seasonal menu.",
+    "Good afternoon! Whether you need to modify a reservation, place a catering order, or learn about our private dining options, I'm at your service.",
+    "Hi, thank you for calling! I'm here to make your dining experience seamless, from booking your table to answering any special requests.",
+    "Welcome! I'd be delighted to help you explore our menu, check table availability, or assist with any special occasion planning.",
+  ], []);
+
+  // Get a consistent phrase for each voice based on its ID
+  const getPreviewPhrase = (voiceId: string) => {
+    let hash = 0;
+    for (let i = 0; i < voiceId.length; i++) {
+      hash = ((hash << 5) - hash) + voiceId.charCodeAt(i);
+      hash = hash & hash;
+    }
+    return previewPhrases[Math.abs(hash) % previewPhrases.length];
+  };
+
   const playVoice = async (voiceId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     
@@ -141,7 +163,7 @@ export function VoiceSelector({ open, onOpenChange, provider: initialProvider, s
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           voiceId,
-          text: "Hello! How can I help you today?"
+          text: getPreviewPhrase(voiceId)
         }),
       });
 

@@ -627,11 +627,12 @@ function AgentEditorInner() {
   const [nodesPanelMinimized, setNodesPanelMinimized] = useState(false);
   const nodesPanelRef = useRef<HTMLDivElement>(null);
   
-  // Drag state
-  const [draggingPanel, setDraggingPanel] = useState<'settings' | 'nodes' | null>(null);
-  const [resizingPanel, setResizingPanel] = useState<'settings' | 'nodes' | null>(null);
+  // Drag state - use refs for live tracking to avoid re-renders during drag
+  const draggingPanelRef = useRef<'settings' | 'nodes' | null>(null);
+  const resizingPanelRef = useRef<'settings' | 'nodes' | null>(null);
   const dragStartRef = useRef({ x: 0, y: 0, panelX: 0, panelY: 0 });
   const resizeStartRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
+  const rafRef = useRef<number | null>(null);
   
   // ReactFlow state - properly typed
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -1221,65 +1222,131 @@ function AgentEditorInner() {
     }
   }, [nodes, edges]);
 
-  // Panel drag handlers
+  // Panel drag handlers - use direct DOM manipulation for performance
   const handlePanelDragStart = useCallback((panel: 'settings' | 'nodes', e: React.MouseEvent) => {
     e.preventDefault();
-    setDraggingPanel(panel);
+    draggingPanelRef.current = panel;
     const pos = panel === 'settings' ? settingsPanelPos : nodesPanelPos;
     dragStartRef.current = { x: e.clientX, y: e.clientY, panelX: pos.x, panelY: pos.y };
+    
+    const panelEl = panel === 'settings' ? settingsPanelRef.current : nodesPanelRef.current;
+    if (panelEl) {
+      panelEl.style.transition = 'none';
+      panelEl.classList.add('cursor-grabbing', 'shadow-2xl');
+    }
   }, [settingsPanelPos, nodesPanelPos]);
 
   const handlePanelResizeStart = useCallback((panel: 'settings' | 'nodes', e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setResizingPanel(panel);
+    resizingPanelRef.current = panel;
     const size = panel === 'settings' ? settingsPanelSize : nodesPanelSize;
     resizeStartRef.current = { x: e.clientX, y: e.clientY, width: size.width, height: size.height };
+    
+    const panelEl = panel === 'settings' ? settingsPanelRef.current : nodesPanelRef.current;
+    if (panelEl) {
+      panelEl.style.transition = 'none';
+    }
   }, [settingsPanelSize, nodesPanelSize]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (draggingPanel) {
-        const dx = e.clientX - dragStartRef.current.x;
-        const dy = e.clientY - dragStartRef.current.y;
-        const newX = Math.max(0, dragStartRef.current.panelX + dx);
-        const newY = Math.max(0, dragStartRef.current.panelY + dy);
-        
-        if (draggingPanel === 'settings') {
-          setSettingsPanelPos({ x: newX, y: newY });
-        } else {
-          setNodesPanelPos({ x: newX, y: newY });
-        }
-      }
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
       
-      if (resizingPanel) {
-        const dx = e.clientX - resizeStartRef.current.x;
-        const dy = e.clientY - resizeStartRef.current.y;
-        const newWidth = Math.max(200, Math.min(500, resizeStartRef.current.width + dx));
-        const newHeight = resizeStartRef.current.height + dy;
-        
-        if (resizingPanel === 'settings') {
-          setSettingsPanelSize({ width: newWidth, height: newHeight > 100 ? newHeight : 0 });
-        } else {
-          setNodesPanelSize({ width: newWidth, height: newHeight > 100 ? newHeight : 0 });
+      rafRef.current = requestAnimationFrame(() => {
+        if (draggingPanelRef.current) {
+          const dx = e.clientX - dragStartRef.current.x;
+          const dy = e.clientY - dragStartRef.current.y;
+          const newX = Math.max(0, dragStartRef.current.panelX + dx);
+          const newY = Math.max(0, dragStartRef.current.panelY + dy);
+          
+          const panelEl = draggingPanelRef.current === 'settings' 
+            ? settingsPanelRef.current 
+            : nodesPanelRef.current;
+          
+          if (panelEl) {
+            panelEl.style.left = `${newX}px`;
+            panelEl.style.top = `${newY}px`;
+            panelEl.style.right = 'auto';
+          }
         }
-      }
+        
+        if (resizingPanelRef.current) {
+          const dx = e.clientX - resizeStartRef.current.x;
+          const dy = e.clientY - resizeStartRef.current.y;
+          const newWidth = Math.max(200, Math.min(500, resizeStartRef.current.width + dx));
+          const newHeight = resizeStartRef.current.height + dy;
+          
+          const panelEl = resizingPanelRef.current === 'settings' 
+            ? settingsPanelRef.current 
+            : nodesPanelRef.current;
+          
+          if (panelEl) {
+            panelEl.style.width = `${newWidth}px`;
+            if (newHeight > 100) {
+              panelEl.style.height = `${newHeight}px`;
+            }
+          }
+        }
+      });
     };
 
     const handleMouseUp = () => {
-      setDraggingPanel(null);
-      setResizingPanel(null);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      
+      // Commit final position to state
+      if (draggingPanelRef.current) {
+        const panelEl = draggingPanelRef.current === 'settings' 
+          ? settingsPanelRef.current 
+          : nodesPanelRef.current;
+        
+        if (panelEl) {
+          const left = parseInt(panelEl.style.left) || 0;
+          const top = parseInt(panelEl.style.top) || 0;
+          
+          if (draggingPanelRef.current === 'settings') {
+            setSettingsPanelPos({ x: left, y: top });
+          } else {
+            setNodesPanelPos({ x: left, y: top });
+          }
+          
+          panelEl.style.transition = '';
+          panelEl.classList.remove('cursor-grabbing', 'shadow-2xl');
+        }
+      }
+      
+      // Commit final size to state
+      if (resizingPanelRef.current) {
+        const panelEl = resizingPanelRef.current === 'settings' 
+          ? settingsPanelRef.current 
+          : nodesPanelRef.current;
+        
+        if (panelEl) {
+          const width = parseInt(panelEl.style.width) || 200;
+          const height = parseInt(panelEl.style.height) || 0;
+          
+          if (resizingPanelRef.current === 'settings') {
+            setSettingsPanelSize({ width, height: height > 100 ? height : 0 });
+          } else {
+            setNodesPanelSize({ width, height: height > 100 ? height : 0 });
+          }
+          
+          panelEl.style.transition = '';
+        }
+      }
+      
+      draggingPanelRef.current = null;
+      resizingPanelRef.current = null;
     };
 
-    if (draggingPanel || resizingPanel) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  }, [draggingPanel, resizingPanel]);
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
 
   // Filter nodes
   const filteredCategories = nodeCategories.map(cat => ({
@@ -1359,7 +1426,7 @@ function AgentEditorInner() {
         {/* Left Sidebar - Agent Settings - Floating Panel */}
         <div 
           ref={settingsPanelRef}
-          className={`absolute z-10 bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-xl shadow-lg border transition-all ${draggingPanel === 'settings' ? 'cursor-grabbing shadow-2xl' : ''}`}
+          className="absolute z-10 bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-xl shadow-lg border transition-all"
           style={{
             left: settingsPanelPos.x,
             top: settingsPanelPos.y,
@@ -1685,7 +1752,7 @@ function AgentEditorInner() {
             {/* Right Sidebar - Node Library - Floating Panel */}
             <div 
               ref={nodesPanelRef}
-              className={`absolute z-10 bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-xl shadow-lg border transition-all ${draggingPanel === 'nodes' ? 'cursor-grabbing shadow-2xl' : ''}`}
+              className="absolute z-10 bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-xl shadow-lg border transition-all"
               style={{
                 right: nodesPanelPos.x === -1 ? 16 : 'auto',
                 left: nodesPanelPos.x === -1 ? 'auto' : nodesPanelPos.x,

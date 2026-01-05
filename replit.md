@@ -102,6 +102,13 @@ Preferred communication style: Simple, everyday language.
   - **Undo/Redo**: Full history management with toolbar controls
   - **Auto-Save Indicator**: Shows save status with timestamp
 - **Test Center**: Integrated into the agent editor with text and voice testing modes (using OpenAI GPT-5, Whisper, TTS) for conversational agents.
+- **Workflow Executor**: State machine-based conversation flow execution for agent testing:
+  - **Architecture**: `server/workflowExecutor.ts` loads workflow nodes/connections and tracks current node state
+  - **Transition Evaluation**: Uses GPT-4o-mini to classify which transition branch to take based on user input matching transition labels/conditions
+  - **Voice Tests**: `BrowserTestSession` includes workflowExecutor, workflowState, flowNodes, flowConnections for runtime workflow execution
+  - **Text Tests**: Client tracks `currentNodeId` and sends it with each test request for stateful REST API approach
+  - **Greeting Resolution**: Workflow greeting node → agent.greetingMessage → default fallback
+  - **Fallback Behavior**: Falls back to free-form AI when no workflow exists or for off-path user inputs
 - **Integrations Page**: Displays available and upcoming integrations (Square, Toast, Twilio, Resy, Tock, Yelp).
 
 ### Retell AI White-Label Integration

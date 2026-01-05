@@ -368,9 +368,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      // Check if Retell is configured
+      // Check if Retell is configured - return 501 if voice service is not available
       if (!await retell.isRetellConfigured()) {
-        return res.status(400).json({ message: "Retell AI is not configured. Please add RETELL_API_KEY." });
+        return res.status(501).json({ 
+          message: "Voice testing is not currently available. Retell AI integration required.",
+          disabled: true
+        });
       }
 
       // If agent is not synced to Retell, sync it first

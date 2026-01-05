@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Agent, KnowledgeBase } from "@shared/schema";
+import { RetellWebClient } from "retell-client-js-sdk";
 import type { Node, Edge, Connection, NodeTypes } from '@xyflow/react';
 import {
   ReactFlow,
@@ -618,16 +619,14 @@ function AgentEditorInner() {
   const [isTestLoading, setIsTestLoading] = useState(false);
   const [currentWorkflowNodeId, setCurrentWorkflowNodeId] = useState<string | null>(null);
   
-  // Voice call state
+  // Voice call state (using Retell Web SDK for real-time phone-quality calls)
   const [isInVoiceCall, setIsInVoiceCall] = useState(false);
   const [isVoiceCallConnecting, setIsVoiceCallConnecting] = useState(false);
-  const voiceWsRef = useRef<WebSocket | null>(null);
-  const captureContextRef = useRef<AudioContext | null>(null);
-  const playbackContextRef = useRef<AudioContext | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
-  const audioQueueRef = useRef<ArrayBuffer[]>([]);
-  const isPlayingAudioRef = useRef(false);
+  const [retellCallId, setRetellCallId] = useState<string | null>(null);
+  const [isAgentSpeaking, setIsAgentSpeaking] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
+  const [voiceServiceDisabled, setVoiceServiceDisabled] = useState(false);
+  const retellClientRef = useRef<RetellWebClient | null>(null);
   
   // Floating panel state - Settings panel (left)
   const [settingsPanelPos, setSettingsPanelPos] = useState({ x: 16, y: 16 });
@@ -1137,234 +1136,139 @@ function AgentEditorInner() {
     }
   }, [testInput, testMessages, isTestLoading, id, currentWorkflowNodeId, toast]);
 
-  // Voice call - play audio from queue using playback context
-  const playNextAudio = useCallback(async () => {
-    if (isPlayingAudioRef.current || audioQueueRef.current.length === 0) return;
-    
-    isPlayingAudioRef.current = true;
-    const audioData = audioQueueRef.current.shift();
-    
-    // Use playback context, create new one if needed
-    if (!playbackContextRef.current || playbackContextRef.current.state === 'closed') {
-      playbackContextRef.current = new AudioContext();
-    }
-    
-    if (audioData) {
-      try {
-        // Clone the ArrayBuffer since decodeAudioData detaches it
-        const clonedData = audioData.slice(0);
-        const audioBuffer = await playbackContextRef.current.decodeAudioData(clonedData);
-        const source = playbackContextRef.current.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(playbackContextRef.current.destination);
-        source.onended = () => {
-          isPlayingAudioRef.current = false;
-          playNextAudio();
-        };
-        source.start();
-      } catch (error) {
-        console.error("Error playing audio:", error);
-        isPlayingAudioRef.current = false;
-        // Continue to next audio in queue
-        setTimeout(playNextAudio, 100);
-      }
-    } else {
-      isPlayingAudioRef.current = false;
-    }
-  }, []);
-
-  // Voice call - convert base64 to ArrayBuffer
-  const base64ToArrayBuffer = useCallback((base64: string): ArrayBuffer => {
-    const binaryString = atob(base64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes.buffer;
-  }, []);
-
-  // Voice call - convert ArrayBuffer to base64
-  const arrayBufferToBase64 = useCallback((buffer: ArrayBuffer): string => {
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-  }, []);
-
-  // Voice call - start call with microphone
+  // Voice call - start call using Retell Web SDK for real-time, phone-quality experience
   const startVoiceCall = useCallback(async () => {
     if (isNew || !id || !user) return;
     
     setIsVoiceCallConnecting(true);
+    // Clear previous voice transcript when starting new call
+    setVoiceTranscript([]);
+    // Reset disabled state to allow fresh check
+    setVoiceServiceDisabled(false);
     
     try {
-      // Request microphone permission
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
+      // Get web call access token from our API (auto-syncs agent to Retell if needed)
+      const response = await apiRequest("POST", `/api/agents/${id}/web-call`);
       
-      // Create audio context for recording (sample rate will be resampled)
-      const audioContext = new AudioContext();
-      captureContextRef.current = audioContext;
+      // Check for error response
+      if (!response || typeof response !== 'object') {
+        throw new Error("Invalid response from server");
+      }
       
-      // Create WebSocket connection
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${wsProtocol}//${window.location.host}/test-call?agentId=${id}&userId=${user.id}`);
-      voiceWsRef.current = ws;
+      const { callId, accessToken, message } = response as { callId?: string; accessToken?: string; message?: string };
       
-      ws.onopen = () => {
-        console.log('[VoiceCall] WebSocket connected');
+      if (!accessToken || !callId) {
+        throw new Error(message || "Voice service not available");
+      }
+      
+      // Initialize Retell Web Client
+      const retellClient = new RetellWebClient();
+      
+      // Set up event handlers for real-time transcript updates
+      retellClient.on("call_started", () => {
+        console.log('[RetellVoice] Call started');
         setIsInVoiceCall(true);
         setIsVoiceCallConnecting(false);
-        
-        // Set up audio processing - record microphone audio
-        const source = audioContext.createMediaStreamSource(stream);
-        const processor = audioContext.createScriptProcessor(4096, 1, 1);
-        audioProcessorRef.current = processor;
-        
-        processor.onaudioprocess = (event) => {
-          if (ws.readyState === WebSocket.OPEN) {
-            const inputData = event.inputBuffer.getChannelData(0);
-            
-            // Resample to 16kHz if needed
-            const sourceRate = audioContext.sampleRate;
-            const targetRate = 16000;
-            const ratio = sourceRate / targetRate;
-            const resampledLength = Math.floor(inputData.length / ratio);
-            const resampledData = new Float32Array(resampledLength);
-            
-            for (let i = 0; i < resampledLength; i++) {
-              resampledData[i] = inputData[Math.floor(i * ratio)];
-            }
-            
-            // Convert float32 to int16 PCM
-            const int16Data = new Int16Array(resampledData.length);
-            for (let i = 0; i < resampledData.length; i++) {
-              int16Data[i] = Math.max(-32768, Math.min(32767, Math.floor(resampledData[i] * 32768)));
-            }
-            
-            // Convert to base64 and send as JSON
-            const base64Audio = arrayBufferToBase64(int16Data.buffer);
-            ws.send(JSON.stringify({
-              type: 'audio_chunk',
-              audio: base64Audio,
-            }));
-          }
-        };
-        
-        // Connect source to processor, but NOT to destination (prevents feedback)
-        source.connect(processor);
-        // Connect processor to a dummy node (required for it to process)
-        const dummyGain = audioContext.createGain();
-        dummyGain.gain.value = 0;
-        processor.connect(dummyGain);
-        dummyGain.connect(audioContext.destination);
-      };
+        setRetellCallId(callId);
+        // Only store client after successful start
+        retellClientRef.current = retellClient;
+      });
       
-      ws.onmessage = async (event) => {
-        try {
-          const message = JSON.parse(event.data);
+      retellClient.on("call_ended", () => {
+        console.log('[RetellVoice] Call ended');
+        setIsInVoiceCall(false);
+        setIsVoiceCallConnecting(false);
+        setRetellCallId(null);
+        setIsAgentSpeaking(false);
+        retellClientRef.current = null;
+      });
+      
+      retellClient.on("agent_start_talking", () => {
+        setIsAgentSpeaking(true);
+      });
+      
+      retellClient.on("agent_stop_talking", () => {
+        setIsAgentSpeaking(false);
+      });
+      
+      retellClient.on("update", (update: any) => {
+        // Real-time transcript updates - use separate voice transcript state
+        if (update.transcript && update.transcript.length > 0) {
+          const transcriptEntries = update.transcript;
           
-          if (message.type === 'audio' && message.audio) {
-            // Decode base64 audio and queue for playback
-            const audioData = base64ToArrayBuffer(message.audio);
-            audioQueueRef.current.push(audioData);
-            
-            // Also show the text in chat if provided
-            if (message.text) {
-              setTestMessages(prev => {
-                // Avoid duplicates - check if last message is same
-                if (prev.length > 0 && prev[prev.length - 1].content === message.text) {
-                  return prev;
-                }
-                return [...prev, { role: 'assistant', content: message.text }];
+          // Update voice transcript (separate from text test messages)
+          const newTranscript: Array<{role: 'user' | 'assistant', content: string}> = [];
+          for (const entry of transcriptEntries) {
+            if (entry.content) {
+              newTranscript.push({
+                role: entry.role === 'agent' ? 'assistant' : 'user',
+                content: entry.content
               });
             }
-            
-            playNextAudio();
-          } else if (message.type === 'greeting' && message.text) {
-            setTestMessages([{ role: 'assistant', content: message.text }]);
-          } else if (message.type === 'transcript' && message.text) {
-            // Server sends user's transcribed speech
-            setTestMessages(prev => [...prev, { role: 'user', content: message.text }]);
-          } else if (message.type === 'response' && message.text) {
-            setTestMessages(prev => [...prev, { role: 'assistant', content: message.text }]);
-          } else if (message.type === 'error') {
-            toast({ title: "Call Error", description: message.message, variant: "destructive" });
-          } else if (message.type === 'state') {
-            // State updates from server (listening, processing, speaking)
-            console.log('[VoiceCall] State:', message.state);
           }
-        } catch (e) {
-          console.error('[VoiceCall] Error parsing message:', e);
+          
+          if (newTranscript.length > 0) {
+            setVoiceTranscript(newTranscript);
+          }
         }
-      };
+      });
       
-      ws.onerror = (error) => {
-        console.error('[VoiceCall] WebSocket error:', error);
-        toast({ title: "Connection Error", description: "Failed to connect to voice server", variant: "destructive" });
-      };
+      retellClient.on("error", (error: any) => {
+        console.error('[RetellVoice] Error:', error);
+        toast({ title: "Voice Call Error", description: error.message || "An error occurred during the call", variant: "destructive" });
+        setIsInVoiceCall(false);
+        setIsVoiceCallConnecting(false);
+        retellClientRef.current = null;
+      });
       
-      ws.onclose = () => {
-        console.log('[VoiceCall] WebSocket closed');
-        // Only call stopVoiceCall if we're still in a call (prevents recursive calls)
-        if (isInVoiceCall) {
-          setIsInVoiceCall(false);
-          setIsVoiceCallConnecting(false);
-        }
-      };
+      // Start the call with the access token
+      await retellClient.startCall({
+        accessToken: accessToken,
+        sampleRate: 24000, // Retell's recommended sample rate
+      });
       
     } catch (error: any) {
-      console.error('[VoiceCall] Error starting call:', error);
+      console.error('[RetellVoice] Error starting call:', error);
       setIsVoiceCallConnecting(false);
+      retellClientRef.current = null;
       
-      if (error.name === 'NotAllowedError') {
-        toast({ title: "Microphone Access Denied", description: "Please allow microphone access to use voice testing", variant: "destructive" });
+      const errorMessage = error.message || '';
+      
+      // Check if this is a service disabled response (501 with disabled flag)
+      let isServiceDisabled = false;
+      if (errorMessage.startsWith('501:')) {
+        try {
+          const jsonPart = errorMessage.substring(errorMessage.indexOf(':') + 1).trim();
+          const parsed = JSON.parse(jsonPart);
+          isServiceDisabled = parsed.disabled === true;
+        } catch {
+          // Fallback to string matching if JSON parsing fails
+          isServiceDisabled = errorMessage.includes('not currently available') || errorMessage.includes('disabled');
+        }
+      }
+      
+      if (errorMessage.includes('Microphone')) {
+        toast({ title: "Microphone Access Required", description: "Please allow microphone access to use voice testing", variant: "destructive" });
+      } else if (isServiceDisabled) {
+        // Graceful degradation: set disabled state, no toast (inline notice shown instead)
+        setVoiceServiceDisabled(true);
       } else {
-        toast({ title: "Error", description: "Failed to start voice call", variant: "destructive" });
+        toast({ title: "Error", description: errorMessage || "Failed to start voice call", variant: "destructive" });
       }
     }
-  }, [isNew, id, user, toast, playNextAudio, isInVoiceCall, arrayBufferToBase64, base64ToArrayBuffer]);
+  }, [isNew, id, user, toast]);
 
   // Voice call - stop call
   const stopVoiceCall = useCallback(() => {
-    // Close WebSocket
-    if (voiceWsRef.current) {
-      voiceWsRef.current.close();
-      voiceWsRef.current = null;
+    if (retellClientRef.current) {
+      retellClientRef.current.stopCall();
+      retellClientRef.current = null;
     }
-    
-    // Stop audio processor
-    if (audioProcessorRef.current) {
-      audioProcessorRef.current.disconnect();
-      audioProcessorRef.current = null;
-    }
-    
-    // Stop media stream
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => track.stop());
-      mediaStreamRef.current = null;
-    }
-    
-    // Close capture audio context
-    if (captureContextRef.current) {
-      captureContextRef.current.close();
-      captureContextRef.current = null;
-    }
-    
-    // Close playback audio context (let any playing audio finish first)
-    if (playbackContextRef.current) {
-      playbackContextRef.current.close();
-      playbackContextRef.current = null;
-    }
-    
-    // Clear audio queue
-    audioQueueRef.current = [];
-    isPlayingAudioRef.current = false;
     
     setIsInVoiceCall(false);
     setIsVoiceCallConnecting(false);
+    setRetellCallId(null);
+    setIsAgentSpeaking(false);
   }, []);
 
   // Cleanup voice call on unmount
@@ -2172,28 +2076,78 @@ function AgentEditorInner() {
 
             {/* Voice Call Panel */}
             <div className="w-full lg:w-80 flex flex-col flex-shrink-0 min-h-[300px] lg:min-h-0">
-              <div className={`bg-white dark:bg-gray-900 rounded-2xl shadow-lg border overflow-hidden flex flex-col h-full p-6 transition-colors ${
+              <div className={`bg-white dark:bg-gray-900 rounded-2xl shadow-lg border overflow-hidden flex flex-col h-full transition-colors ${
                 isInVoiceCall 
                   ? 'border-emerald-300 dark:border-emerald-700' 
                   : ''
               }`}>
-                <div className="flex flex-col items-center justify-center flex-1 text-center">
-                  <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 transition-all ${
+                {/* Call Controls */}
+                <div className="flex flex-col items-center justify-center text-center p-6">
+                  <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 transition-all ${
                     isInVoiceCall 
-                      ? 'bg-emerald-500 animate-pulse shadow-lg shadow-emerald-500/30' 
+                      ? isAgentSpeaking
+                        ? 'bg-blue-500 animate-pulse shadow-lg shadow-blue-500/30'
+                        : 'bg-emerald-500 shadow-lg shadow-emerald-500/30' 
                       : 'bg-emerald-100 dark:bg-emerald-900/30'
                   }`}>
-                    <Mic className={`h-10 w-10 ${isInVoiceCall ? 'text-white' : 'text-emerald-600'}`} />
+                    {isAgentSpeaking ? (
+                      <Volume2 className="h-8 w-8 text-white animate-pulse" />
+                    ) : (
+                      <Mic className={`h-8 w-8 ${isInVoiceCall ? 'text-white' : 'text-emerald-600'}`} />
+                    )}
                   </div>
-                  <h3 className="text-lg font-semibold mb-2">
-                    {isInVoiceCall ? 'Call in Progress' : 'Voice Test'}
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-6">
+                  <h3 className="text-lg font-semibold mb-1">
                     {isInVoiceCall 
-                      ? 'Speak clearly into your microphone' 
-                      : 'Test your agent with real voice'}
+                      ? isAgentSpeaking 
+                        ? 'Agent Speaking...' 
+                        : 'Listening...'
+                      : 'Voice Test'}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {isInVoiceCall 
+                      ? isAgentSpeaking
+                        ? 'Agent is responding'
+                        : 'Speak clearly into your microphone' 
+                      : 'Real-time voice conversation'}
                   </p>
-                  {isInVoiceCall ? (
+                  {voiceServiceDisabled ? (
+                    <div className="w-full">
+                      {/* Informational banner for service disabled */}
+                      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
+                        <div className="flex items-start gap-2">
+                          <div className="w-5 h-5 rounded-full bg-amber-100 dark:bg-amber-800 flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <span className="text-amber-600 dark:text-amber-300 text-xs font-bold">!</span>
+                          </div>
+                          <div className="text-sm text-amber-800 dark:text-amber-200">
+                            <p className="font-medium mb-1">Voice Testing Not Configured</p>
+                            <p className="text-amber-700 dark:text-amber-300 text-xs">
+                              Retell AI integration is required for real-time voice testing. Contact your administrator to enable this feature.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <Button 
+                        size="lg"
+                        className="gap-2 w-full"
+                        variant="outline"
+                        onClick={startVoiceCall}
+                        disabled={isVoiceCallConnecting}
+                        data-testid="button-retry-voice"
+                      >
+                        {isVoiceCallConnecting ? (
+                          <>
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            Checking Availability...
+                          </>
+                        ) : (
+                          <>
+                            <Phone className="h-5 w-5" />
+                            Check Again
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  ) : isInVoiceCall ? (
                     <Button 
                       variant="destructive" 
                       size="lg"
@@ -2226,6 +2180,49 @@ function AgentEditorInner() {
                     </Button>
                   )}
                 </div>
+                
+                {/* Voice Transcript - shown during/after call */}
+                {(isInVoiceCall || voiceTranscript.length > 0) && (
+                  <div className="border-t flex-1 overflow-hidden flex flex-col">
+                    <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border-b flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground">Live Transcript</span>
+                      {voiceTranscript.length > 0 && !isInVoiceCall && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-6 text-xs"
+                          onClick={() => setVoiceTranscript([])}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                    <ScrollArea className="flex-1 p-3">
+                      <div className="space-y-2">
+                        {voiceTranscript.map((msg, idx) => (
+                          <div 
+                            key={idx}
+                            className={`text-sm p-2 rounded-lg ${
+                              msg.role === 'user' 
+                                ? 'bg-emerald-100 dark:bg-emerald-900/30 ml-4' 
+                                : 'bg-gray-100 dark:bg-gray-800 mr-4'
+                            }`}
+                          >
+                            <span className="text-xs font-medium text-muted-foreground block mb-1">
+                              {msg.role === 'user' ? 'You' : 'Agent'}
+                            </span>
+                            {msg.content}
+                          </div>
+                        ))}
+                        {voiceTranscript.length === 0 && isInVoiceCall && (
+                          <p className="text-xs text-muted-foreground text-center py-4">
+                            Transcript will appear here...
+                          </p>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
               </div>
             </div>
           </div>

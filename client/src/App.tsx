@@ -102,10 +102,13 @@ function SidebarResponsiveWrapper() {
     <div className="flex h-screen w-full">
       <AppSidebar />
       <div className="flex flex-col flex-1 min-w-0">
-        <header className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6 border-b sticky top-0 bg-background/80 backdrop-blur-sm z-50">
-          <SidebarTrigger data-testid="button-sidebar-toggle" className="h-9 w-9" />
-          <ThemeToggle />
-        </header>
+        {/* Hide main header on agent editor pages - agent editor has its own header with these controls */}
+        {!isAgentEditorPage && (
+          <header className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6 border-b sticky top-0 bg-background/80 backdrop-blur-sm z-50">
+            <SidebarTrigger data-testid="button-sidebar-toggle" className="h-9 w-9" />
+            <ThemeToggle />
+          </header>
+        )}
         <main className="flex-1 overflow-auto relative">
           <Router />
         </main>

@@ -81,6 +81,8 @@ import {
   Monitor,
 } from "lucide-react";
 import { VoiceSelector } from "@/components/voice-selector";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 // ============================================================================
 // NODE TYPE DEFINITIONS - Restaurant Industry Focused
@@ -1217,6 +1219,7 @@ function AgentEditorInner() {
       {/* Header Bar */}
       <div className="h-14 border-b flex items-center justify-between px-4 bg-white dark:bg-gray-900 flex-shrink-0">
         <div className="flex items-center gap-4">
+          <SidebarTrigger data-testid="button-sidebar-toggle" className="h-9 w-9" />
           <Button variant="ghost" size="icon" onClick={() => navigate("/agents")} data-testid="button-back">
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -1273,6 +1276,7 @@ function AgentEditorInner() {
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
             Publish
           </Button>
+          <ThemeToggle />
         </div>
       </div>
 

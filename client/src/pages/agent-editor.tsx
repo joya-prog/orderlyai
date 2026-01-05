@@ -540,23 +540,27 @@ function AgentEditorInner() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
-  const { setOpen: setSidebarOpen } = useSidebar();
+  const { open: sidebarOpen, setOpen: setSidebarOpen } = useSidebar();
   const isNew = id === "new";
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  const previousSidebarState = useRef<boolean | null>(null);
   
   // Collapse main sidebar on mount for more canvas space
   useEffect(() => {
-    // Store previous state
-    const wasOpen = document.documentElement.getAttribute('data-sidebar-open') !== 'false';
+    // Store the current sidebar state before collapsing
+    if (previousSidebarState.current === null) {
+      previousSidebarState.current = sidebarOpen;
+    }
     setSidebarOpen(false);
     
     return () => {
-      // Only restore if it was open before
-      if (wasOpen) {
+      // Restore sidebar to previous state when leaving
+      if (previousSidebarState.current) {
         setSidebarOpen(true);
       }
+      previousSidebarState.current = null;
     };
-  }, [setSidebarOpen]);
+  }, []);
   
   // State
   const [activeTab, setActiveTab] = useState<"create" | "test">("create");
@@ -1357,37 +1361,18 @@ function AgentEditorInner() {
               </SettingsSection>
 
               <SettingsSection title="Knowledge Base" icon={FileText}>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <p className="text-sm text-muted-foreground">
-                    Configure the knowledge base for this agent in the Knowledge Base tab. The agent will use all entries associated with it.
+                    Add knowledge base to provide context to the agent.
                   </p>
-                  {knowledgeBases.length > 0 ? (
-                    <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg border border-emerald-200 dark:border-emerald-800">
-                      <div className="flex items-center gap-2 mb-1">
-                        <CheckCircle className="h-4 w-4 text-emerald-600" />
-                        <span className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
-                          {knowledgeBases.length} knowledge base {knowledgeBases.length === 1 ? 'entry' : 'entries'} configured
-                        </span>
-                      </div>
-                      <p className="text-xs text-emerald-600 dark:text-emerald-500">
-                        Categories: {Array.from(new Set(knowledgeBases.map(kb => kb.category))).join(', ')}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
-                      <p className="text-sm text-amber-700 dark:text-amber-400">
-                        No knowledge base entries configured for this agent yet.
-                      </p>
-                    </div>
-                  )}
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="w-full gap-2" 
-                    data-testid="button-manage-knowledge-base"
+                    className="gap-2" 
+                    data-testid="button-add-knowledge-base"
                     onClick={() => navigate("/knowledge-base")}
                   >
-                    <FileText className="h-4 w-4" /> Manage Knowledge Base
+                    <Plus className="h-4 w-4" /> Add
                   </Button>
                 </div>
               </SettingsSection>

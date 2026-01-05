@@ -616,6 +616,7 @@ function AgentEditorInner() {
   const [testMessages, setTestMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
   const [testInput, setTestInput] = useState("");
   const [isTestLoading, setIsTestLoading] = useState(false);
+  const [currentWorkflowNodeId, setCurrentWorkflowNodeId] = useState<string | null>(null);
   
   // Voice call state
   const [isInVoiceCall, setIsInVoiceCall] = useState(false);
@@ -1076,6 +1077,7 @@ function AgentEditorInner() {
   // Reset chat when agent changes
   useEffect(() => {
     setTestMessages([]);
+    setCurrentWorkflowNodeId(null); // Reset workflow state
     setIsGreetingLoading(false);
     greetingFetchedRef.current = false; // Reset ref when agent changes
   }, [id]);
@@ -1103,15 +1105,20 @@ function AgentEditorInner() {
       const response = await apiRequest("POST", `/api/agents/${id}/test`, {
         message: userMessage,
         history: testMessages,
+        currentNodeId: currentWorkflowNodeId,
       });
       const data = await response.json();
       setTestMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
+      // Update workflow node ID for next message
+      if (data.currentNodeId !== undefined) {
+        setCurrentWorkflowNodeId(data.currentNodeId);
+      }
     } catch (error) {
       toast({ title: "Error", description: "Failed to get response", variant: "destructive" });
     } finally {
       setIsTestLoading(false);
     }
-  }, [testInput, testMessages, isTestLoading, id, toast]);
+  }, [testInput, testMessages, isTestLoading, id, currentWorkflowNodeId, toast]);
 
   // Voice call - play audio from queue using playback context
   const playNextAudio = useCallback(async () => {
@@ -2074,6 +2081,7 @@ function AgentEditorInner() {
                         size="sm"
                         onClick={() => {
                           setTestMessages([]);
+                          setCurrentWorkflowNodeId(null); // Reset workflow state
                           greetingFetchedRef.current = false; // Allow re-fetch of greeting
                         }}
                         className="gap-1"

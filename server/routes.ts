@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./auth";
 import { generateAgentResponse, transcribeAudio, synthesizeSpeech, listOpenAIVoices, VoiceConfig, buildFlowContext } from "./openai";
 import { handleTwilioWebSocket, generateTwiML, getActiveCalls, handleBrowserTestWebSocket } from "./voiceCallHandler";
+import { createWorkflowExecutor, WorkflowState } from "./workflowExecutor";
 import * as retell from "./retell";
 import multer from "multer";
 
@@ -592,7 +593,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  // Agent testing route
+  // Agent testing route - uses workflow executor when workflow exists
   app.post("/api/agents/:id/test", isAuthenticated, async (req: any, res) => {
     try {
       const agent = await storage.getAgent(req.params.id);
@@ -603,7 +604,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      const { message, history = [] } = req.body;
+      const { message, history = [], currentNodeId } = req.body;
 
       // Get knowledge base for context - storage layer enforces ownership
       const userId = req.user.id;
@@ -616,21 +617,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const squareMenuContext = await getSquareMenuContext(userId);
       const fullKnowledgeContext = knowledgeContext + squareMenuContext;
 
-      // Get flow nodes and connections for workflow context
+      // Get flow nodes and connections
       const flowNodes = await storage.getFlowNodes(req.params.id);
       const flowConnections = await storage.getFlowConnections(req.params.id);
-      const flowContext = buildFlowContext(flowNodes, flowConnections);
+      
+      let response: string;
+      let nextNodeId: string | null = null;
 
-      // Generate response using OpenAI
-      const response = await generateAgentResponse(
-        agent.systemPrompt,
-        agent.greetingMessage,
-        agent.personality,
-        fullKnowledgeContext,
-        history,
-        message,
-        flowContext
-      );
+      // Use workflow executor if workflow exists
+      if (flowNodes.length > 0) {
+        const workflowExecutor = createWorkflowExecutor(
+          flowNodes, 
+          flowConnections, 
+          agent, 
+          fullKnowledgeContext
+        );
+        
+        // Initialize or restore workflow state
+        const workflowState: WorkflowState = {
+          currentNodeId: currentNodeId || workflowExecutor.findStartNode()?.id || null,
+          conversationHistory: history.map((m: any) => ({ role: m.role, content: m.content })),
+          visitedNodes: new Set<string>()
+        };
+        
+        const result = await workflowExecutor.processUserInput(workflowState, message);
+        response = result.response;
+        nextNodeId = result.newState.currentNodeId;
+        
+        console.log(`[test] Workflow response for agent ${req.params.id}, current node: ${nextNodeId}`);
+      } else {
+        // Fallback to free-form AI when no workflow
+        const flowContext = buildFlowContext(flowNodes, flowConnections);
+        
+        response = await generateAgentResponse(
+          agent.systemPrompt,
+          agent.greetingMessage,
+          agent.personality,
+          fullKnowledgeContext,
+          history,
+          message,
+          flowContext
+        );
+        
+        console.log(`[test] AI response for agent ${req.params.id} (no workflow)`);
+      }
 
       // Save test conversation
       await storage.saveTestConversation({
@@ -638,14 +668,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         messages: [...history, { role: "user", content: message }, { role: "assistant", content: response }],
       });
 
-      res.json({ response });
+      res.json({ response, currentNodeId: nextNodeId });
     } catch (error) {
       console.error("Error testing agent:", error);
       res.status(500).json({ message: "Failed to test agent" });
     }
   });
 
-  // Start chat - returns agent greeting
+  // Start chat - returns agent greeting from workflow or agent settings
   app.post("/api/agents/:id/start-chat", isAuthenticated, async (req: any, res) => {
     try {
       const agent = await storage.getAgent(req.params.id);
@@ -656,8 +686,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      // Return the agent's greeting (with fallback default)
-      const greeting = agent.greetingMessage?.trim() || "Hello! Thank you for calling. How can I help you today?";
+      // Get flow nodes and connections to find workflow greeting
+      const flowNodes = await storage.getFlowNodes(req.params.id);
+      const flowConnections = await storage.getFlowConnections(req.params.id);
+      
+      let greeting: string;
+      
+      if (flowNodes.length > 0) {
+        // Use workflow executor to get greeting from workflow
+        const workflowExecutor = createWorkflowExecutor(flowNodes, flowConnections, agent, "");
+        greeting = workflowExecutor.getGreeting();
+        console.log(`[start-chat] Using workflow greeting for agent ${req.params.id}`);
+      } else {
+        // Fallback to agent's default greeting
+        greeting = agent.greetingMessage?.trim() || "Hello! Thank you for calling. How can I help you today?";
+        console.log(`[start-chat] Using agent default greeting for agent ${req.params.id}`);
+      }
+      
       res.json({ greeting });
     } catch (error) {
       console.error("Error starting chat:", error);

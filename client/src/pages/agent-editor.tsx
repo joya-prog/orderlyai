@@ -1780,9 +1780,12 @@ function AgentEditorInner() {
         onOpenChange={setVoiceSelectorOpen}
         provider={voiceProvider}
         selectedVoiceId={selectedVoiceId}
-        onSelectVoice={(voiceId: string, voiceName: string) => {
+        onSelectVoice={(voiceId: string, voiceName: string, provider?: string) => {
           setSelectedVoiceId(voiceId);
           setSelectedVoiceName(voiceName);
+          if (provider) {
+            setVoiceProvider(provider);
+          }
           setVoiceSelectorOpen(false);
         }}
       />

@@ -1277,9 +1277,9 @@ function AgentEditorInner() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex min-h-0">
-        {/* Left Sidebar - Agent Settings */}
-        <div className="w-72 border-r bg-white dark:bg-gray-900 flex flex-col overflow-hidden flex-shrink-0">
+      <div className="flex-1 flex min-h-0 relative">
+        {/* Left Sidebar - Agent Settings - Floating Panel */}
+        <div className="absolute left-4 top-4 bottom-4 w-72 z-10 bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-xl shadow-lg border">
           <div className="p-4 border-b">
             <span className="font-semibold">Global Settings</span>
           </div>
@@ -1521,8 +1521,8 @@ function AgentEditorInner() {
         {/* Center - Content Area */}
         {activeTab === "create" ? (
           <>
-            {/* Flow Canvas */}
-            <div ref={reactFlowWrapper} className="flex-1 relative overflow-hidden">
+            {/* Flow Canvas - Full Area */}
+            <div ref={reactFlowWrapper} className="absolute inset-0 overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-indigo-50/20 to-slate-100 dark:from-gray-950 dark:via-indigo-950/10 dark:to-gray-900" />
               
               <ReactFlow
@@ -1541,7 +1541,7 @@ function AgentEditorInner() {
                 className="bg-transparent"
                 data-testid="flow-canvas"
               >
-                <Panel position="bottom-left" className="flex items-center gap-1 bg-white dark:bg-gray-900 rounded-lg shadow-sm border p-1">
+                <Panel position="bottom-center" className="flex items-center gap-1 bg-white dark:bg-gray-900 rounded-lg shadow-sm border p-1">
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleUndo} disabled={!canUndo}>
                     <Undo2 className="h-4 w-4" />
                   </Button>
@@ -1564,8 +1564,8 @@ function AgentEditorInner() {
               </ReactFlow>
             </div>
 
-            {/* Right Sidebar - Node Library */}
-            <div className="w-64 border-l bg-white dark:bg-gray-900 flex flex-col min-h-0 flex-shrink-0">
+            {/* Right Sidebar - Node Library - Floating Panel */}
+            <div className="absolute right-4 top-4 bottom-4 w-64 z-10 bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-xl shadow-lg border">
               <div className="p-3 border-b flex-shrink-0">
                 <h3 className="font-semibold text-sm">Nodes</h3>
               </div>

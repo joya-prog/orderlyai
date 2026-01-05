@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback, useRef, DragEvent, memo } from "react";
 import { useParams, useLocation } from "wouter";
+import { useSidebar } from "@/components/ui/sidebar";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -69,8 +70,6 @@ import {
   Volume2,
   Headphones,
   FileText,
-  Shield,
-  Webhook,
   BarChart3,
   Languages,
   Send,
@@ -516,7 +515,7 @@ function SettingsSection({ title, icon: Icon, children, defaultOpen = false }: S
         </div>
         <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </CollapsibleTrigger>
-      <CollapsibleContent className="px-4 pb-4">
+      <CollapsibleContent className="px-4 pb-6 pt-2">
         {children}
       </CollapsibleContent>
     </Collapsible>
@@ -541,11 +540,26 @@ function AgentEditorInner() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
+  const { setOpen: setSidebarOpen } = useSidebar();
   const isNew = id === "new";
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   
+  // Collapse main sidebar on mount for more canvas space
+  useEffect(() => {
+    // Store previous state
+    const wasOpen = document.documentElement.getAttribute('data-sidebar-open') !== 'false';
+    setSidebarOpen(false);
+    
+    return () => {
+      // Only restore if it was open before
+      if (wasOpen) {
+        setSidebarOpen(true);
+      }
+    };
+  }, [setSidebarOpen]);
+  
   // State
-  const [activeTab, setActiveTab] = useState<"create" | "simulation">("create");
+  const [activeTab, setActiveTab] = useState<"create" | "test">("create");
   const [agentName, setAgentName] = useState("New Agent");
   const [isEditingName, setIsEditingName] = useState(false);
   const [voiceSelectorOpen, setVoiceSelectorOpen] = useState(false);
@@ -844,10 +858,10 @@ function AgentEditorInner() {
     }
   }, [agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, nodes, edges, saveMutation, saveFlowMutation]);
 
-  // Initialize chat when switching to simulation tab - fetch greeting
-  // Runs whenever: entering simulation tab with no messages, or messages are cleared
+  // Initialize chat when switching to test tab - fetch greeting
+  // Runs whenever: entering test tab with no messages, or messages are cleared
   useEffect(() => {
-    if (activeTab === "simulation" && testMessages.length === 0 && !isGreetingLoading && !isNew && id) {
+    if (activeTab === "test" && testMessages.length === 0 && !isGreetingLoading && !isNew && id) {
       const fetchGreeting = async () => {
         setIsGreetingLoading(true);
         try {
@@ -1226,11 +1240,11 @@ function AgentEditorInner() {
               Create
             </button>
             <button
-              onClick={() => setActiveTab("simulation")}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === "simulation" ? "bg-white dark:bg-gray-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
-              data-testid="tab-simulation"
+              onClick={() => setActiveTab("test")}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === "test" ? "bg-white dark:bg-gray-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              data-testid="tab-test"
             >
-              Simulation
+              Test
             </button>
           </div>
         </div>
@@ -1343,21 +1357,39 @@ function AgentEditorInner() {
               </SettingsSection>
 
               <SettingsSection title="Knowledge Base" icon={FileText}>
-                <p className="text-xs text-muted-foreground mb-3">Add knowledge base to provide context to the agent.</p>
-                {knowledgeBases.map((kb) => (
-                  <div key={kb.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-lg mb-2">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm">{kb.question}</span>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Configure the knowledge base for this agent in the Knowledge Base tab. The agent will use all entries associated with it.
+                  </p>
+                  {knowledgeBases.length > 0 ? (
+                    <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <CheckCircle className="h-4 w-4 text-emerald-600" />
+                        <span className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                          {knowledgeBases.length} knowledge base {knowledgeBases.length === 1 ? 'entry' : 'entries'} configured
+                        </span>
+                      </div>
+                      <p className="text-xs text-emerald-600 dark:text-emerald-500">
+                        Categories: {Array.from(new Set(knowledgeBases.map(kb => kb.category))).join(', ')}
+                      </p>
                     </div>
-                    <button className="text-gray-400 hover:text-red-500">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-                <Button variant="outline" size="sm" className="w-full gap-2 mt-2">
-                  <Plus className="h-4 w-4" /> Add
-                </Button>
+                  ) : (
+                    <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
+                      <p className="text-sm text-amber-700 dark:text-amber-400">
+                        No knowledge base entries configured for this agent yet.
+                      </p>
+                    </div>
+                  )}
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full gap-2" 
+                    data-testid="button-manage-knowledge-base"
+                    onClick={() => navigate("/knowledge-base")}
+                  >
+                    <FileText className="h-4 w-4" /> Manage Knowledge Base
+                  </Button>
+                </div>
               </SettingsSection>
 
               <SettingsSection title="Speech Settings" icon={Headphones}>
@@ -1449,46 +1481,6 @@ function AgentEditorInner() {
                 </div>
               </SettingsSection>
 
-              <SettingsSection title="Security & Fallback" icon={Shield}>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <label className="text-sm font-medium">Voicemail Detection</label>
-                      <p className="text-xs text-muted-foreground">Detect and leave voicemails</p>
-                    </div>
-                    <Switch checked={voicemailDetection} onCheckedChange={setVoicemailDetection} />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <label className="text-sm font-medium">Warm Transfer</label>
-                        <p className="text-xs text-muted-foreground">Transfer to human operator</p>
-                      </div>
-                      <Switch checked={warmTransferEnabled} onCheckedChange={handleWarmTransferToggle} />
-                    </div>
-                    {warmTransferEnabled && (
-                      <div className="space-y-2 pl-2 border-l-2 border-primary/30">
-                        <Input
-                          placeholder="Transfer phone number"
-                          value={warmTransferNumber}
-                          onChange={(e) => setWarmTransferNumber(e.target.value)}
-                          className="h-8 text-sm"
-                        />
-                        <Textarea
-                          placeholder="Transfer message (what the agent says before transferring)"
-                          value={warmTransferMessage}
-                          onChange={(e) => setWarmTransferMessage(e.target.value)}
-                          className="min-h-[60px] text-sm"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </SettingsSection>
-
-              <SettingsSection title="Webhook Settings" icon={Webhook}>
-                <p className="text-xs text-muted-foreground">Configure webhooks for call events and data extraction.</p>
-              </SettingsSection>
             </div>
           </ScrollArea>
         </div>
@@ -1616,151 +1608,149 @@ function AgentEditorInner() {
             </div>
           </>
         ) : (
-          /* Simulation Tab - Chat Testing Interface */
-          <div className="flex-1 flex flex-col bg-gray-50 dark:bg-gray-950">
-            <div className="flex-1 flex items-center justify-center">
-              <div className="w-full max-w-2xl mx-auto p-6">
-                <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border overflow-hidden">
-                  {/* Chat Header */}
-                  <div className="p-4 border-b bg-gradient-to-r from-primary/10 to-primary/5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                        <Phone className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold">{agentName}</h3>
-                        <p className="text-xs text-muted-foreground">Test your agent via text conversation</p>
-                      </div>
-                      <div className="ml-auto flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setTestMessages([])}
-                          className="gap-1"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Clear
-                        </Button>
-                      </div>
+          /* Test Tab - Chat & Voice Testing Interface - Side by Side (responsive) */
+          <div className="flex-1 flex flex-col lg:flex-row bg-gray-50 dark:bg-gray-950 p-6 gap-6 overflow-auto">
+            {/* Chat Testing Panel */}
+            <div className="flex-1 flex flex-col min-h-[400px]">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border overflow-hidden flex flex-col h-full">
+                {/* Chat Header */}
+                <div className="p-4 border-b bg-gradient-to-r from-primary/10 to-primary/5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                      <MessageSquare className="h-5 w-5 text-primary" />
                     </div>
-                  </div>
-
-                  {/* Chat Messages */}
-                  <div className="h-[400px] overflow-y-auto p-4 space-y-4">
-                    {testMessages.length === 0 ? (
-                      <div className="h-full flex items-center justify-center text-center">
-                        <div className="space-y-2">
-                          <MessageSquare className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto" />
-                          <p className="text-muted-foreground">Start a conversation to test your agent</p>
-                          <p className="text-xs text-gray-400">Type a message below to begin</p>
-                        </div>
-                      </div>
-                    ) : (
-                      testMessages.map((msg, idx) => (
-                        <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
-                            msg.role === 'user' 
-                              ? 'bg-primary text-primary-foreground rounded-br-md' 
-                              : 'bg-gray-100 dark:bg-gray-800 rounded-bl-md'
-                          }`}>
-                            <p className="text-sm">{msg.content}</p>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                    {isTestLoading && (
-                      <div className="flex justify-start">
-                        <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-bl-md px-4 py-2.5">
-                          <div className="flex gap-1">
-                            <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                            <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                            <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Chat Input */}
-                  <div className="p-4 border-t bg-gray-50 dark:bg-gray-900/50">
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Type a message to test your agent..."
-                        value={testInput}
-                        onChange={(e) => setTestInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendTestMessage()}
-                        className="flex-1"
-                        data-testid="input-test-message"
-                      />
-                      <Button 
-                        onClick={handleSendTestMessage} 
-                        disabled={isTestLoading || !testInput.trim()}
-                        data-testid="button-send-test"
+                    <div>
+                      <h3 className="font-semibold">Text Chat</h3>
+                      <p className="text-xs text-muted-foreground">Test via text conversation</p>
+                    </div>
+                    <div className="ml-auto flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setTestMessages([])}
+                        className="gap-1"
                       >
-                        <Send className="h-4 w-4" />
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Clear
                       </Button>
                     </div>
                   </div>
                 </div>
 
-                {/* Voice Call Option */}
-                <div className={`mt-4 p-4 rounded-xl border transition-colors ${
-                  isInVoiceCall 
-                    ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' 
-                    : 'bg-white dark:bg-gray-900'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-                        isInVoiceCall 
-                          ? 'bg-emerald-500 animate-pulse' 
-                          : 'bg-emerald-100 dark:bg-emerald-900/30'
-                      }`}>
-                        <Mic className={`h-5 w-5 ${isInVoiceCall ? 'text-white' : 'text-emerald-600'}`} />
-                      </div>
-                      <div>
-                        <h4 className="font-medium">
-                          {isInVoiceCall ? 'Voice Call Active' : 'Voice Call Test'}
-                        </h4>
-                        <p className="text-xs text-muted-foreground">
-                          {isInVoiceCall 
-                            ? 'Speaking with your agent... Speak clearly into your microphone' 
-                            : 'Test with real voice using your microphone'}
-                        </p>
+                {/* Chat Messages */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+                  {testMessages.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-center">
+                      <div className="space-y-2">
+                        <MessageSquare className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto" />
+                        <p className="text-muted-foreground">Start a conversation to test your agent</p>
+                        <p className="text-xs text-gray-400">Type a message below to begin</p>
                       </div>
                     </div>
-                    {isInVoiceCall ? (
-                      <Button 
-                        variant="destructive" 
-                        className="gap-2"
-                        onClick={stopVoiceCall}
-                        data-testid="button-end-call"
-                      >
-                        <PhoneOff className="h-4 w-4" />
-                        End Call
-                      </Button>
-                    ) : (
-                      <Button 
-                        variant="outline" 
-                        className="gap-2"
-                        onClick={startVoiceCall}
-                        disabled={isVoiceCallConnecting || isNew}
-                        data-testid="button-start-call"
-                      >
-                        {isVoiceCallConnecting ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Connecting...
-                          </>
-                        ) : (
-                          <>
-                            <Phone className="h-4 w-4" />
-                            Start Call
-                          </>
-                        )}
-                      </Button>
-                    )}
+                  ) : (
+                    testMessages.map((msg, idx) => (
+                      <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
+                          msg.role === 'user' 
+                            ? 'bg-primary text-primary-foreground rounded-br-md' 
+                            : 'bg-gray-100 dark:bg-gray-800 rounded-bl-md'
+                        }`}>
+                          <p className="text-sm">{msg.content}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  {isTestLoading && (
+                    <div className="flex justify-start">
+                      <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-bl-md px-4 py-2.5">
+                        <div className="flex gap-1">
+                          <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Chat Input */}
+                <div className="p-4 border-t bg-gray-50 dark:bg-gray-900/50">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Type a message to test your agent..."
+                      value={testInput}
+                      onChange={(e) => setTestInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendTestMessage()}
+                      className="flex-1"
+                      data-testid="input-test-message"
+                    />
+                    <Button 
+                      onClick={handleSendTestMessage} 
+                      disabled={isTestLoading || !testInput.trim()}
+                      data-testid="button-send-test"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Voice Call Panel */}
+            <div className="w-full lg:w-80 flex flex-col flex-shrink-0 min-h-[300px] lg:min-h-0">
+              <div className={`bg-white dark:bg-gray-900 rounded-2xl shadow-lg border overflow-hidden flex flex-col h-full p-6 transition-colors ${
+                isInVoiceCall 
+                  ? 'border-emerald-300 dark:border-emerald-700' 
+                  : ''
+              }`}>
+                <div className="flex flex-col items-center justify-center flex-1 text-center">
+                  <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 transition-all ${
+                    isInVoiceCall 
+                      ? 'bg-emerald-500 animate-pulse shadow-lg shadow-emerald-500/30' 
+                      : 'bg-emerald-100 dark:bg-emerald-900/30'
+                  }`}>
+                    <Mic className={`h-10 w-10 ${isInVoiceCall ? 'text-white' : 'text-emerald-600'}`} />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">
+                    {isInVoiceCall ? 'Call in Progress' : 'Voice Test'}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-6">
+                    {isInVoiceCall 
+                      ? 'Speak clearly into your microphone' 
+                      : 'Test your agent with real voice'}
+                  </p>
+                  {isInVoiceCall ? (
+                    <Button 
+                      variant="destructive" 
+                      size="lg"
+                      className="gap-2 w-full"
+                      onClick={stopVoiceCall}
+                      data-testid="button-end-call"
+                    >
+                      <PhoneOff className="h-5 w-5" />
+                      End Call
+                    </Button>
+                  ) : (
+                    <Button 
+                      size="lg"
+                      className="gap-2 w-full"
+                      onClick={startVoiceCall}
+                      disabled={isVoiceCallConnecting || isNew}
+                      data-testid="button-start-call"
+                    >
+                      {isVoiceCallConnecting ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          Connecting...
+                        </>
+                      ) : (
+                        <>
+                          <Phone className="h-5 w-5" />
+                          Start Voice Call
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

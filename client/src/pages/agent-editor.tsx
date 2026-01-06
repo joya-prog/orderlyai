@@ -749,18 +749,23 @@ function AgentEditorInner() {
   // Load flow nodes
   useEffect(() => {
     if (flowNodesData.length > 0) {
-      const loadedNodes = flowNodesData.map((node) => ({
-        id: node.id,
-        type: 'custom',
-        position: node.position || { x: 0, y: 0 },
-        data: {
-          type: node.type,
-          label: node.label,
-          content: node.content,
-          config: node.config,
-          agentId: node.agentId,
-        },
-      }));
+      const loadedNodes = flowNodesData.map((node) => {
+        const config = node.config || {};
+        return {
+          id: node.id,
+          type: 'custom',
+          position: node.position || { x: 0, y: 0 },
+          data: {
+            type: node.type,
+            label: node.label,
+            content: node.content,
+            config: node.config,
+            agentId: node.agentId,
+            transitions: config.transitions || [],
+            contentMode: config.contentMode || 'prompt',
+          },
+        };
+      });
       setNodes(loadedNodes);
       setHistory([cloneState(loadedNodes, [])]);
       setHistoryIndex(0);
@@ -773,6 +778,7 @@ function AgentEditorInner() {
         id: conn.id,
         source: conn.sourceNodeId,
         target: conn.targetNodeId,
+        sourceHandle: conn.sourceHandle || undefined,
         label: conn.label,
       }));
       setEdges(loadedEdges);
@@ -813,19 +819,29 @@ function AgentEditorInner() {
 
   const saveFlowMutation = useMutation({
     mutationFn: async ({ nodes, edges }: { nodes: Node[]; edges: Edge[] }) => {
-      const dbNodes = nodes.map((node) => ({
-        id: node.id,
-        agentId: id,
-        type: node.data.type,
-        label: node.data.label,
-        content: node.data.content || '',
-        position: node.position,
-        config: node.data.config || {},
-      }));
+      const dbNodes = nodes.map((node) => {
+        const existingConfig = (node.data.config || {}) as Record<string, any>;
+        const transitions = node.data.transitions ?? existingConfig.transitions ?? [];
+        const contentMode = node.data.contentMode ?? existingConfig.contentMode ?? 'prompt';
+        return {
+          id: node.id,
+          agentId: id,
+          type: node.data.type,
+          label: node.data.label,
+          content: node.data.content || '',
+          position: node.position,
+          config: {
+            ...existingConfig,
+            transitions,
+            contentMode,
+          },
+        };
+      });
       const dbEdges = edges.map((edge) => ({
         agentId: id,
         sourceNodeId: edge.source,
         targetNodeId: edge.target,
+        sourceHandle: edge.sourceHandle || undefined,
         label: edge.label || '',
       }));
       await apiRequest("POST", `/api/agents/${id}/flow-nodes/bulk`, { nodes: dbNodes });
@@ -870,20 +886,30 @@ function AgentEditorInner() {
         warmTransferMessage: warmTransferEnabled ? warmTransferMessage : null,
       });
       
-      // Save flow nodes and connections
-      const dbNodes = nodes.map((node) => ({
-        id: node.id,
-        agentId: id,
-        type: node.data.type,
-        label: node.data.label,
-        content: node.data.content || '',
-        position: node.position,
-        config: node.data.config || {},
-      }));
+      // Save flow nodes and connections (include transitions and contentMode in config)
+      const dbNodes = nodes.map((node) => {
+        const existingConfig = (node.data.config || {}) as Record<string, any>;
+        const transitions = node.data.transitions ?? existingConfig.transitions ?? [];
+        const contentMode = node.data.contentMode ?? existingConfig.contentMode ?? 'prompt';
+        return {
+          id: node.id,
+          agentId: id,
+          type: node.data.type,
+          label: node.data.label,
+          content: node.data.content || '',
+          position: node.position,
+          config: {
+            ...existingConfig,
+            transitions,
+            contentMode,
+          },
+        };
+      });
       const dbEdges = edges.map((edge) => ({
         agentId: id,
         sourceNodeId: edge.source,
         targetNodeId: edge.target,
+        sourceHandle: edge.sourceHandle || undefined,
         label: edge.label || '',
       }));
       await apiRequest("POST", `/api/agents/${id}/flow-nodes/bulk`, { nodes: dbNodes });

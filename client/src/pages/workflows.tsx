@@ -32,18 +32,23 @@ export default function WorkflowsPage() {
   });
 
   const initialNodes = useMemo(() => {
-    return flowNodesData.map((node) => ({
-      id: node.id,
-      type: 'custom',
-      position: node.position || { x: 0, y: 0 },
-      data: {
-        type: node.type,
-        label: node.label,
-        content: node.content,
-        config: node.config,
-        agentId: node.agentId,
-      },
-    }));
+    return flowNodesData.map((node) => {
+      const config = node.config || {};
+      return {
+        id: node.id,
+        type: 'custom',
+        position: node.position || { x: 0, y: 0 },
+        data: {
+          type: node.type,
+          label: node.label,
+          content: node.content,
+          config: node.config,
+          agentId: node.agentId,
+          transitions: config.transitions || [],
+          contentMode: config.contentMode || 'prompt',
+        },
+      };
+    });
   }, [flowNodesData]);
 
   const initialEdges = useMemo(() => {
@@ -51,26 +56,37 @@ export default function WorkflowsPage() {
       id: conn.id,
       source: conn.sourceNodeId,
       target: conn.targetNodeId,
+      sourceHandle: conn.sourceHandle || undefined,
       label: conn.label,
     }));
   }, [flowConnectionsData]);
 
   const saveFlowMutation = useMutation({
     mutationFn: async ({ nodes, edges }: { nodes: Node[]; edges: Edge[] }) => {
-      const dbNodes = nodes.map((node) => ({
-        id: node.id,
-        agentId: selectedAgentId,
-        type: node.data.type,
-        label: node.data.label,
-        content: node.data.content || '',
-        position: node.position,
-        config: node.data.config || {},
-      }));
+      const dbNodes = nodes.map((node) => {
+        const existingConfig = (node.data.config || {}) as Record<string, any>;
+        const transitions = node.data.transitions ?? existingConfig.transitions ?? [];
+        const contentMode = node.data.contentMode ?? existingConfig.contentMode ?? 'prompt';
+        return {
+          id: node.id,
+          agentId: selectedAgentId,
+          type: node.data.type,
+          label: node.data.label,
+          content: node.data.content || '',
+          position: node.position,
+          config: {
+            ...existingConfig,
+            transitions,
+            contentMode,
+          },
+        };
+      });
 
       const dbEdges = edges.map((edge) => ({
         agentId: selectedAgentId,
         sourceNodeId: edge.source,
         targetNodeId: edge.target,
+        sourceHandle: edge.sourceHandle || undefined,
         label: edge.label || '',
       }));
 

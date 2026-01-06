@@ -378,12 +378,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // If agent is not synced to Retell, sync it first
       let retellAgentId = agent.retellAgentId;
+      let flowId = agent.retellLlmId;
       
       if (!retellAgentId) {
         console.log(`[Retell] Agent ${agent.id} not synced, syncing now for web call...`);
         
         // Create Conversation Flow in Retell
-        const flowId = await retell.createRetellConversationFlow({
+        flowId = await retell.createRetellConversationFlow({
           generalPrompt: agent.systemPrompt || "You are a helpful restaurant assistant.",
           beginMessage: agent.greetingMessage || "Hello! Thank you for calling. How can I help you today?",
           model: 'gpt-4o-mini',
@@ -424,6 +425,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         
         console.log(`[Retell] Auto-synced agent ${agent.id} -> Retell ${retellAgentId} for web call`);
+      }
+
+      // Always sync workflow nodes to Retell before starting the call
+      // This ensures the conversation flow matches the current workflow structure
+      if (flowId) {
+        const dbNodes = await storage.getFlowNodes(agent.id);
+        const dbConnections = await storage.getFlowConnections(agent.id);
+        
+        if (dbNodes.length > 0) {
+          console.log(`[Retell] Syncing ${dbNodes.length} workflow nodes to conversation flow ${flowId}`);
+          
+          // Map database nodes to OrderlyFlowNode format (convert null to undefined)
+          const nodes = dbNodes.map(node => ({
+            id: node.id,
+            type: node.type,
+            label: node.label,
+            content: node.content || undefined,
+            contentMode: (node.config as any)?.contentMode as 'prompt' | 'static' | undefined,
+            config: node.config as Record<string, any> | undefined,
+            transitions: (node.config as any)?.transitions as Array<{ id: string; label: string; condition?: string }> | undefined,
+          }));
+          
+          // Map database connections to OrderlyFlowConnection format
+          const connections = dbConnections.map(conn => ({
+            id: conn.id,
+            sourceNodeId: conn.sourceNodeId,
+            targetNodeId: conn.targetNodeId,
+            sourceHandle: conn.sourceHandle || undefined,
+            label: conn.label || undefined,
+          }));
+          
+          await retell.syncWorkflowToRetell(
+            flowId,
+            nodes,
+            connections,
+            agent.systemPrompt || "You are a helpful restaurant assistant.",
+            'gpt-4o-mini'
+          );
+        }
       }
 
       // Create the web call

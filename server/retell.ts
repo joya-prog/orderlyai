@@ -484,6 +484,51 @@ export async function listRetellAgents(): Promise<any[]> {
   }
 }
 
+// Retell Voice interface
+export interface RetellVoice {
+  voice_id: string;
+  voice_name: string;
+  provider: 'elevenlabs' | 'openai' | 'deepgram' | 'playht';
+  accent?: string;
+  gender?: string;
+  age?: string;
+  preview_audio_url?: string;
+}
+
+// Fetch all available voices from Retell's voice catalog
+export async function listRetellVoices(provider?: string): Promise<RetellVoice[]> {
+  if (!retellClient) {
+    console.error('[Retell] Client not configured');
+    return [];
+  }
+
+  try {
+    const voices = await retellClient.voice.list();
+    
+    // Map to our interface and optionally filter by provider
+    const mappedVoices: RetellVoice[] = voices.map((voice: any) => ({
+      voice_id: voice.voice_id,
+      voice_name: voice.voice_name,
+      provider: voice.provider,
+      accent: voice.accent,
+      gender: voice.gender,
+      age: voice.age,
+      preview_audio_url: voice.preview_audio_url,
+    }));
+    
+    // Filter by provider if specified
+    if (provider) {
+      const providerLower = provider.toLowerCase();
+      return mappedVoices.filter(v => v.provider.toLowerCase() === providerLower);
+    }
+    
+    return mappedVoices;
+  } catch (error) {
+    console.error('[Retell] Error listing voices:', error);
+    return [];
+  }
+}
+
 export async function getRetellCallLogs(agentId?: string, limit: number = 50): Promise<RetellCallLog[]> {
   if (!retellClient) {
     console.error('[Retell] Client not configured');

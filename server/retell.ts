@@ -8,6 +8,16 @@ if (!RETELL_API_KEY) {
 
 const retellClient = RETELL_API_KEY ? new Retell({ apiKey: RETELL_API_KEY }) : null;
 
+// Valid Retell ambient sound values
+const VALID_AMBIENT_SOUNDS = ['coffee-shop', 'convention-hall', 'summer-outdoor', 'mountain-outdoor', 'static-noise', 'call-center'] as const;
+type ValidAmbientSound = typeof VALID_AMBIENT_SOUNDS[number];
+
+// Validate and return ambient sound only if it's a valid Retell value
+function getValidAmbientSound(value: string | undefined): ValidAmbientSound | undefined {
+  if (!value || value.trim() === '') return undefined;
+  return VALID_AMBIENT_SOUNDS.includes(value as ValidAmbientSound) ? (value as ValidAmbientSound) : undefined;
+}
+
 export interface RetellAgentConfig {
   agentName: string;
   voiceId: string;
@@ -364,8 +374,8 @@ export async function createRetellAgent(config: RetellAgentConfig, conversationF
       backchannel_words: config.backchannelWords,
       reminder_trigger_ms: config.reminderTriggerMs,
       reminder_max_count: config.reminderMaxCount,
-      ambient_sound: config.ambientSound as any,
-      ambient_sound_volume: config.ambientSoundVolume,
+      ambient_sound: getValidAmbientSound(config.ambientSound),
+      ambient_sound_volume: getValidAmbientSound(config.ambientSound) ? config.ambientSoundVolume : undefined,
       boosted_keywords: config.boostedKeywords,
       pronunciation_dictionary: config.pronunciationDictionary,
       begin_message_delay_ms: config.beginMessageDelayMs,
@@ -407,8 +417,8 @@ export async function updateRetellAgent(agentId: string, config: Partial<RetellA
       backchannel_words: config.backchannelWords,
       reminder_trigger_ms: config.reminderTriggerMs,
       reminder_max_count: config.reminderMaxCount,
-      ambient_sound: config.ambientSound as any,
-      ambient_sound_volume: config.ambientSoundVolume,
+      ambient_sound: getValidAmbientSound(config.ambientSound),
+      ambient_sound_volume: getValidAmbientSound(config.ambientSound) ? config.ambientSoundVolume : undefined,
       boosted_keywords: config.boostedKeywords,
       pronunciation_dictionary: config.pronunciationDictionary,
       begin_message_delay_ms: config.beginMessageDelayMs,

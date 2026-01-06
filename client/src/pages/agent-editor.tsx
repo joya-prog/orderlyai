@@ -1538,7 +1538,8 @@ function AgentEditorInner() {
 
       {/* Main Content */}
       <div className="flex-1 flex min-h-0 relative">
-        {/* Left Sidebar - Agent Settings - Floating Panel */}
+        {/* Left Sidebar - Agent Settings - Floating Panel (only shown in Create mode) */}
+        {activeTab === "create" && (
         <div 
           ref={settingsPanelRef}
           className="absolute z-10 bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-xl shadow-lg border transition-all"
@@ -1820,6 +1821,7 @@ function AgentEditorInner() {
             </div>
           )}
         </div>
+        )}
 
         {/* Center - Content Area */}
         {activeTab === "create" ? (

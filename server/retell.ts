@@ -232,17 +232,94 @@ export async function syncWorkflowToRetell(
     return false;
   }
 
+  if (nodes.length === 0) {
+    console.log('[Retell] No nodes to sync');
+    return true;
+  }
+
   try {
-    // Build connection map: sourceHandle -> targetNodeId
-    const connectionMap = new Map<string, string>();
+    // Step 1: Find the start node (node with no incoming edges, or greeting type)
+    const nodesWithIncoming = new Set(connections.map(c => c.targetNodeId));
+    let startNode = nodes.find(n => !nodesWithIncoming.has(n.id));
+    if (!startNode) {
+      startNode = nodes.find(n => n.type === 'greeting') || nodes[0];
+    }
+    
+    console.log(`[Retell] Start node identified: ${startNode.id} (${startNode.type}: "${startNode.label}")`);
+
+    // Step 2: Build adjacency list for topological sorting
+    const adjacencyList = new Map<string, string[]>();
+    nodes.forEach(n => adjacencyList.set(n.id, []));
     connections.forEach(conn => {
-      connectionMap.set(conn.sourceHandle || conn.sourceNodeId, conn.targetNodeId);
+      const targets = adjacencyList.get(conn.sourceNodeId) || [];
+      if (!targets.includes(conn.targetNodeId)) {
+        targets.push(conn.targetNodeId);
+        adjacencyList.set(conn.sourceNodeId, targets);
+      }
     });
 
-    // Convert Orderly nodes to Retell format with embedded transitions
-    const retellNodes: any[] = [];
+    // Step 3: BFS from start node to get topologically sorted order
+    const sortedNodeIds: string[] = [];
+    const visited = new Set<string>();
+    const queue: string[] = [startNode.id];
+    
+    while (queue.length > 0) {
+      const nodeId = queue.shift()!;
+      if (visited.has(nodeId)) continue;
+      visited.add(nodeId);
+      sortedNodeIds.push(nodeId);
+      
+      const neighbors = adjacencyList.get(nodeId) || [];
+      neighbors.forEach(n => {
+        if (!visited.has(n)) {
+          queue.push(n);
+        }
+      });
+    }
+    
+    // Add any orphaned nodes not reachable from start
+    nodes.forEach(n => {
+      if (!visited.has(n.id)) {
+        sortedNodeIds.push(n.id);
+      }
+    });
 
-    nodes.forEach((node) => {
+    // Create node lookup map
+    const nodeMap = new Map(nodes.map(n => [n.id, n]));
+
+    // Step 4: Build connection map with sourceHandle for transition mapping
+    const connectionMap = new Map<string, string>();
+    connections.forEach(conn => {
+      if (conn.sourceHandle) {
+        connectionMap.set(conn.sourceHandle, conn.targetNodeId);
+      }
+      // Also map by sourceNodeId as fallback for nodes with single transition
+      if (!connectionMap.has(conn.sourceNodeId)) {
+        connectionMap.set(conn.sourceNodeId, conn.targetNodeId);
+      }
+    });
+
+    console.log(`[Retell] Connection map built with ${connectionMap.size} entries`);
+
+    // Step 5: Create Retell Begin node
+    const beginNodeId = 'begin_node';
+    const retellNodes: any[] = [{
+      id: beginNodeId,
+      type: 'begin',
+      begin_settings: {
+        who_speaks_first: 'agent',
+      },
+      transitions: [{
+        condition: 'Call connected',
+        next_node_id: startNode.id,
+      }],
+    }];
+
+    // Step 6: Convert Orderly nodes to Retell format in topological order
+    sortedNodeIds.forEach((nodeId) => {
+      const node = nodeMap.get(nodeId);
+      if (!node) return;
+
       // Map Orderly node types to Retell types
       let retellNodeType = 'conversation';
       if (node.type === 'end') {
@@ -256,15 +333,39 @@ export async function syncWorkflowToRetell(
         ? { type: 'static' as const, text: node.content || node.label }
         : { type: 'prompt' as const, text: node.content || node.label };
 
-      // Build transitions with target node IDs
-      const nodeTransitions = (node.transitions || []).map(transition => {
+      // Build transitions with target node IDs using sourceHandle lookup
+      const nodeTransitions: { condition: string; next_node_id: string | null }[] = [];
+      
+      (node.transitions || []).forEach(transition => {
         const handleId = `${node.id}-${transition.id}`;
-        const targetNodeId = connectionMap.get(handleId);
-        return {
-          condition: transition.condition || transition.label || 'Continue',
-          next_node_id: targetNodeId || null,
-        };
-      }).filter(t => t.next_node_id); // Only include transitions with valid targets
+        let targetNodeId = connectionMap.get(handleId);
+        
+        // Fallback to sourceNodeId lookup if handle not found
+        if (!targetNodeId) {
+          targetNodeId = connectionMap.get(node.id);
+        }
+        
+        if (targetNodeId) {
+          const condition = transition.condition || transition.label || 'Continue';
+          console.log(`[Retell] Transition: "${condition}" -> ${targetNodeId} (handle: ${handleId})`);
+          nodeTransitions.push({
+            condition,
+            next_node_id: targetNodeId,
+          });
+        }
+      });
+
+      // If node has no transitions defined but has outgoing connections, add default transition
+      if (nodeTransitions.length === 0) {
+        const defaultTarget = connectionMap.get(node.id);
+        if (defaultTarget) {
+          nodeTransitions.push({
+            condition: 'Continue',
+            next_node_id: defaultTarget,
+          });
+          console.log(`[Retell] Added default transition for ${node.id} -> ${defaultTarget}`);
+        }
+      }
 
       // Build Retell node
       const retellNode: any = {
@@ -286,22 +387,21 @@ export async function syncWorkflowToRetell(
       retellNodes.push(retellNode);
     });
 
-    // Find start node (greeting type or first node)
-    const startNode = nodes.find(n => n.type === 'greeting') || nodes[0];
-    
-    // Update Retell conversation flow with full node structure
+    console.log(`[Retell] Syncing ${retellNodes.length} nodes in order: ${retellNodes.map(n => n.id).join(' -> ')}`);
+
+    // Step 7: Update Retell conversation flow with Begin node as starting point
     await retellClient.conversationFlow.update(flowId, {
       model_choice: model ? {
         model: model as any,
         type: 'cascading',
       } : undefined,
       model_temperature: 0.7,
-      nodes: retellNodes.length > 0 ? retellNodes : undefined,
+      nodes: retellNodes,
       global_prompt: globalPrompt || undefined,
-      starting_node_id: startNode?.id,
-    } as any); // Cast to any to allow Retell SDK flexibility
+      starting_node_id: beginNodeId,
+    } as any);
 
-    console.log(`[Retell] Synced workflow with ${retellNodes.length} nodes to flow: ${flowId}`);
+    console.log(`[Retell] Successfully synced workflow to flow: ${flowId}`);
     return true;
   } catch (error) {
     console.error('[Retell] Error syncing workflow:', error);

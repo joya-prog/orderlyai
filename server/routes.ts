@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer } from "ws";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./auth";
-import { generateAgentResponse, transcribeAudio, synthesizeSpeech, listOpenAIVoices, VoiceConfig, buildFlowContext } from "./openai";
+import { generateAgentResponse, transcribeAudio, synthesizeSpeech, VoiceConfig, buildFlowContext } from "./openai";
 import { handleTwilioWebSocket, generateTwiML, getActiveCalls, handleBrowserTestWebSocket } from "./voiceCallHandler";
 import { createWorkflowExecutor, WorkflowState } from "./workflowExecutor";
 import * as retell from "./retell";
@@ -859,23 +859,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Voice listing route
+  // Voice listing route - fetches voices directly from Retell's voice catalog
+  // Falls back to static voice lists when Retell is not configured
   app.get("/api/voices/:provider", isAuthenticated, async (req: any, res) => {
     try {
       const { provider } = req.params;
+      const providerLower = provider.toLowerCase();
       
-      if (provider === 'openai') {
-        const voices = await listOpenAIVoices();
-        res.json(voices);
-      } else if (provider === 'elevenlabs') {
-        const { getElevenLabsVoices } = await import('./elevenlabs');
-        const voices = await getElevenLabsVoices();
-        res.json(voices);
-      } else if (provider === 'cartesia') {
-        res.status(501).json({ message: "Cartesia voices coming soon" });
-      } else {
-        res.status(400).json({ message: "Invalid voice provider" });
+      // Handle cartesia separately (not yet available)
+      if (providerLower === 'cartesia') {
+        return res.status(501).json({ message: "Cartesia voices coming soon" });
       }
+      
+      // Map frontend provider names to Retell provider names
+      const providerMap: Record<string, string> = {
+        'openai': 'openai',
+        'elevenlabs': 'elevenlabs',
+        'deepgram': 'deepgram',
+        'playht': 'playht',
+      };
+      
+      const retellProvider = providerMap[providerLower];
+      if (!retellProvider) {
+        return res.status(400).json({ message: "Invalid voice provider" });
+      }
+      
+      // Try to fetch voices from Retell API (these have the correct Retell voice IDs)
+      const retellVoices = await retell.listRetellVoices(retellProvider);
+      
+      // If Retell returns voices, use them
+      if (retellVoices.length > 0) {
+        const voices = retellVoices.map(v => ({
+          id: v.voice_id,
+          voice_id: v.voice_id,
+          name: v.voice_name,
+          preview_url: v.preview_audio_url,
+          labels: {
+            accent: v.accent,
+            gender: v.gender,
+            age: v.age,
+          },
+        }));
+        return res.json(voices);
+      }
+      
+      // Fallback to static voice lists when Retell is not configured
+      // These use correct Retell voice ID format
+      if (providerLower === 'openai') {
+        const staticVoices = [
+          { id: "openai-Alloy", voice_id: "openai-Alloy", name: "Alloy", labels: { gender: "neutral", accent: "American" } },
+          { id: "openai-Ash", voice_id: "openai-Ash", name: "Ash", labels: { gender: "male", accent: "American" } },
+          { id: "openai-Coral", voice_id: "openai-Coral", name: "Coral", labels: { gender: "female", accent: "American" } },
+          { id: "openai-Sage", voice_id: "openai-Sage", name: "Sage", labels: { gender: "neutral", accent: "American" } },
+          { id: "openai-Ballad", voice_id: "openai-Ballad", name: "Ballad", labels: { gender: "male", accent: "American" } },
+          { id: "openai-Verse", voice_id: "openai-Verse", name: "Verse", labels: { gender: "female", accent: "American" } },
+        ];
+        return res.json(staticVoices);
+      }
+      
+      if (providerLower === 'elevenlabs') {
+        const staticVoices = [
+          { id: "11labs-Adrian", voice_id: "11labs-Adrian", name: "Adrian", labels: { gender: "male", accent: "American" } },
+          { id: "11labs-Aria", voice_id: "11labs-Aria", name: "Aria", labels: { gender: "female", accent: "American" } },
+          { id: "11labs-Brian", voice_id: "11labs-Brian", name: "Brian", labels: { gender: "male", accent: "American" } },
+          { id: "11labs-Cimo", voice_id: "11labs-Cimo", name: "Cimo", labels: { gender: "male", accent: "American" } },
+          { id: "11labs-Jessica", voice_id: "11labs-Jessica", name: "Jessica", labels: { gender: "female", accent: "American" } },
+          { id: "11labs-Lily", voice_id: "11labs-Lily", name: "Lily", labels: { gender: "female", accent: "British" } },
+          { id: "11labs-Myra", voice_id: "11labs-Myra", name: "Myra", labels: { gender: "female", accent: "Indian" } },
+          { id: "11labs-Roger", voice_id: "11labs-Roger", name: "Roger", labels: { gender: "male", accent: "American" } },
+          { id: "11labs-Sarah", voice_id: "11labs-Sarah", name: "Sarah", labels: { gender: "female", accent: "American" } },
+        ];
+        return res.json(staticVoices);
+      }
+      
+      // For other providers without static fallback, return empty array
+      res.json([]);
     } catch (error: any) {
       console.error("Error listing voices:", error);
       res.status(500).json({ message: error.message || "Failed to list voices" });

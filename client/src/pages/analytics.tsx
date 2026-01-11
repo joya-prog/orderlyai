@@ -217,12 +217,12 @@ export default function AnalyticsPage() {
         </Select>
       </div>
 
-      {/* Flex-based layout - no fixed heights, uses flex-grow */}
-      <div className="flex-1 p-4 flex flex-col gap-4 min-h-0 overflow-hidden">
-        {/* Top section: 2 equal rows */}
-        <div className="flex-1 flex flex-col gap-4 min-h-0">
+      {/* Scrollable layout with proper card heights */}
+      <div className="flex-1 p-4 flex flex-col gap-4 overflow-auto">
+        {/* Top section: 2 rows */}
+        <div className="flex flex-col gap-4">
           {/* Row 1 */}
-          <div className="flex-1 flex gap-4 min-h-0">
+          <div className="flex gap-4">
             <Card className="flex-[3] cursor-pointer hover-elevate flex flex-col overflow-hidden min-h-[320px]" onClick={() => setExpandedCard({ title: 'Call Volume', type: 'calls' })} data-testid="card-metric-calls">
               <CardContent className="p-5 flex-1 flex flex-col">
                 <div className="flex items-center justify-between flex-shrink-0 mb-3">
@@ -315,7 +315,7 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Row 2 */}
-          <div className="flex-1 flex gap-4 min-h-0">
+          <div className="flex gap-4">
             <Card className="flex-[2] cursor-pointer hover-elevate flex flex-col overflow-hidden min-h-[280px]" onClick={() => setExpandedCard({ title: 'Orders', type: 'orders' })} data-testid="card-metric-orders-trend">
               <CardContent className="p-5 flex-1 flex flex-col">
                 <div className="flex items-center justify-between flex-shrink-0 mb-3">

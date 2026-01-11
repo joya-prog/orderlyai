@@ -316,13 +316,13 @@ export default function AnalyticsPage() {
 
           {/* Row 2 */}
           <div className="flex-1 flex gap-4 min-h-0">
-            <Card className="flex-[2] cursor-pointer hover-elevate flex flex-col overflow-hidden" onClick={() => setExpandedCard({ title: 'Orders', type: 'orders' })} data-testid="card-metric-orders-trend">
-              <CardContent className="p-5 flex-1 flex flex-col min-h-0">
+            <Card className="flex-[2] cursor-pointer hover-elevate flex flex-col overflow-hidden min-h-[280px]" onClick={() => setExpandedCard({ title: 'Orders', type: 'orders' })} data-testid="card-metric-orders-trend">
+              <CardContent className="p-5 flex-1 flex flex-col">
                 <div className="flex items-center justify-between flex-shrink-0 mb-3">
                   <h3 className="text-base font-semibold">Revenue Trend</h3>
                   <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
                 </div>
-                <div className="flex-1 min-h-0">
+                <div className="flex-1 min-h-[160px]">
                   {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.revenueData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={processedData.revenueData}>
@@ -338,8 +338,8 @@ export default function AnalyticsPage() {
               </CardContent>
             </Card>
 
-            <Card className="flex-1 cursor-pointer hover-elevate flex flex-col overflow-hidden" onClick={() => setExpandedCard({ title: 'Peak Hours', type: 'peakhours' })} data-testid="card-metric-duration">
-              <CardContent className="p-5 flex-1 flex flex-col min-h-0">
+            <Card className="flex-1 cursor-pointer hover-elevate flex flex-col overflow-hidden min-h-[280px]" onClick={() => setExpandedCard({ title: 'Peak Hours', type: 'peakhours' })} data-testid="card-metric-duration">
+              <CardContent className="p-5 flex-1 flex flex-col">
                 <div className="flex items-center justify-between flex-shrink-0 mb-3">
                   <h3 className="text-base font-semibold">Peak Hours</h3>
                   <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
@@ -351,7 +351,7 @@ export default function AnalyticsPage() {
                     </div>
                   </div>
                 )}
-                <div className="flex-1 min-h-0">
+                <div className="flex-1 min-h-[140px]">
                   {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.hourlyData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={processedData.hourlyData} barCategoryGap="15%">

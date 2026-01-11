@@ -217,59 +217,59 @@ export default function AnalyticsPage() {
         </Select>
       </div>
 
-      {/* Scrollable layout with proper card heights */}
-      <div className="flex-1 p-4 flex flex-col gap-4 overflow-auto">
-        {/* Top section: 2 rows */}
-        <div className="flex flex-col gap-4">
+      {/* Grid layout - fits viewport without scrolling */}
+      <div className="flex-1 p-4 flex flex-col gap-3 overflow-hidden">
+        {/* Chart rows - use remaining space */}
+        <div className="flex-1 grid grid-rows-2 gap-3 min-h-0">
           {/* Row 1 */}
-          <div className="flex gap-4">
-            <Card className="flex-[3] cursor-pointer hover-elevate flex flex-col overflow-hidden min-h-[320px]" onClick={() => setExpandedCard({ title: 'Call Volume', type: 'calls' })} data-testid="card-metric-calls">
-              <CardContent className="p-5 flex-1 flex flex-col">
-                <div className="flex items-center justify-between flex-shrink-0 mb-3">
+          <div className="flex gap-3 min-h-0">
+            <Card className="flex-[3] cursor-pointer hover-elevate flex flex-col overflow-hidden" onClick={() => setExpandedCard({ title: 'Call Volume', type: 'calls' })} data-testid="card-metric-calls">
+              <CardContent className="p-4 flex-1 flex flex-col">
+                <div className="flex items-center justify-between flex-shrink-0 mb-2">
                   <h3 className="text-base font-semibold">Call Activity</h3>
                   <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
                 </div>
-                <div className="flex items-center gap-8 mb-4 flex-shrink-0">
-                  {isLoading ? <><Skeleton className="h-14 w-24" /><Skeleton className="h-14 w-24" /><Skeleton className="h-14 w-24" /><Skeleton className="h-14 w-28" /></> : (
+                <div className="flex items-center gap-6 mb-2 flex-shrink-0">
+                  {isLoading ? <><Skeleton className="h-10 w-20" /><Skeleton className="h-10 w-20" /><Skeleton className="h-10 w-20" /><Skeleton className="h-10 w-24" /></> : (
                     <>
                       <div>
-                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Calls</p>
-                        <p className="text-3xl font-bold text-blue-600" data-testid="text-total-calls">{formatNumber(overview?.totalCalls ?? 0)}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Calls</p>
+                        <p className="text-2xl font-bold text-blue-600" data-testid="text-total-calls">{formatNumber(overview?.totalCalls ?? 0)}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Orders</p>
-                        <p className="text-3xl font-bold text-teal-600" data-testid="text-total-orders">{formatNumber(overview?.totalOrders ?? 0)}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Orders</p>
+                        <p className="text-2xl font-bold text-teal-600" data-testid="text-total-orders">{formatNumber(overview?.totalOrders ?? 0)}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Reservations</p>
-                        <p className="text-3xl font-bold text-purple-600" data-testid="text-reservations">{overview?.totalReservations ?? 0}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Reservations</p>
+                        <p className="text-2xl font-bold text-purple-600" data-testid="text-reservations">{overview?.totalReservations ?? 0}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Avg Duration</p>
-                        <p className="text-3xl font-bold text-amber-600" data-testid="text-avg-duration">{formatDuration(overview?.avgDuration ?? 0)}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Avg Duration</p>
+                        <p className="text-2xl font-bold text-amber-600" data-testid="text-avg-duration">{formatDuration(overview?.avgDuration ?? 0)}</p>
                       </div>
                     </>
                   )}
                 </div>
-                <div className="flex items-center gap-4 mb-3 flex-shrink-0">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: CHART_COLORS.accent }} />
-                    <span className="text-xs text-muted-foreground">Orders</span>
+                <div className="flex items-center gap-3 mb-2 flex-shrink-0">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: CHART_COLORS.accent }} />
+                    <span className="text-[10px] text-muted-foreground">Orders</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: CHART_COLORS.purple }} />
-                    <span className="text-xs text-muted-foreground">Reservations</span>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: CHART_COLORS.purple }} />
+                    <span className="text-[10px] text-muted-foreground">Reservations</span>
                   </div>
                 </div>
-                <div className="flex-1 min-h-[140px]">
+                <div className="flex-1 min-h-0">
                   {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.callVolumeData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={processedData.callVolumeData} barGap={4} barCategoryGap="15%">
                         <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} interval="preserveStartEnd" />
                         <YAxis axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} width={30} />
                         <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
-                        <Bar dataKey="orders" fill={CHART_COLORS.accent} radius={[4, 4, 0, 0]} barSize={24} />
-                        <Bar dataKey="reservations" fill={CHART_COLORS.purple} radius={[4, 4, 0, 0]} barSize={24} />
+                        <Bar dataKey="orders" fill={CHART_COLORS.accent} radius={[4, 4, 0, 0]} barSize={20} />
+                        <Bar dataKey="reservations" fill={CHART_COLORS.purple} radius={[4, 4, 0, 0]} barSize={20} />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No data available</div>}
@@ -277,23 +277,23 @@ export default function AnalyticsPage() {
               </CardContent>
             </Card>
 
-            <Card className="flex-1 cursor-pointer hover-elevate flex flex-col overflow-hidden min-h-[320px] bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20" onClick={() => setExpandedCard({ title: 'Revenue', type: 'revenue' })} data-testid="card-metric-revenue">
-              <CardContent className="p-5 flex-1 flex flex-col">
-                <div className="flex items-center justify-between flex-shrink-0 mb-3">
+            <Card className="flex-1 cursor-pointer hover-elevate flex flex-col overflow-hidden bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20" onClick={() => setExpandedCard({ title: 'Revenue', type: 'revenue' })} data-testid="card-metric-revenue">
+              <CardContent className="p-4 flex-1 flex flex-col">
+                <div className="flex items-center justify-between flex-shrink-0 mb-2">
                   <h3 className="text-base font-semibold">Revenue</h3>
                   <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
                 </div>
-                {isLoading ? <Skeleton className="h-10 w-24 mb-3" /> : (
-                  <div className="mb-4 flex-shrink-0">
-                    <p className="text-3xl font-bold text-green-700 dark:text-green-400" data-testid="text-revenue">${(processedData.totalRevenue || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+                {isLoading ? <Skeleton className="h-8 w-20 mb-2" /> : (
+                  <div className="mb-2 flex-shrink-0">
+                    <p className="text-2xl font-bold text-green-700 dark:text-green-400" data-testid="text-revenue">${(processedData.totalRevenue || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      {comparisonLoading ? <Skeleton className="h-5 w-16" /> : (
-                        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${previousPeriodChange.revenue >= 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                      {comparisonLoading ? <Skeleton className="h-4 w-14" /> : (
+                        <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${previousPeriodChange.revenue >= 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
                           {previousPeriodChange.revenue >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                           <span>{Math.abs(previousPeriodChange.revenue).toFixed(0)}%</span>
                         </div>
                       )}
-                      {comparisonLoading ? <Skeleton className="h-4 w-12" /> : <span className="text-xs text-muted-foreground">vs last period</span>}
+                      {comparisonLoading ? <Skeleton className="h-3 w-10" /> : <span className="text-xs text-muted-foreground">vs last</span>}
                     </div>
                   </div>
                 )}
@@ -315,14 +315,14 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Row 2 */}
-          <div className="flex gap-4">
-            <Card className="flex-[2] cursor-pointer hover-elevate flex flex-col overflow-hidden min-h-[280px]" onClick={() => setExpandedCard({ title: 'Orders', type: 'orders' })} data-testid="card-metric-orders-trend">
-              <CardContent className="p-5 flex-1 flex flex-col">
-                <div className="flex items-center justify-between flex-shrink-0 mb-3">
+          <div className="flex gap-3 min-h-0">
+            <Card className="flex-[2] cursor-pointer hover-elevate flex flex-col overflow-hidden" onClick={() => setExpandedCard({ title: 'Orders', type: 'orders' })} data-testid="card-metric-orders-trend">
+              <CardContent className="p-4 flex-1 flex flex-col">
+                <div className="flex items-center justify-between flex-shrink-0 mb-2">
                   <h3 className="text-base font-semibold">Revenue Trend</h3>
                   <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
                 </div>
-                <div className="flex-1 min-h-[160px]">
+                <div className="flex-1 min-h-0">
                   {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.revenueData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={processedData.revenueData}>
@@ -338,20 +338,20 @@ export default function AnalyticsPage() {
               </CardContent>
             </Card>
 
-            <Card className="flex-1 cursor-pointer hover-elevate flex flex-col overflow-hidden min-h-[280px]" onClick={() => setExpandedCard({ title: 'Peak Hours', type: 'peakhours' })} data-testid="card-metric-duration">
-              <CardContent className="p-5 flex-1 flex flex-col">
-                <div className="flex items-center justify-between flex-shrink-0 mb-3">
+            <Card className="flex-1 cursor-pointer hover-elevate flex flex-col overflow-hidden" onClick={() => setExpandedCard({ title: 'Peak Hours', type: 'peakhours' })} data-testid="card-metric-duration">
+              <CardContent className="p-4 flex-1 flex flex-col">
+                <div className="flex items-center justify-between flex-shrink-0 mb-2">
                   <h3 className="text-base font-semibold">Peak Hours</h3>
                   <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
                 </div>
-                {isLoading ? <Skeleton className="h-6 w-20 mb-3" /> : (
-                  <div className="mb-3 flex-shrink-0">
-                    <div className="inline-block px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-md text-sm font-medium">
+                {isLoading ? <Skeleton className="h-5 w-20 mb-2" /> : (
+                  <div className="mb-2 flex-shrink-0">
+                    <div className="inline-block px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-md text-xs font-medium">
                       Peak Day: {processedData.peakDay}
                     </div>
                   </div>
                 )}
-                <div className="flex-1 min-h-[140px]">
+                <div className="flex-1 min-h-0">
                   {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.hourlyData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={processedData.hourlyData} barCategoryGap="15%">
@@ -368,10 +368,10 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* Bottom summary row - auto height based on content */}
-        <div className="flex gap-4 flex-shrink-0">
+        {/* Bottom summary row - fixed height */}
+        <div className="flex gap-3 flex-shrink-0 h-[72px]">
           <Card className="flex-[7] cursor-pointer hover-elevate overflow-hidden" onClick={() => setExpandedCard({ title: 'Transactions', type: 'orders' })} data-testid="card-metric-orders">
-            <CardContent className="px-5 py-4 flex items-center gap-6">
+            <CardContent className="px-4 py-3 flex items-center gap-4 h-full">
               {isLoading ? <Skeleton className="h-12 w-24" /> : (
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wide">Transactions</p>
@@ -395,7 +395,7 @@ export default function AnalyticsPage() {
           </Card>
 
           <Card className="flex-[5] cursor-pointer hover-elevate overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20" onClick={() => setExpandedCard({ title: 'Insights', type: 'conversion' })} data-testid="card-metric-insights">
-            <CardContent className="px-5 py-4 flex items-center justify-between">
+            <CardContent className="px-4 py-3 flex items-center justify-between h-full">
               <div className="flex items-center gap-2">
                 <Zap className="h-5 w-5 text-blue-600" />
                 <span className="text-base font-semibold">Insights</span>

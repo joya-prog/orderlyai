@@ -71,9 +71,9 @@ function MiniSparkline({ data, color, height = 16 }: { data: number[]; color: st
 function ProgressBar({ value, max, color, label }: { value: number; max: number; color: string; label: string }) {
   const percentage = Math.min((value / max) * 100, 100);
   return (
-    <div className="space-y-0.5">
-      <div className="flex justify-between text-[8px]"><span className="text-muted-foreground">{label}</span><span className="font-medium">{formatNumber(value)}</span></div>
-      <div className="h-0.5 bg-muted rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${percentage}%`, backgroundColor: color }} /></div>
+    <div className="space-y-1">
+      <div className="flex justify-between text-sm"><span className="text-muted-foreground">{label}</span><span className="font-medium">{formatNumber(value)}</span></div>
+      <div className="h-2 bg-muted rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${percentage}%`, backgroundColor: color }} /></div>
     </div>
   );
 }
@@ -183,10 +183,10 @@ export default function AnalyticsPage() {
         return (<ResponsiveContainer width="100%" height={400}><AreaChart data={processedData.revenueData}><defs><linearGradient id="erg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CHART_COLORS.green} stopOpacity={0.4}/><stop offset="100%" stopColor={CHART_COLORS.green} stopOpacity={0.05}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} /><XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} /><YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `$${v}`} /><Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} formatter={(value: number) => [`$${value.toFixed(2)}`, 'Revenue']} /><Area type="monotone" dataKey="revenue" stroke={CHART_COLORS.green} strokeWidth={2} fill="url(#erg)" /></AreaChart></ResponsiveContainer>);
       case 'orders':
         if (!hasData || processedData.callVolumeData.length === 0) return noDataFallback;
-        return (<ResponsiveContainer width="100%" height={400}><BarChart data={processedData.callVolumeData}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} /><XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} /><YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} /><Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} /><Bar dataKey="orders" fill={CHART_COLORS.accent} radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>);
+        return (<ResponsiveContainer width="100%" height={400}><BarChart data={processedData.callVolumeData} barCategoryGap="15%"><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} /><XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} /><YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} /><Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} /><Bar dataKey="orders" fill={CHART_COLORS.accent} radius={[4, 4, 0, 0]} barSize={28} /></BarChart></ResponsiveContainer>);
       case 'peakhours':
         if (!hasData || processedData.hourlyData.length === 0) return noDataFallback;
-        return (<ResponsiveContainer width="100%" height={400}><BarChart data={processedData.hourlyData}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} /><XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" fontSize={10} /><YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} /><Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} /><Bar dataKey="count" fill={CHART_COLORS.amber} radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>);
+        return (<ResponsiveContainer width="100%" height={400}><BarChart data={processedData.hourlyData} barCategoryGap="10%"><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} /><XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" fontSize={11} /><YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} /><Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} /><Bar dataKey="count" fill={CHART_COLORS.amber} radius={[4, 4, 0, 0]} barSize={22} /></BarChart></ResponsiveContainer>);
       case 'conversion':
         if (!hasData || processedData.eventTypeData.length === 0) return noDataFallback;
         return (<ResponsiveContainer width="100%" height={400}><PieChart><Pie data={processedData.eventTypeData} cx="50%" cy="50%" innerRadius={80} outerRadius={140} paddingAngle={3} dataKey="value">{processedData.eventTypeData.map((_, i) => (<Cell key={`c-${i}`} fill={PIE_COLORS[i % PIE_COLORS.length]} />))}</Pie><Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} /></PieChart></ResponsiveContainer>);
@@ -197,11 +197,11 @@ export default function AnalyticsPage() {
   return (
     <div className="h-[calc(100vh-64px)] overflow-hidden flex flex-col" data-testid="page-analytics">
       {/* Header */}
-      <div className="h-8 px-2 flex items-center justify-between flex-shrink-0 border-b">
-        <h1 className="text-xs font-bold" data-testid="text-page-title">Overview</h1>
+      <div className="h-14 px-5 flex items-center justify-between flex-shrink-0 border-b">
+        <h1 className="text-xl font-bold" data-testid="text-page-title">Analytics Overview</h1>
         <Select value={datePreset} onValueChange={(v: DateRangePreset) => setDatePreset(v)}>
-          <SelectTrigger className="w-24 h-5 text-[9px]" data-testid="select-date-range">
-            <div className="flex items-center gap-1"><CalendarDays className="h-2 w-2" /><SelectValue /></div>
+          <SelectTrigger className="w-32 h-9 text-sm" data-testid="select-date-range">
+            <div className="flex items-center gap-2"><CalendarDays className="h-4 w-4" /><SelectValue /></div>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="7days">7 days</SelectItem>
@@ -214,106 +214,140 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Flex-based layout - no fixed heights, uses flex-grow */}
-      <div className="flex-1 p-1 flex flex-col gap-1 min-h-0 overflow-hidden">
+      <div className="flex-1 p-4 flex flex-col gap-4 min-h-0 overflow-hidden">
         {/* Top section: 2 equal rows */}
-        <div className="flex-1 flex flex-col gap-1 min-h-0">
+        <div className="flex-1 flex flex-col gap-4 min-h-0">
           {/* Row 1 */}
-          <div className="flex-1 flex gap-1 min-h-0">
+          <div className="flex-1 flex gap-4 min-h-0">
             <Card className="flex-[2] cursor-pointer hover-elevate flex flex-col overflow-hidden" onClick={() => setExpandedCard({ title: 'Call Volume', type: 'calls' })} data-testid="card-metric-calls">
-              <CardContent className="p-1 flex-1 flex flex-col min-h-0">
-                <div className="flex items-center justify-between flex-shrink-0"><h3 className="text-[9px] font-semibold">Call Activity</h3><MoreHorizontal className="h-2 w-2 text-muted-foreground" /></div>
-                <div className="flex items-center gap-2 my-0.5 flex-shrink-0">
-                  {isLoading ? <><Skeleton className="h-4 w-10" /><Skeleton className="h-4 w-10" /><Skeleton className="h-4 w-10" /><Skeleton className="h-4 w-10" /></> : (
-                    <><div><p className="text-[7px] text-muted-foreground">Calls</p><p className="text-xs font-bold text-blue-600" data-testid="text-total-calls">{formatNumber(overview?.totalCalls ?? 0)}</p></div>
-                    <div><p className="text-[7px] text-muted-foreground">Orders</p><p className="text-xs font-bold text-teal-600" data-testid="text-total-orders">{formatNumber(overview?.totalOrders ?? 0)}</p></div>
-                    <div><p className="text-[7px] text-muted-foreground">Reserv.</p><p className="text-xs font-bold text-purple-600" data-testid="text-reservations">{overview?.totalReservations ?? 0}</p></div>
-                    <div><p className="text-[7px] text-muted-foreground">Avg Dur.</p><p className="text-xs font-bold text-amber-600" data-testid="text-avg-duration">{formatDuration(overview?.avgDuration ?? 0)}</p></div></>
+              <CardContent className="p-5 flex-1 flex flex-col min-h-0">
+                <div className="flex items-center justify-between flex-shrink-0 mb-3">
+                  <h3 className="text-base font-semibold">Call Activity</h3>
+                  <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="flex items-center gap-6 mb-4 flex-shrink-0">
+                  {isLoading ? <><Skeleton className="h-12 w-20" /><Skeleton className="h-12 w-20" /><Skeleton className="h-12 w-20" /><Skeleton className="h-12 w-24" /></> : (
+                    <>
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Calls</p>
+                        <p className="text-2xl font-bold text-blue-600" data-testid="text-total-calls">{formatNumber(overview?.totalCalls ?? 0)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Orders</p>
+                        <p className="text-2xl font-bold text-teal-600" data-testid="text-total-orders">{formatNumber(overview?.totalOrders ?? 0)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Reservations</p>
+                        <p className="text-2xl font-bold text-purple-600" data-testid="text-reservations">{overview?.totalReservations ?? 0}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Avg Duration</p>
+                        <p className="text-2xl font-bold text-amber-600" data-testid="text-avg-duration">{formatDuration(overview?.avgDuration ?? 0)}</p>
+                      </div>
+                    </>
                   )}
                 </div>
                 <div className="flex-1 min-h-0">
                   {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.callVolumeData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={processedData.callVolumeData} barCategoryGap="10%">
-                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 6 }} interval="preserveStartEnd" />
-                        <YAxis hide />
-                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '4px', fontSize: '8px' }} />
-                        <Bar dataKey="calls" fill={CHART_COLORS.blue} radius={[2, 2, 0, 0]} /><Bar dataKey="orders" fill={CHART_COLORS.accent} radius={[2, 2, 0, 0]} opacity={0.7} />
+                      <BarChart data={processedData.callVolumeData} barGap={4} barCategoryGap="15%">
+                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} interval="preserveStartEnd" />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} width={30} />
+                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
+                        <Bar dataKey="calls" fill={CHART_COLORS.blue} radius={[4, 4, 0, 0]} barSize={20} />
+                        <Bar dataKey="orders" fill={CHART_COLORS.accent} radius={[4, 4, 0, 0]} barSize={20} />
                       </BarChart>
                     </ResponsiveContainer>
-                  ) : <div className="h-full flex items-center justify-center text-muted-foreground text-[9px]">No data</div>}
+                  ) : <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No data available</div>}
                 </div>
               </CardContent>
             </Card>
 
             <Card className="flex-1 cursor-pointer hover-elevate flex flex-col overflow-hidden bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20" onClick={() => setExpandedCard({ title: 'Revenue', type: 'revenue' })} data-testid="card-metric-revenue">
-              <CardContent className="p-1 flex-1 flex flex-col min-h-0">
-                <div className="flex items-center justify-between flex-shrink-0"><h3 className="text-[9px] font-semibold">Revenue</h3><MoreHorizontal className="h-2 w-2 text-muted-foreground" /></div>
-                {isLoading ? <Skeleton className="h-4 w-12 my-0.5" /> : (
-                  <div className="my-0.5 flex-shrink-0">
-                    <p className="text-sm font-bold text-green-700 dark:text-green-400" data-testid="text-revenue">${(processedData.totalRevenue || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
-                    <div className="flex items-center gap-0.5">
-                      {comparisonLoading ? <Skeleton className="h-3 w-8" /> : (
-                        <div className={`inline-flex items-center gap-0.5 px-0.5 py-0.5 rounded text-[7px] font-medium ${previousPeriodChange.revenue >= 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
-                          {previousPeriodChange.revenue >= 0 ? <TrendingUp className="h-2 w-2" /> : <TrendingDown className="h-2 w-2" />}
+              <CardContent className="p-5 flex-1 flex flex-col min-h-0">
+                <div className="flex items-center justify-between flex-shrink-0 mb-3">
+                  <h3 className="text-base font-semibold">Revenue</h3>
+                  <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                </div>
+                {isLoading ? <Skeleton className="h-10 w-24 mb-3" /> : (
+                  <div className="mb-4 flex-shrink-0">
+                    <p className="text-3xl font-bold text-green-700 dark:text-green-400" data-testid="text-revenue">${(processedData.totalRevenue || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      {comparisonLoading ? <Skeleton className="h-5 w-16" /> : (
+                        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${previousPeriodChange.revenue >= 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                          {previousPeriodChange.revenue >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                           <span>{Math.abs(previousPeriodChange.revenue).toFixed(0)}%</span>
                         </div>
                       )}
-                      {comparisonLoading ? <Skeleton className="h-2 w-6" /> : <span className="text-[7px] text-muted-foreground">vs last</span>}
+                      {comparisonLoading ? <Skeleton className="h-4 w-12" /> : <span className="text-xs text-muted-foreground">vs last period</span>}
                     </div>
                   </div>
                 )}
-                <div className="space-y-0.5 flex-1">
-                  {isLoading ? <><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-full" /></> : (
-                    <><ProgressBar value={overview?.totalOrders ?? 0} max={Math.max(overview?.totalCalls ?? 1, 1)} color={CHART_COLORS.green} label="Orders" />
-                    <ProgressBar value={overview?.totalReservations ?? 0} max={Math.max(overview?.totalCalls ?? 1, 1)} color={CHART_COLORS.purple} label="Reserv." />
-                    <ProgressBar value={processedData.conversionRate} max={100} color={CHART_COLORS.amber} label="Conv. %" /></>
-                  )}
-                </div>
-                <div className="mt-auto pt-0.5 flex-shrink-0">
-                  {isLoading ? <Skeleton className="h-4 w-full" /> : <><p className="text-[7px] text-muted-foreground">Trend</p><MiniSparkline data={processedData.sparklineData.revenue} color={CHART_COLORS.green} height={14} /></>}
+                <div className="flex-1 min-h-0">
+                  {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.revenueData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={processedData.revenueData}>
+                        <defs><linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CHART_COLORS.green} stopOpacity={0.4}/><stop offset="100%" stopColor={CHART_COLORS.green} stopOpacity={0.05}/></linearGradient></defs>
+                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} interval="preserveStartEnd" />
+                        <YAxis hide />
+                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} formatter={(v: number) => [`$${v.toFixed(0)}`, 'Revenue']} />
+                        <Area type="monotone" dataKey="revenue" stroke={CHART_COLORS.green} strokeWidth={2} fill="url(#revGrad)" dot={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  ) : <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No data available</div>}
                 </div>
               </CardContent>
             </Card>
           </div>
 
           {/* Row 2 */}
-          <div className="flex-1 flex gap-1 min-h-0">
+          <div className="flex-1 flex gap-4 min-h-0">
             <Card className="flex-[2] cursor-pointer hover-elevate flex flex-col overflow-hidden" onClick={() => setExpandedCard({ title: 'Orders', type: 'orders' })} data-testid="card-metric-orders-trend">
-              <CardContent className="p-1 flex-1 flex flex-col min-h-0">
-                <div className="flex items-center justify-between flex-shrink-0"><h3 className="text-[9px] font-semibold">Revenue Trend</h3><MoreHorizontal className="h-2 w-2 text-muted-foreground" /></div>
+              <CardContent className="p-5 flex-1 flex flex-col min-h-0">
+                <div className="flex items-center justify-between flex-shrink-0 mb-3">
+                  <h3 className="text-base font-semibold">Revenue Trend</h3>
+                  <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                </div>
                 <div className="flex-1 min-h-0">
                   {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.revenueData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={processedData.revenueData}>
                         <defs><linearGradient id="rag" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CHART_COLORS.green} stopOpacity={0.4}/><stop offset="100%" stopColor={CHART_COLORS.green} stopOpacity={0.05}/></linearGradient></defs>
-                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 6 }} interval="preserveStartEnd" />
-                        <YAxis hide />
-                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '4px', fontSize: '8px' }} formatter={(v: number) => [`$${v.toFixed(0)}`, 'Revenue']} />
-                        <Area type="monotone" dataKey="revenue" stroke={CHART_COLORS.green} strokeWidth={1.5} fill="url(#rag)" dot={false} />
+                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} interval="preserveStartEnd" />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} width={40} tickFormatter={(v) => `$${v}`} />
+                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} formatter={(v: number) => [`$${v.toFixed(0)}`, 'Revenue']} />
+                        <Area type="monotone" dataKey="revenue" stroke={CHART_COLORS.green} strokeWidth={2} fill="url(#rag)" dot={false} />
                       </AreaChart>
                     </ResponsiveContainer>
-                  ) : <div className="h-full flex items-center justify-center text-muted-foreground text-[9px]">No data</div>}
+                  ) : <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No data available</div>}
                 </div>
               </CardContent>
             </Card>
 
             <Card className="flex-1 cursor-pointer hover-elevate flex flex-col overflow-hidden" onClick={() => setExpandedCard({ title: 'Peak Hours', type: 'peakhours' })} data-testid="card-metric-duration">
-              <CardContent className="p-1 flex-1 flex flex-col min-h-0">
-                <div className="flex items-center justify-between flex-shrink-0"><h3 className="text-[9px] font-semibold">Peak Hours</h3><MoreHorizontal className="h-2 w-2 text-muted-foreground" /></div>
-                {isLoading ? <Skeleton className="h-3 w-8 my-0.5" /> : (
-                  <div className="my-0.5 flex-shrink-0"><div className="inline-block px-0.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded text-[7px] font-medium">Peak: {processedData.peakDay}</div></div>
+              <CardContent className="p-5 flex-1 flex flex-col min-h-0">
+                <div className="flex items-center justify-between flex-shrink-0 mb-3">
+                  <h3 className="text-base font-semibold">Peak Hours</h3>
+                  <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                </div>
+                {isLoading ? <Skeleton className="h-6 w-20 mb-3" /> : (
+                  <div className="mb-3 flex-shrink-0">
+                    <div className="inline-block px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-md text-sm font-medium">
+                      Peak Day: {processedData.peakDay}
+                    </div>
+                  </div>
                 )}
                 <div className="flex-1 min-h-0">
                   {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.hourlyData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={processedData.hourlyData}>
-                        <defs><linearGradient id="pg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CHART_COLORS.pink} stopOpacity={0.4}/><stop offset="100%" stopColor={CHART_COLORS.pink} stopOpacity={0.05}/></linearGradient></defs>
-                        <XAxis dataKey="hour" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 5 }} interval={5} />
-                        <YAxis hide />
-                        <Area type="monotone" dataKey="count" stroke={CHART_COLORS.pink} strokeWidth={1} fill="url(#pg)" dot={false} />
-                      </AreaChart>
+                      <BarChart data={processedData.hourlyData} barCategoryGap="15%">
+                        <XAxis dataKey="hour" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} interval={3} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} width={25} />
+                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
+                        <Bar dataKey="count" fill={CHART_COLORS.amber} radius={[4, 4, 0, 0]} barSize={16} />
+                      </BarChart>
                     </ResponsiveContainer>
-                  ) : <div className="h-full flex items-center justify-center text-muted-foreground text-[9px]">No data</div>}
+                  ) : <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No data available</div>}
                 </div>
               </CardContent>
             </Card>
@@ -321,29 +355,48 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Bottom summary row - auto height based on content */}
-        <div className="flex gap-1 flex-shrink-0">
+        <div className="flex gap-4 flex-shrink-0">
           <Card className="flex-[7] cursor-pointer hover-elevate overflow-hidden" onClick={() => setExpandedCard({ title: 'Transactions', type: 'orders' })} data-testid="card-metric-orders">
-            <CardContent className="px-2 py-1.5 flex items-center gap-3">
-              {isLoading ? <Skeleton className="h-5 w-12" /> : (
-                <div><p className="text-[7px] text-muted-foreground">Transactions</p><p className="text-sm font-bold">{formatNumber((overview?.totalOrders ?? 0) + (overview?.totalReservations ?? 0))}</p></div>
+            <CardContent className="px-5 py-4 flex items-center gap-6">
+              {isLoading ? <Skeleton className="h-12 w-24" /> : (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Transactions</p>
+                  <p className="text-2xl font-bold">{formatNumber((overview?.totalOrders ?? 0) + (overview?.totalReservations ?? 0))}</p>
+                </div>
               )}
-              {isLoading || comparisonLoading ? <Skeleton className="h-4 w-10" /> : (
-                <div className="text-right"><p className="text-[7px] text-muted-foreground">vs last</p><p className={`text-[9px] font-bold ${previousPeriodChange.orders >= 0 ? 'text-green-600' : 'text-red-600'}`}>{previousPeriodChange.orders >= 0 ? '+' : ''}{previousPeriodChange.orders.toFixed(0)}%</p></div>
+              {isLoading || comparisonLoading ? <Skeleton className="h-10 w-16" /> : (
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">vs last</p>
+                  <p className={`text-lg font-bold ${previousPeriodChange.orders >= 0 ? 'text-green-600' : 'text-red-600'}`}>{previousPeriodChange.orders >= 0 ? '+' : ''}{previousPeriodChange.orders.toFixed(0)}%</p>
+                </div>
               )}
-              {isLoading ? <Skeleton className="h-3 w-12" /> : (
-                <div className="px-1 py-0.5 bg-muted rounded text-[7px] text-muted-foreground flex items-center gap-0.5"><Target className="h-2 w-2" /><span>Peak:</span><span className="font-medium text-foreground">{processedData.peakDay}</span></div>
+              {isLoading ? <Skeleton className="h-8 w-24" /> : (
+                <div className="px-3 py-2 bg-muted rounded-md text-sm text-muted-foreground flex items-center gap-2">
+                  <Target className="h-4 w-4" />
+                  <span>Peak:</span>
+                  <span className="font-semibold text-foreground">{processedData.peakDay}</span>
+                </div>
               )}
             </CardContent>
           </Card>
 
           <Card className="flex-[5] cursor-pointer hover-elevate overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20" onClick={() => setExpandedCard({ title: 'Insights', type: 'conversion' })} data-testid="card-metric-insights">
-            <CardContent className="px-2 py-1.5 flex items-center justify-between">
-              <div className="flex items-center gap-1"><Zap className="h-3 w-3 text-blue-600" /><span className="text-[9px] font-semibold">Insights</span></div>
-              {isLoading ? <Skeleton className="h-5 w-10" /> : (
-                <div className="text-center"><p className="text-base font-bold text-blue-600">{processedData.conversionRate.toFixed(0)}%</p><p className="text-[7px] text-muted-foreground">Conv.</p></div>
+            <CardContent className="px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-blue-600" />
+                <span className="text-base font-semibold">Insights</span>
+              </div>
+              {isLoading ? <Skeleton className="h-12 w-20" /> : (
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-blue-600">{processedData.conversionRate.toFixed(0)}%</p>
+                  <p className="text-xs text-muted-foreground">Conversion</p>
+                </div>
               )}
-              {isLoading ? <Skeleton className="h-4 w-10" /> : (
-                <div className="text-right"><p className="text-[7px] text-muted-foreground">Avg Order</p><p className="text-[10px] font-bold">{formatCurrency(processedData.avgOrderValue)}</p></div>
+              {isLoading ? <Skeleton className="h-10 w-20" /> : (
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Avg Order</p>
+                  <p className="text-lg font-bold">{formatCurrency(processedData.avgOrderValue)}</p>
+                </div>
               )}
             </CardContent>
           </Card>

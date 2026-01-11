@@ -2,13 +2,13 @@
 
 ## Overview
 
-Orderly AI is a voice AI agent platform designed for restaurants and hospitality businesses. It enables users to build, customize, and deploy intelligent phone agents for reservations, orders, and customer inquiries. The platform includes a web-based dashboard for managing AI agents, configuring their behavior via knowledge bases, and testing conversations.
+Orderly AI is a voice AI agent platform for restaurants and hospitality businesses, enabling them to build, customize, and deploy intelligent phone agents for reservations, orders, and customer inquiries. It includes a web-based dashboard for agent management, knowledge base configuration, and conversation testing. The platform aims to revolutionize customer interaction in hospitality through AI-driven voice agents.
 
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
 
-**Design Aesthetic:** Warm, hospitality-focused design for restaurant operators
+Design Aesthetic: Warm, hospitality-focused design for restaurant operators
 - "Modern AI meets upscale restaurant UI"
 - Soft cream/parchment backgrounds, forest green primary, golden yellow accents
 - Pill-shaped buttons, very rounded cards (24px corners), soft warm shadows
@@ -19,197 +19,38 @@ Preferred communication style: Simple, everyday language.
 
 ### Frontend
 
-- **Framework**: React 18+ with TypeScript, using Vite.
-- **UI Component System**: shadcn/ui (New York style) built on Radix UI, following Material Design 3 principles.
-- **Styling**: Tailwind CSS with custom CSS variables for design tokens, focusing on a professional hospitality aesthetic. Custom typography includes Inter (UI) and Space Grotesk (headings). Supports light/dark themes.
-- **State Management**: TanStack Query for server state, React Hook Form with Zod for form state, and React Context for theme/sidebar.
-- **Routing**: Wouter for client-side routing.
-- **Layout**: Fixed left sidebar (280px) and a main content area with responsive design.
+The frontend uses React 18+ with TypeScript, Vite, and Tailwind CSS. It leverages shadcn/ui (New York style) based on Radix UI, adhering to Material Design 3 principles for a professional hospitality aesthetic. State management is handled by TanStack Query for server state, React Hook Form with Zod for form state, and React Context for UI themes. Wouter manages client-side routing. The layout features a fixed left sidebar and a responsive main content area.
 
 ### Backend
 
-- **Runtime**: Node.js with Express.js (TypeScript, ES modules).
-- **API Design**: RESTful API with authentication middleware, organized routes, and an abstraction layer for database operations.
-- **Session Management**: Express sessions with PostgreSQL storage.
-- **Authentication**: Native Orderly AI authentication with two options:
-  - **Email/Password**: Local authentication using Passport.js local strategy with bcrypt password hashing (12 salt rounds)
-  - **Google OAuth**: OAuth 2.0 via passport-google-oauth20 with CSRF-protected state tokens stored in session
-- **Auth Routes**:
-  - `POST /api/auth/register` - Create account with email/password
-  - `POST /api/auth/login` - Login with email/password (returns requires2FA + pendingToken if 2FA enabled)
-  - `GET /api/auth/google` - Initiate Google OAuth flow
-  - `GET /api/auth/google/callback` - Google OAuth callback with state validation (redirects to 2FA if enabled)
-  - `GET /api/auth/user` - Get current authenticated user
-  - `POST /api/auth/logout` - Logout current user
-- **2FA Routes**:
-  - `GET /api/auth/2fa/pending-token` - Retrieve pending 2FA token from session (for Google OAuth flow)
-  - `POST /api/auth/2fa/verify-login` - Complete login with TOTP code verification
-  - `POST /api/auth/2fa/verify-sms` - Complete login with SMS code verification
-  - `POST /api/auth/2fa/verify-backup` - Complete login with backup code (consumes code)
-  - `POST /api/auth/2fa/cancel` - Cancel pending 2FA session
-  - `POST /api/auth/2fa/sms/setup` - Setup SMS 2FA with phone number (sends verification code)
-  - `POST /api/auth/2fa/sms/verify` - Verify SMS setup code and enable SMS 2FA
-  - `POST /api/auth/2fa/resend-sms` - Resend SMS verification code during login
-  - `POST /api/auth/2fa/preferred-method` - Update preferred 2FA method (TOTP or SMS)
-- **2FA Methods**: Users can choose between:
-  - **Authenticator App (TOTP)**: Google Authenticator or similar apps with 6-digit codes
-  - **SMS Text Message**: Verification codes sent via Twilio to registered phone number (5-minute expiry)
-- **Auth Environment Variables**:
-  - `SESSION_SECRET` - Required for session encryption
-  - `GOOGLE_CLIENT_ID` - Optional, for Google OAuth
-  - `GOOGLE_CLIENT_SECRET` - Optional, for Google OAuth
-  - `GOOGLE_OAUTH_CALLBACK_URL` - Optional, custom callback URL for Google OAuth
+The backend is built with Node.js and Express.js (TypeScript, ES modules), featuring a RESTful API with authentication middleware and PostgreSQL storage for sessions. Authentication supports native email/password with bcrypt hashing and Google OAuth via Passport.js. A comprehensive 2FA system offers TOTP (Authenticator App) and SMS options.
 
 ### Data Storage
 
-- **Database**: PostgreSQL (Neon serverless).
-- **ORM**: Drizzle ORM with type-safe schemas.
-- **Schema**:
-    - `users`: User accounts.
-    - `sessions`: Express session storage.
-    - `agents`: AI agent configurations with a status workflow.
-    - `flowNodes`, `flowConnections`: Visual flow builder data.
-    - `knowledgeBase`: Q&A pairs for agent training.
-    - `templates`: Pre-built agent templates.
-    - `testConversations`: Conversation history for agent testing.
-    - `contacts`: CRM contacts with tags and notes.
-    - `phoneNumbers`: Twilio phone numbers with agent assignments.
-    - `integrationConfigs`: POS integration OAuth tokens (Square, Toast).
-    - `analyticsEvents`: Event tracking for calls, orders, reservations.
-- **Migrations**: Drizzle Kit.
+PostgreSQL (Neon serverless) is the primary database, managed with Drizzle ORM. The schema includes tables for users, sessions, AI agents, visual flow builder data, knowledge bases, templates, test conversations, contacts, Twilio phone numbers, POS integration configurations (Square, Toast), and analytics events. Drizzle Kit is used for migrations.
 
 ### Core Features
 
-- **Plan & Billing**: Settings page with pricing calculator, subscription management, usage tracking, invoice history, and Stripe billing portal integration.
-- **Phone Numbers Management**: Search, purchase, assign, and release Twilio phone numbers.
-- **Contacts Management**: Full CRUD, search, filter, and tag operations for contacts.
-- **POS Integrations**: OAuth 2.0 flows for Square and Toast POS, with automatic token refresh.
-- **Square API Proxy Endpoints**: Server-side endpoints that use stored OAuth tokens to access Square APIs on behalf of connected restaurants:
-    - `GET /api/square/catalog` - Fetch live menu items, categories, and modifiers
-    - `GET /api/square/locations` - Get restaurant location IDs
-    - `POST /api/square/customers/search` - Search for customers
-    - `POST /api/square/customers` - Create new customers
-    - `POST /api/square/orders` - Create orders in Square POS
-    - `POST /api/square/payment-links` - Generate payment links for "pay now" flow
-    - `POST /api/square/payments` - Process payments directly
-- **Live Menu Integration**: AI agents automatically access real-time Square menu data (items, prices, variations, modifiers) during conversations when Square is connected.
-- **Analytics Dashboard**: Real-time tracking for calls, orders, reservations, with KPI cards and Recharts visualizations.
-- **Workflow Builder**: Retell AI-style visual conversation flow builder integrated into the agent editor:
-  - **Node Categories**: Conversation (Start, Response, Collect Input, Keypad Input), Restaurant (Check Availability, Book Reservation, Take Order, Dietary Info), Logic (Condition, Wait, Loop Back), Telephony (Transfer Call, Press Digit, End Call)
-  - **Three-Panel Layout**: Left (Node Library with search and category tabs), Center (ReactFlow canvas with minimap), Right (Node Inspector for editing selected node)
-  - **Drag-and-Drop**: Nodes can be dragged from library onto canvas
-  - **Transitions**: Visual connection points with editable labels (e.g., "Available", "Unavailable" for branching)
-  - **Undo/Redo**: Full history management with toolbar controls
-  - **Auto-Save Indicator**: Shows save status with timestamp
-- **Test Center**: Integrated into the agent editor with text and voice testing modes for conversational agents.
-  - **Text Testing**: REST API-based chat interface using OpenAI GPT for generating responses
-  - **Voice Testing**: Real-time, phone-quality voice calls using Retell Web SDK (`retell-client-js-sdk`)
-    - **API Endpoint**: `POST /api/agents/:id/web-call` - Creates Retell web call with access token
-    - **Auto-Sync**: If agent not synced to Retell, automatically syncs before creating web call
-    - **Real-time Transcript**: Live transcript display during calls with user/agent conversation
-    - **Visual Feedback**: UI shows "Listening..." (green) and "Agent Speaking..." (blue) states
-    - **Graceful Degradation**: Shows informational banner if Retell not configured, with retry option
-- **Workflow Executor**: State machine-based conversation flow execution for agent testing:
-  - **Architecture**: `server/workflowExecutor.ts` loads workflow nodes/connections and tracks current node state
-  - **Transition Evaluation**: Uses GPT-4o-mini to classify which transition branch to take based on user input matching transition labels/conditions
-  - **Text Tests**: Client tracks `currentNodeId` and sends it with each test request for stateful REST API approach
-  - **Greeting Resolution**: Workflow greeting node → agent.greetingMessage → default fallback
-  - **Fallback Behavior**: Falls back to free-form AI when no workflow exists or for off-path user inputs
-- **Integrations Page**: Displays available and upcoming integrations (Square, Toast, Twilio, Resy, Tock, Yelp).
+- **Billing**: Manages subscriptions, usage tracking, and invoice history via Stripe.
+- **Phone Numbers**: Allows searching, purchasing, assigning, and releasing Twilio numbers.
+- **Contacts Management**: Provides full CRUD operations, search, filter, and tagging for customer contacts.
+- **POS Integrations**: Supports OAuth 2.0 flows for Square and Toast POS, including server-side proxy endpoints for accessing live menu data, customer management, order creation, and payment processing.
+- **Analytics Dashboard**: Offers real-time tracking of calls, orders, and reservations with interactive cards, detailed charts (Recharts), and date range filtering.
+- **Workflow Builder**: A visual, Retell AI-style conversation flow builder with a node library, ReactFlow canvas, and node inspector for defining agent behavior. It supports drag-and-drop node placement and visual transitions.
+- **Test Center**: Integrated testing for agents with text and real-time voice modes using the Retell Web SDK, displaying live transcripts and agent states.
+- **Workflow Executor**: A state machine-based system that uses GPT-4o-mini for evaluating conversation flow transitions during agent execution and testing.
 
 ### Retell AI White-Label Integration
 
-Orderly AI uses Retell AI as a white-label voice engine, providing a branded Orderly AI interface while Retell handles the underlying voice AI infrastructure.
-
-**Architecture:**
-- **Multi-tenant Setup**: All Orderly users' agents are created under one Retell account, isolated by user ID tags
-- **Sync Layer**: Agents, LLMs, and voice configurations sync bidirectionally between Orderly and Retell
-- **Call Routing**: Calls flow directly through Retell (Caller → Twilio → Retell AI) for optimal latency
-
-**Voice Providers (via Retell):**
-- ElevenLabs (Premium quality, most expressive)
-- OpenAI TTS (Fast, reliable)
-- Cartesia (Ultra-low latency)
-- Deepgram (Optimized for speed)
-- PlayHT (Voice cloning capabilities)
-
-**LLM Options:**
-- GPT-4o (Premium, most capable)
-- GPT-4o Mini (Recommended, balanced cost/performance)
-- Claude 3.5 Sonnet (Premium, excellent at complex tasks)
-- Claude 3 Haiku (Fast, cost-effective)
-
-**Agent Configuration (synced to Retell):**
-- Voice settings: provider, voice ID, speed, temperature, volume
-- Speech settings: responsiveness, interruption sensitivity
-- Backchannel: enable/disable, frequency, custom words
-- Ambient sound: coffee-shop, office, outdoor environments
-- Call management: begin delay, inactivity timeout, max duration
-- Reminders: trigger time, max count, custom message
-- Voicemail detection and message
-- Warm transfer to human operators
-
-**Retell-Specific Database Fields (in `agents` table):**
-- `retellAgentId`: Retell's agent ID for sync
-- `retellLlmId`: Retell's LLM configuration ID
-- `voiceModel`: ElevenLabs model (eleven_turbo_v2, etc.)
-- `voiceTemperature`: Voice expressiveness
-- `responsiveness`: Response timing
-- `enableBackchannel`, `backchannelFrequency`, `backchannelWords`
-- `ambientSound`, `ambientSoundVolume`
-- `beginMessageDelayMs`, `maxCallDurationMs`, `inactivityTimeoutMs`
-- `reminderTriggerMs`, `reminderMaxCount`, `reminderMessage`
-- `voicemailDetection`, `voicemailMessage`
-- `warmTransferEnabled`, `warmTransferNumber`, `warmTransferMessage`
-- `boostedKeywords`, `pronunciationDictionary`
-- `fallbackVoiceId`, `endCallPhrases`
-
-**API Module (`server/retell.ts`):**
-- `createRetellLLM()` / `updateRetellLLM()` / `deleteRetellLLM()`
-- `createRetellAgent()` / `updateRetellAgent()` / `deleteRetellAgent()`
-- `getRetellCallLogs()` / `getRetellCallDetails()`
-- `listRetellPhoneNumbers()` / `importRetellPhoneNumber()`
-- `registerWebCallAgent()` for browser-based testing
-
-**Environment Variables:**
-- `RETELL_API_KEY`: Required for Retell integration
-
-### Legacy Native Voice System (Deprecated)
-
-The native voice calling system remains available as a fallback but is superseded by the Retell integration:
-
-**Original Architecture:**
-- **Twilio WebSocket Streaming**: Incoming calls routed via Twilio's `<Stream>` TwiML to `/voice-stream`
-- **Speech-to-Text**: OpenAI Whisper transcribes caller audio
-- **Conversation AI**: GPT generates responses using knowledge base and flow logic
-- **Text-to-Speech**: OpenAI TTS or ElevenLabs
-- **Audio Format Conversion**: mulaw ↔ linear16 PCM for Twilio
-
-**Legacy API Endpoints:**
-- `POST /api/voice/incoming` - Twilio webhook for incoming calls
-- `GET /api/voice/calls/active` - List active calls
-- `WebSocket /voice-stream` - Twilio Media Streams connection
-
-### Billing Infrastructure
-
-- **Stripe Integration**: Uses `stripe-replit-sync` for automatic webhook management and schema sync.
-- **Twilio Webhooks**: Secure call status tracking with X-Twilio-Signature validation (mandatory in production).
-- **Metered Billing**: Call minutes automatically reported to Stripe metered billing after call completion.
-- **Database Tables**:
-    - `callLogs`: Individual call records with duration tracking and billing status.
-    - `usageLedger`: Aggregated usage records per billing period.
-    - `invoices`: Synced invoice data from Stripe.
-- **Security**: 
-    - Twilio webhook signature validation (hard-fail in production).
-    - Plan type whitelist validation for checkout sessions.
-    - Tenant-scoped storage queries for billing data isolation.
+Orderly AI integrates Retell AI as a white-label voice engine for its core voice AI infrastructure. It operates in a multi-tenant setup, syncing agent, LLM, and voice configurations bidirectionally. Call routing occurs directly through Retell for optimal latency. The platform supports various voice providers (ElevenLabs, OpenAI TTS, Cartesia, Deepgram, PlayHT) and LLMs (GPT-4o, GPT-4o Mini, Claude 3.5 Sonnet, Claude 3 Haiku). Agent configurations, including voice, speech, backchannel, ambient sound, and call management settings, are synced to Retell.
 
 ## External Dependencies
 
-- **Authentication Service**: Replit OIDC provider.
-- **AI Service**: OpenAI API (GPT-5, Whisper, TTS) for conversational responses, speech-to-text, and text-to-speech.
-- **Telephony Service**: Twilio API for phone number management and call routing.
+- **Authentication Service**: Replit OIDC provider (for development).
+- **AI Service**: OpenAI API (GPT, Whisper, TTS).
+- **Voice AI Engine**: Retell AI.
+- **Telephony Service**: Twilio API.
 - **Database Service**: Neon Serverless PostgreSQL.
-- **Development Tools**: Replit-specific plugins (cartographer, dev banner, runtime error overlay).
-- **Fonts**: Google Fonts CDN (Inter, Space Grotesk, Fira Code).
-- **Environment Variables**: `DATABASE_URL`, `OPENAI_API_KEY`, `SESSION_SECRET`, `REPL_ID`, `ISSUER_URL`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `SQUARE_CLIENT_ID`, `SQUARE_CLIENT_SECRET`, `SQUARE_OAUTH_REDIRECT_URI`, `TOAST_CLIENT_ID`, `TOAST_CLIENT_SECRET`, `TOAST_OAUTH_REDIRECT_URI`.
+- **Payment Processing**: Stripe.
+- **POS Systems**: Square API, Toast POS API.
+- **Development Tools**: Replit-specific plugins, Google Fonts CDN.

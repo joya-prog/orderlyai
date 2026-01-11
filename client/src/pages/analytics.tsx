@@ -1,14 +1,11 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Phone, Clock, CheckCircle2, Bot, DollarSign, TrendingUp, TrendingDown, Calendar, CalendarDays, ShoppingBag, Users } from "lucide-react";
-import { 
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
-} from "recharts";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { TrendingUp, TrendingDown, CalendarDays, MoreHorizontal, Zap, Target } from "lucide-react";
+import { BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 import type { AnalyticsEvent } from "@shared/schema";
 
 function formatDuration(seconds: number): string {
@@ -18,12 +15,13 @@ function formatDuration(seconds: number): string {
 }
 
 function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+  if (amount >= 1000) return `$${(amount / 1000).toFixed(1)}k`;
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
 }
 
-function formatPercentage(value: number): string {
-  const sign = value >= 0 ? '+' : '';
-  return `${sign}${value.toFixed(1)}%`;
+function formatNumber(num: number): string {
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
+  return num.toString();
 }
 
 interface AnalyticsOverview {
@@ -39,156 +37,50 @@ type DateRangePreset = "7days" | "30days" | "90days" | "12months" | "alltime";
 function getDateRangeFromPreset(preset: DateRangePreset): { startDate: string; endDate: string } {
   const endDate = new Date();
   let startDate: Date;
-
   switch (preset) {
-    case "7days":
-      startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      break;
-    case "30days":
-      startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      break;
-    case "90days":
-      startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-      break;
-    case "12months":
-      startDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
-      break;
-    case "alltime":
-      startDate = new Date("2020-01-01");
-      break;
+    case "7days": startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); break;
+    case "30days": startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); break;
+    case "90days": startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000); break;
+    case "12months": startDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000); break;
+    case "alltime": startDate = new Date("2020-01-01"); break;
   }
-
-  return {
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString(),
-  };
-}
-
-interface RevenueComparison {
-  currentPeriod: number;
-  vsYesterday: number;
-  vsLastWeek: number;
-  vsLastMonth: number;
-  allTime: number;
-}
-
-function calculateRevenueComparisons(
-  selectedEvents: AnalyticsEvent[],
-  comparisonEvents: AnalyticsEvent[]
-): RevenueComparison {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  const getAmount = (event: AnalyticsEvent): number => {
-    const rawAmount = (event.metadata as any).amount;
-    return typeof rawAmount === 'number' ? rawAmount : parseFloat(rawAmount) || 0;
-  };
-
-  const filterOrderEvents = (events: AnalyticsEvent[]) => 
-    events.filter((e) => e.eventType === 'order_placed' && e.metadata && typeof e.metadata === 'object');
-
-  const selectedOrderEvents = filterOrderEvents(selectedEvents);
-  const comparisonOrderEvents = filterOrderEvents(comparisonEvents);
-
-  const getRevenueInRange = (events: AnalyticsEvent[], start: Date, end: Date): number => {
-    return filterOrderEvents(events)
-      .filter((e) => {
-        if (!e.createdAt) return false;
-        const eventDate = new Date(e.createdAt);
-        return eventDate >= start && eventDate < end;
-      })
-      .reduce((sum, e) => sum + getAmount(e), 0);
-  };
-
-  const calcPercent = (current: number, previous: number): number => {
-    if (previous === 0) return current > 0 ? 100 : 0;
-    return ((current - previous) / previous) * 100;
-  };
-
-  const currentPeriodRevenue = selectedOrderEvents.reduce((sum, e) => sum + getAmount(e), 0);
-  const allTimeRevenue = comparisonOrderEvents.reduce((sum, e) => sum + getAmount(e), 0);
-  
-  const last7Days = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const prev7Days = new Date(last7Days.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const last30Days = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const prev30Days = new Date(last30Days.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-  const dayBeforeYesterday = new Date(yesterday.getTime() - 24 * 60 * 60 * 1000);
-
-  const yesterdayRevenue = getRevenueInRange(comparisonEvents, yesterday, today);
-  const dayBeforeRevenue = getRevenueInRange(comparisonEvents, dayBeforeYesterday, yesterday);
-  const last7DaysRevenue = getRevenueInRange(comparisonEvents, last7Days, now);
-  const prev7DaysRevenue = getRevenueInRange(comparisonEvents, prev7Days, last7Days);
-  const last30DaysRevenue = getRevenueInRange(comparisonEvents, last30Days, now);
-  const prev30DaysRevenue = getRevenueInRange(comparisonEvents, prev30Days, last30Days);
-
-  return {
-    currentPeriod: currentPeriodRevenue,
-    vsYesterday: calcPercent(yesterdayRevenue, dayBeforeRevenue),
-    vsLastWeek: calcPercent(last7DaysRevenue, prev7DaysRevenue),
-    vsLastMonth: calcPercent(last30DaysRevenue, prev30DaysRevenue),
-    allTime: allTimeRevenue,
-  };
+  return { startDate: startDate.toISOString(), endDate: endDate.toISOString() };
 }
 
 const CHART_COLORS = {
-  primary: 'hsl(217 91% 60%)',
-  accent: 'hsl(168 76% 42%)',
-  chart1: 'hsl(217 91% 60%)',
-  chart2: 'hsl(168 76% 42%)', 
-  chart3: 'hsl(84 85% 43%)',
-  chart4: 'hsl(43 96% 56%)',
-  chart5: 'hsl(280 65% 60%)',
-  muted: 'hsl(var(--muted-foreground))',
-  border: 'hsl(var(--border))',
-  card: 'hsl(var(--card))',
+  primary: 'hsl(217 91% 60%)', accent: 'hsl(168 76% 42%)', purple: 'hsl(280 65% 60%)',
+  amber: 'hsl(43 96% 56%)', green: 'hsl(142 76% 36%)', pink: 'hsl(330 80% 60%)', blue: 'hsl(217 91% 60%)',
 };
 
-const PIE_COLORS = ['hsl(217 91% 60%)', 'hsl(168 76% 42%)', 'hsl(84 85% 43%)', 'hsl(43 96% 56%)', 'hsl(280 65% 60%)', 'hsl(0 72% 51%)'];
+const PIE_COLORS = ['hsl(217 91% 60%)', 'hsl(168 76% 42%)', 'hsl(280 65% 60%)', 'hsl(43 96% 56%)'];
 
-interface CustomTooltipProps {
-  active?: boolean;
-  payload?: any[];
-  label?: string;
-  formatter?: (value: any) => string;
-}
+type ChartType = 'calls' | 'revenue' | 'orders' | 'peakhours' | 'conversion';
 
-function CustomTooltip({ active, payload, label, formatter }: CustomTooltipProps) {
-  if (!active || !payload || !payload.length) return null;
-  
+interface ExpandedCardData { title: string; type: ChartType; }
+
+function MiniSparkline({ data, color, height = 16 }: { data: number[]; color: string; height?: number }) {
+  if (data.length === 0) return <div style={{ height }} className="bg-muted/30 rounded" />;
+  const chartData = data.map((value, index) => ({ value, index }));
   return (
-    <div className="bg-card border border-border rounded-xl shadow-lg p-3 min-w-[120px]">
-      <p className="text-sm font-medium text-foreground mb-1">{label}</p>
-      {payload.map((entry: any, index: number) => (
-        <p key={index} className="text-sm" style={{ color: entry.color }}>
-          {entry.name}: {formatter ? formatter(entry.value) : entry.value}
-        </p>
-      ))}
-    </div>
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={chartData}><Line type="monotone" dataKey="value" stroke={color} strokeWidth={1.5} dot={false} /></LineChart>
+    </ResponsiveContainer>
   );
 }
 
-function PercentBadge({ value, label }: { value: number; label: string }) {
-  const isPositive = value >= 0;
+function ProgressBar({ value, max, color, label }: { value: number; max: number; color: string; label: string }) {
+  const percentage = Math.min((value / max) * 100, 100);
   return (
-    <div className="flex items-center gap-1.5">
-      <div className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium ${
-        isPositive 
-          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
-          : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-      }`}>
-        {isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-        {formatPercentage(value)}
-      </div>
-      <span className="text-xs text-muted-foreground">{label}</span>
+    <div className="space-y-0.5">
+      <div className="flex justify-between text-[8px]"><span className="text-muted-foreground">{label}</span><span className="font-medium">{formatNumber(value)}</span></div>
+      <div className="h-0.5 bg-muted rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${percentage}%`, backgroundColor: color }} /></div>
     </div>
   );
 }
 
 export default function AnalyticsPage() {
   const [datePreset, setDatePreset] = useState<DateRangePreset>("30days");
-  const [activeChartIndex, setActiveChartIndex] = useState<number | null>(null);
-  
+  const [expandedCard, setExpandedCard] = useState<ExpandedCardData | null>(null);
   const dateRange = useMemo(() => getDateRangeFromPreset(datePreset), [datePreset]);
 
   const { data: overview, isLoading: overviewLoading } = useQuery<AnalyticsOverview>({
@@ -202,719 +94,266 @@ export default function AnalyticsPage() {
   const comparisonDateRange = useMemo(() => {
     const endDate = new Date();
     const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-    return {
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
-    };
+    return { startDate: startDate.toISOString(), endDate: endDate.toISOString() };
   }, []);
 
-  const { data: comparisonEvents } = useQuery<AnalyticsEvent[]>({
+  const { data: comparisonEvents, isLoading: comparisonLoading } = useQuery<AnalyticsEvent[]>({
     queryKey: [`/api/analytics/events?startDate=${comparisonDateRange.startDate}&endDate=${comparisonDateRange.endDate}`],
   });
-
-  const callVolumeData = events && events.length > 0 ? processCallVolumeData(events) : [];
-  const callOutcomeData = events && events.length > 0 ? processCallOutcomeData(events) : [];
-  const agentPerformanceData = events && events.length > 0 ? processAgentPerformanceData(events) : [];
-  const revenueData = events && events.length > 0 ? processRevenueData(events) : [];
-  const hourlyData = events && events.length > 0 ? processHourlyData(events) : [];
-  const revenueComparison = (events && comparisonEvents) 
-    ? calculateRevenueComparisons(events, comparisonEvents) 
-    : null;
 
   const isLoading = overviewLoading || eventsLoading;
   const hasData = events && events.length > 0;
 
-  return (
-    <div className="flex flex-col h-full overflow-auto" data-testid="page-analytics">
-      <div className="flex-1 p-8 space-y-8">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight font-sans" data-testid="text-page-title">Analytics Dashboard</h1>
-            <p className="text-muted-foreground mt-2 text-sm">
-              Real-time insights into your AI agent performance
-            </p>
-          </div>
-          <Select value={datePreset} onValueChange={(value: DateRangePreset) => setDatePreset(value)}>
-            <SelectTrigger className="w-[180px] h-11 bg-card shadow-sm" data-testid="select-date-range">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                <SelectValue />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7days" data-testid="option-7days">Last 7 days</SelectItem>
-              <SelectItem value="30days" data-testid="option-30days">Last 30 days</SelectItem>
-              <SelectItem value="90days" data-testid="option-90days">Last 90 days</SelectItem>
-              <SelectItem value="12months" data-testid="option-12months">Last 12 months</SelectItem>
-              <SelectItem value="alltime" data-testid="option-alltime">All time</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+  const processedData = useMemo(() => {
+    if (!events || events.length === 0) {
+      return { callVolumeData: [], revenueData: [], hourlyData: [], eventTypeData: [], peakDay: 'N/A', conversionRate: 0, avgOrderValue: 0, totalRevenue: 0, sparklineData: { calls: [], revenue: [], orders: [] } };
+    }
 
-        {/* Bento Box / Frame Collage Layout - 2x2 grid on tablet, 4-col on desktop */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 auto-rows-[180px]">
-          {/* Hero Card - Total Calls (larger, spans 2 cols and 2 rows on larger screens) */}
-          <Card 
-            data-testid="card-metric-total-calls" 
-            className="sm:col-span-2 sm:row-span-2 hover-elevate transition-all duration-300 shadow-lg hover:shadow-xl flex flex-col"
-          >
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-500/10">
-                  <Phone className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                </div>
-                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Calls</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="flex-1 flex flex-col pt-0">
-              {isLoading ? (
-                <Skeleton className="h-8 w-20" />
-              ) : (
-                <>
-                  <div className="text-3xl font-bold tracking-tight text-blue-600 dark:text-blue-400" data-testid="text-total-calls">
-                    {(overview?.totalCalls ?? 0).toLocaleString()}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {hasData ? "Conversations handled" : "No data yet"}
-                  </p>
-                </>
-              )}
-              {/* Embedded Interactive Chart */}
-              <div className="flex-1 mt-3 min-h-[120px]">
-                {hasData && callVolumeData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={callVolumeData}>
-                      <defs>
-                        <linearGradient id="callsGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={CHART_COLORS.primary} stopOpacity={0.4}/>
-                          <stop offset="100%" stopColor={CHART_COLORS.primary} stopOpacity={0.05}/>
-                        </linearGradient>
-                      </defs>
-                      <XAxis dataKey="date" hide />
-                      <YAxis hide />
-                      <Tooltip 
-                        content={({ active, payload, label }) => {
-                          if (!active || !payload || !payload.length) return null;
-                          return (
-                            <div className="bg-card border border-border rounded-lg shadow-lg p-2 text-xs">
-                              <p className="font-medium">{label}</p>
-                              <p className="text-blue-600 font-bold">{payload[0].value} calls</p>
-                            </div>
-                          );
-                        }}
-                      />
-                      <Area 
-                        type="monotone" 
-                        dataKey="calls" 
-                        stroke={CHART_COLORS.primary} 
-                        strokeWidth={2}
-                        fill="url(#callsGradient)"
-                        dot={false}
-                        activeDot={{ r: 4, fill: CHART_COLORS.primary, stroke: '#fff', strokeWidth: 2 }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-muted-foreground text-xs">
-                    Chart will appear when data is available
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+    const dailyMap = new Map<string, { calls: number; revenue: number; orders: number; timestamp: number }>();
+    const hourlyMap = new Map<number, number>();
+    const dayMap = new Map<string, number>();
+    const eventTypeMap = new Map<string, number>();
+    let totalRevenue = 0, orderCount = 0;
 
-          {/* Accent Card - Reservations (smaller square) */}
-          <Card data-testid="card-metric-reservations" className="hover-elevate transition-all duration-300 shadow-lg hover:shadow-xl flex flex-col">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-500/10">
-                  <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                </div>
-                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Reservations</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="flex-1 flex flex-col justify-center pt-0">
-              {isLoading ? (
-                <Skeleton className="h-8 w-16" />
-              ) : (
-                <div className="text-center">
-                  <div className="text-4xl font-bold tracking-tight text-purple-600 dark:text-purple-400" data-testid="text-reservations">
-                    {overview?.totalReservations ?? 0}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {hasData ? "Bookings made" : "No reservations"}
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+    for (let i = 0; i < 24; i++) hourlyMap.set(i, 0);
 
-          {/* Accent Card - Avg Duration (smaller square) */}
-          <Card data-testid="card-metric-avg-duration" className="hover-elevate transition-all duration-300 shadow-lg hover:shadow-xl flex flex-col">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-500/10">
-                  <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                </div>
-                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Avg Duration</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="flex-1 flex flex-col justify-center pt-0">
-              {isLoading ? (
-                <Skeleton className="h-8 w-16" />
-              ) : (
-                <div className="text-center">
-                  <div className="text-3xl font-bold tracking-tight text-amber-600 dark:text-amber-400" data-testid="text-avg-duration">
-                    {formatDuration(overview?.avgDuration ?? 0)}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {hasData ? "Per conversation" : "No calls recorded"}
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Hero Card - Total Orders (larger, spans 2 cols and 2 rows on larger screens) */}
-          <Card 
-            data-testid="card-metric-total-orders" 
-            className="sm:col-span-2 sm:row-span-2 hover-elevate transition-all duration-300 shadow-lg hover:shadow-xl flex flex-col"
-          >
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-teal-50 dark:bg-teal-500/10">
-                  <ShoppingBag className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                </div>
-                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Orders</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="flex-1 flex flex-col pt-0">
-              {isLoading ? (
-                <Skeleton className="h-8 w-20" />
-              ) : (
-                <>
-                  <div className="text-3xl font-bold tracking-tight text-teal-600 dark:text-teal-400" data-testid="text-total-orders">
-                    {(overview?.totalOrders ?? 0).toLocaleString()}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {hasData ? "Orders processed" : "No orders yet"}
-                  </p>
-                </>
-              )}
-              {/* Embedded Interactive Chart */}
-              <div className="flex-1 mt-3 min-h-[120px]">
-                {hasData && revenueData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={revenueData}>
-                      <defs>
-                        <linearGradient id="ordersGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={CHART_COLORS.accent} stopOpacity={0.4}/>
-                          <stop offset="100%" stopColor={CHART_COLORS.accent} stopOpacity={0.05}/>
-                        </linearGradient>
-                      </defs>
-                      <XAxis dataKey="date" hide />
-                      <YAxis hide />
-                      <Tooltip 
-                        content={({ active, payload, label }) => {
-                          if (!active || !payload || !payload.length) return null;
-                          return (
-                            <div className="bg-card border border-border rounded-lg shadow-lg p-2 text-xs">
-                              <p className="font-medium">{label}</p>
-                              <p className="text-teal-600 font-bold">{formatCurrency(payload[0].value as number)}</p>
-                            </div>
-                          );
-                        }}
-                      />
-                      <Area 
-                        type="monotone" 
-                        dataKey="revenue" 
-                        stroke={CHART_COLORS.accent} 
-                        strokeWidth={2}
-                        fill="url(#ordersGradient)"
-                        dot={false}
-                        activeDot={{ r: 4, fill: CHART_COLORS.accent, stroke: '#fff', strokeWidth: 2 }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-muted-foreground text-xs">
-                    Chart will appear when data is available
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Revenue Card - Full Width with Comparisons */}
-        <Card data-testid="card-metric-revenue" className="hover-elevate transition-all duration-300">
-          <CardHeader className="pb-2">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-xl bg-accent/10">
-                  <DollarSign className="h-6 w-6 text-accent" />
-                </div>
-                <div>
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Revenue ({datePreset === 'alltime' ? 'All Time' : `Last ${datePreset.replace('days', ' Days').replace('months', ' Months')}`})
-                  </CardTitle>
-                  {isLoading ? (
-                    <Skeleton className="h-10 w-32 mt-1" />
-                  ) : (
-                    <div className="text-4xl font-bold tracking-tight mt-1" data-testid="text-revenue">
-                      {formatCurrency(revenueComparison?.currentPeriod ?? 0)}
-                    </div>
-                  )}
-                </div>
-              </div>
-              {!isLoading && revenueComparison && hasData && revenueComparison.allTime !== revenueComparison.currentPeriod && (
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">All Time Total</p>
-                  <p className="text-lg font-semibold">{formatCurrency(revenueComparison.allTime)}</p>
-                </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex gap-4">
-                <Skeleton className="h-6 w-24" />
-                <Skeleton className="h-6 w-24" />
-                <Skeleton className="h-6 w-24" />
-              </div>
-            ) : revenueComparison && hasData ? (
-              <div className="flex flex-wrap gap-4 pt-2 border-t border-border/50">
-                <div className="pt-3 flex flex-wrap gap-4">
-                  <PercentBadge value={revenueComparison.vsYesterday} label="yesterday vs day before" />
-                  <PercentBadge value={revenueComparison.vsLastWeek} label="last 7 days vs prior 7" />
-                  <PercentBadge value={revenueComparison.vsLastMonth} label="last 30 days vs prior 30" />
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No revenue data available</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Charts Section */}
-        {!hasData && !isLoading && (
-          <Card className="border-dashed">
-            <CardContent className="pt-12 pb-12">
-              <div className="text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mx-auto mb-4">
-                  <TrendingUp className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">No Analytics Data Yet</h3>
-                <p className="text-muted-foreground mb-4 max-w-md mx-auto">
-                  Start testing your AI agents or connect them to phone numbers to see real-time analytics
-                </p>
-                <Button>Test an Agent</Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {hasData && (
-          <>
-            {/* Main Charts Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Call Volume Area Chart */}
-              <Card data-testid="card-chart-call-volume" className="hover-elevate transition-all duration-300">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Call Volume Trends</CardTitle>
-                  <p className="text-sm text-muted-foreground">Daily call activity over time</p>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  {callVolumeData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={280}>
-                      <AreaChart data={callVolumeData}>
-                        <defs>
-                          <linearGradient id="colorCallsGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={CHART_COLORS.primary} stopOpacity={0.4}/>
-                            <stop offset="100%" stopColor={CHART_COLORS.primary} stopOpacity={0.05}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.border} opacity={0.5} />
-                        <XAxis 
-                          dataKey="date" 
-                          stroke={CHART_COLORS.muted} 
-                          fontSize={11} 
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <YAxis 
-                          stroke={CHART_COLORS.muted} 
-                          fontSize={11}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Area 
-                          type="monotone" 
-                          dataKey="calls" 
-                          name="Calls"
-                          stroke={CHART_COLORS.primary} 
-                          strokeWidth={2.5}
-                          fill="url(#colorCallsGradient)"
-                          dot={false}
-                          activeDot={{ 
-                            r: 6, 
-                            fill: CHART_COLORS.primary,
-                            stroke: '#fff',
-                            strokeWidth: 2
-                          }}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-[280px] flex items-center justify-center text-muted-foreground">
-                      No call volume data
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Revenue Trend Chart */}
-              <Card data-testid="card-chart-revenue-trend" className="hover-elevate transition-all duration-300">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Revenue Trend</CardTitle>
-                  <p className="text-sm text-muted-foreground">Order revenue over time</p>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  {revenueData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={280}>
-                      <AreaChart data={revenueData}>
-                        <defs>
-                          <linearGradient id="colorRevenueGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={CHART_COLORS.chart1} stopOpacity={0.4}/>
-                            <stop offset="100%" stopColor={CHART_COLORS.chart1} stopOpacity={0.05}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.border} opacity={0.5} />
-                        <XAxis 
-                          dataKey="date" 
-                          stroke={CHART_COLORS.muted} 
-                          fontSize={11}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <YAxis 
-                          stroke={CHART_COLORS.muted} 
-                          fontSize={11}
-                          tickLine={false}
-                          axisLine={false}
-                          tickFormatter={(value) => `$${value}`}
-                        />
-                        <Tooltip content={<CustomTooltip formatter={(v) => formatCurrency(v)} />} />
-                        <Area 
-                          type="monotone" 
-                          dataKey="revenue"
-                          name="Revenue"
-                          stroke={CHART_COLORS.chart1} 
-                          strokeWidth={2.5}
-                          fill="url(#colorRevenueGradient)"
-                          dot={false}
-                          activeDot={{ 
-                            r: 6, 
-                            fill: CHART_COLORS.chart1,
-                            stroke: '#fff',
-                            strokeWidth: 2
-                          }}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-[280px] flex items-center justify-center text-muted-foreground">
-                      No revenue trend data
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Second Row Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Event Types Donut Chart */}
-              <Card data-testid="card-chart-event-types" className="hover-elevate transition-all duration-300">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Event Breakdown</CardTitle>
-                  <p className="text-sm text-muted-foreground">Distribution by type</p>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  {callOutcomeData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={260}>
-                      <PieChart>
-                        <Pie
-                          data={callOutcomeData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={55}
-                          outerRadius={85}
-                          paddingAngle={3}
-                          dataKey="value"
-                          onMouseEnter={(_, index) => setActiveChartIndex(index)}
-                          onMouseLeave={() => setActiveChartIndex(null)}
-                        >
-                          {callOutcomeData.map((entry, index) => (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill={PIE_COLORS[index % PIE_COLORS.length]}
-                              opacity={activeChartIndex === null || activeChartIndex === index ? 1 : 0.5}
-                              style={{ 
-                                transition: 'opacity 0.2s ease-in-out',
-                                cursor: 'pointer'
-                              }}
-                            />
-                          ))}
-                        </Pie>
-                        <Tooltip 
-                          content={({ active, payload }) => {
-                            if (!active || !payload || !payload.length) return null;
-                            const data = payload[0].payload;
-                            return (
-                              <div className="bg-card border border-border rounded-xl shadow-lg p-3">
-                                <p className="text-sm font-medium">{data.name}</p>
-                                <p className="text-sm text-muted-foreground">{data.value} events</p>
-                              </div>
-                            );
-                          }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-[260px] flex items-center justify-center text-muted-foreground">
-                      No event data
-                    </div>
-                  )}
-                  {callOutcomeData.length > 0 && (
-                    <div className="flex flex-wrap justify-center gap-3 mt-2">
-                      {callOutcomeData.slice(0, 4).map((entry, index) => (
-                        <div key={entry.name} className="flex items-center gap-1.5">
-                          <div 
-                            className="w-2.5 h-2.5 rounded-full" 
-                            style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
-                          />
-                          <span className="text-xs text-muted-foreground capitalize">
-                            {entry.name.replace(/_/g, ' ')}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Hourly Activity Bar Chart */}
-              <Card data-testid="card-chart-hourly" className="hover-elevate transition-all duration-300">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Peak Hours</CardTitle>
-                  <p className="text-sm text-muted-foreground">Activity by hour of day</p>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  {hourlyData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={260}>
-                      <BarChart data={hourlyData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.border} opacity={0.5} vertical={false} />
-                        <XAxis 
-                          dataKey="hour" 
-                          stroke={CHART_COLORS.muted} 
-                          fontSize={10}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <YAxis 
-                          stroke={CHART_COLORS.muted} 
-                          fontSize={11}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Bar 
-                          dataKey="count" 
-                          name="Events"
-                          fill={CHART_COLORS.chart2}
-                          radius={[4, 4, 0, 0]}
-                          maxBarSize={24}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-[260px] flex items-center justify-center text-muted-foreground">
-                      No hourly data
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Agent Performance Bar Chart */}
-              <Card data-testid="card-chart-agent-performance" className="hover-elevate transition-all duration-300">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Agent Activity</CardTitle>
-                  <p className="text-sm text-muted-foreground">Events by agent</p>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  {agentPerformanceData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={260}>
-                      <BarChart data={agentPerformanceData} layout="vertical">
-                        <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.border} opacity={0.5} horizontal={false} />
-                        <XAxis 
-                          type="number"
-                          stroke={CHART_COLORS.muted} 
-                          fontSize={11}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <YAxis 
-                          type="category"
-                          dataKey="name" 
-                          stroke={CHART_COLORS.muted} 
-                          fontSize={11}
-                          tickLine={false}
-                          axisLine={false}
-                          width={80}
-                        />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Bar 
-                          dataKey="events"
-                          name="Events"
-                          fill={CHART_COLORS.chart3}
-                          radius={[0, 4, 4, 0]}
-                          maxBarSize={20}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-[260px] flex items-center justify-center text-muted-foreground">
-                      No agent data
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function processCallVolumeData(events: AnalyticsEvent[]) {
-  const dailyMap = new Map<string, { calls: number; timestamp: number }>();
-  
-  events.forEach((event) => {
-    if (event.createdAt) {
+    events.forEach((event) => {
+      if (!event.createdAt) return;
       const dateObj = new Date(event.createdAt);
       const date = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      const existing = dailyMap.get(date) || { calls: 0, timestamp: dateObj.getTime() };
-      dailyMap.set(date, { calls: existing.calls + 1, timestamp: existing.timestamp });
-    }
-  });
-
-  return Array.from(dailyMap.entries())
-    .map(([date, data]) => ({ date, calls: data.calls, timestamp: data.timestamp }))
-    .sort((a, b) => a.timestamp - b.timestamp)
-    .slice(-14)
-    .map(({ date, calls }) => ({ date, calls }));
-}
-
-function processCallOutcomeData(events: AnalyticsEvent[]) {
-  const typeMap = new Map<string, number>();
-  
-  events.forEach((event) => {
-    typeMap.set(event.eventType, (typeMap.get(event.eventType) || 0) + 1);
-  });
-
-  return Array.from(typeMap.entries())
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value);
-}
-
-function processAgentPerformanceData(events: AnalyticsEvent[]) {
-  const agentMap = new Map<string, { name: string; events: number }>();
-  
-  events.forEach((event) => {
-    const agentKey = event.agentId || 'unknown';
-    const existing = agentMap.get(agentKey) || {
-      name: event.agentId ? `Agent ${event.agentId.slice(0, 6)}` : 'General',
-      events: 0
-    };
-    existing.events += 1;
-    agentMap.set(agentKey, existing);
-  });
-
-  return Array.from(agentMap.values())
-    .sort((a, b) => b.events - a.events)
-    .slice(0, 5);
-}
-
-function processRevenueData(events: AnalyticsEvent[]) {
-  const dailyRevenue = new Map<string, { revenue: number; timestamp: number }>();
-  
-  events
-    .filter((e) => e.eventType === 'order_placed' && e.metadata && typeof e.metadata === 'object' && e.createdAt)
-    .forEach((event) => {
-      const dateObj = new Date(event.createdAt!);
-      const date = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      const rawAmount = (event.metadata as any).amount;
-      const amount = typeof rawAmount === 'number' ? rawAmount : parseFloat(rawAmount) || 0;
-      const existing = dailyRevenue.get(date) || { revenue: 0, timestamp: dateObj.getTime() };
-      dailyRevenue.set(date, { revenue: existing.revenue + amount, timestamp: existing.timestamp });
-    });
-
-  return Array.from(dailyRevenue.entries())
-    .map(([date, data]) => ({ date, revenue: data.revenue, timestamp: data.timestamp }))
-    .sort((a, b) => a.timestamp - b.timestamp)
-    .slice(-14)
-    .map(({ date, revenue }) => ({ date, revenue }));
-}
-
-function processHourlyData(events: AnalyticsEvent[]) {
-  const hourlyMap = new Map<number, number>();
-  
-  for (let i = 0; i < 24; i++) {
-    hourlyMap.set(i, 0);
-  }
-  
-  events.forEach((event) => {
-    if (event.createdAt) {
-      const hour = new Date(event.createdAt).getHours();
+      const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+      const hour = dateObj.getHours();
+      const existing = dailyMap.get(date) || { calls: 0, revenue: 0, orders: 0, timestamp: dateObj.getTime() };
+      existing.calls += 1;
+      if (event.eventType === 'order_placed' && event.metadata) {
+        const amount = typeof (event.metadata as any).amount === 'number' ? (event.metadata as any).amount : parseFloat((event.metadata as any).amount) || 0;
+        existing.revenue += amount; existing.orders += 1; totalRevenue += amount; orderCount++;
+      }
+      dailyMap.set(date, existing);
       hourlyMap.set(hour, (hourlyMap.get(hour) || 0) + 1);
-    }
-  });
-
-  return Array.from(hourlyMap.entries())
-    .map(([hour, count]) => ({
-      hour: hour === 0 ? '12am' : hour === 12 ? '12pm' : hour > 12 ? `${hour - 12}pm` : `${hour}am`,
-      count,
-      rawHour: hour
-    }))
-    .sort((a, b) => a.rawHour - b.rawHour)
-    .map(({ hour, count }) => ({ hour, count }));
-}
-
-function processOrderVolumeData(events: AnalyticsEvent[]) {
-  const dailyMap = new Map<string, { orders: number; revenue: number; timestamp: number }>();
-  
-  events
-    .filter((e) => e.eventType === 'order_placed' && e.createdAt)
-    .forEach((event) => {
-      const dateObj = new Date(event.createdAt!);
-      const date = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      const rawAmount = event.metadata && typeof event.metadata === 'object' 
-        ? (event.metadata as any).amount 
-        : 0;
-      const amount = typeof rawAmount === 'number' ? rawAmount : parseFloat(rawAmount) || 0;
-      const existing = dailyMap.get(date) || { orders: 0, revenue: 0, timestamp: dateObj.getTime() };
-      dailyMap.set(date, { 
-        orders: existing.orders + 1, 
-        revenue: existing.revenue + amount,
-        timestamp: existing.timestamp 
-      });
+      dayMap.set(dayName, (dayMap.get(dayName) || 0) + 1);
+      eventTypeMap.set(event.eventType, (eventTypeMap.get(event.eventType) || 0) + 1);
     });
 
-  return Array.from(dailyMap.entries())
-    .map(([date, data]) => ({ date, orders: data.orders, revenue: data.revenue, timestamp: data.timestamp }))
-    .sort((a, b) => a.timestamp - b.timestamp)
-    .slice(-14)
-    .map(({ date, orders, revenue }) => ({ date, orders, revenue }));
+    const callVolumeData = Array.from(dailyMap.entries()).map(([date, data]) => ({ date, ...data })).sort((a, b) => a.timestamp - b.timestamp).slice(-14);
+    const hourlyData = Array.from(hourlyMap.entries()).map(([hour, count]) => ({ hour: hour === 0 ? '12a' : hour === 12 ? '12p' : hour > 12 ? `${hour - 12}p` : `${hour}a`, count, rawHour: hour })).sort((a, b) => a.rawHour - b.rawHour);
+    const peakDay = Array.from(dayMap.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
+    const eventTypeData = Array.from(eventTypeMap.entries()).map(([name, value]) => ({ name: name.replace(/_/g, ' '), value })).sort((a, b) => b.value - a.value).slice(0, 4);
+    const callsStarted = eventTypeMap.get('call_started') || 0;
+    const ordersPlaced = eventTypeMap.get('order_placed') || 0;
+    const conversionRate = callsStarted > 0 ? (ordersPlaced / callsStarted) * 100 : 0;
+    const avgOrderValue = orderCount > 0 ? totalRevenue / orderCount : 0;
+
+    return {
+      callVolumeData,
+      revenueData: callVolumeData.map(d => ({ date: d.date, revenue: d.revenue })),
+      hourlyData, eventTypeData, peakDay, conversionRate, avgOrderValue, totalRevenue,
+      sparklineData: { calls: callVolumeData.map(d => d.calls), revenue: callVolumeData.map(d => d.revenue), orders: callVolumeData.map(d => d.orders) },
+    };
+  }, [events]);
+
+  const previousPeriodChange = useMemo(() => {
+    if (!comparisonEvents || comparisonEvents.length === 0) return { calls: 0, revenue: 0, orders: 0 };
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+    let currentCalls = 0, prevCalls = 0, currentRevenue = 0, prevRevenue = 0, currentOrders = 0, prevOrders = 0;
+    comparisonEvents.forEach(event => {
+      if (!event.createdAt) return;
+      const eventDate = new Date(event.createdAt);
+      const isOrder = event.eventType === 'order_placed';
+      const amount = isOrder && event.metadata ? (typeof (event.metadata as any).amount === 'number' ? (event.metadata as any).amount : parseFloat((event.metadata as any).amount) || 0) : 0;
+      if (eventDate >= thirtyDaysAgo) { currentCalls++; if (isOrder) { currentRevenue += amount; currentOrders++; } }
+      else if (eventDate >= sixtyDaysAgo) { prevCalls++; if (isOrder) { prevRevenue += amount; prevOrders++; } }
+    });
+    const calcChange = (curr: number, prev: number) => prev > 0 ? ((curr - prev) / prev) * 100 : (curr > 0 ? 100 : 0);
+    return { calls: calcChange(currentCalls, prevCalls), revenue: calcChange(currentRevenue, prevRevenue), orders: calcChange(currentOrders, prevOrders) };
+  }, [comparisonEvents]);
+
+  const renderExpandedChart = () => {
+    if (!expandedCard) return null;
+    if (isLoading) return <div className="h-[400px] flex items-center justify-center"><Skeleton className="h-full w-full" /></div>;
+    const noDataFallback = <div className="h-[400px] flex items-center justify-center text-muted-foreground">No data available</div>;
+    switch (expandedCard.type) {
+      case 'calls':
+        if (!hasData || processedData.callVolumeData.length === 0) return noDataFallback;
+        return (<ResponsiveContainer width="100%" height={400}><AreaChart data={processedData.callVolumeData}><defs><linearGradient id="ecg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CHART_COLORS.blue} stopOpacity={0.4}/><stop offset="100%" stopColor={CHART_COLORS.blue} stopOpacity={0.05}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} /><XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} /><YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} /><Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} /><Area type="monotone" dataKey="calls" stroke={CHART_COLORS.blue} strokeWidth={2} fill="url(#ecg)" /></AreaChart></ResponsiveContainer>);
+      case 'revenue':
+        if (!hasData || processedData.revenueData.length === 0) return noDataFallback;
+        return (<ResponsiveContainer width="100%" height={400}><AreaChart data={processedData.revenueData}><defs><linearGradient id="erg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CHART_COLORS.green} stopOpacity={0.4}/><stop offset="100%" stopColor={CHART_COLORS.green} stopOpacity={0.05}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} /><XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} /><YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `$${v}`} /><Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} formatter={(value: number) => [`$${value.toFixed(2)}`, 'Revenue']} /><Area type="monotone" dataKey="revenue" stroke={CHART_COLORS.green} strokeWidth={2} fill="url(#erg)" /></AreaChart></ResponsiveContainer>);
+      case 'orders':
+        if (!hasData || processedData.callVolumeData.length === 0) return noDataFallback;
+        return (<ResponsiveContainer width="100%" height={400}><BarChart data={processedData.callVolumeData}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} /><XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} /><YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} /><Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} /><Bar dataKey="orders" fill={CHART_COLORS.accent} radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>);
+      case 'peakhours':
+        if (!hasData || processedData.hourlyData.length === 0) return noDataFallback;
+        return (<ResponsiveContainer width="100%" height={400}><BarChart data={processedData.hourlyData}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} /><XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" fontSize={10} /><YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} /><Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} /><Bar dataKey="count" fill={CHART_COLORS.amber} radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>);
+      case 'conversion':
+        if (!hasData || processedData.eventTypeData.length === 0) return noDataFallback;
+        return (<ResponsiveContainer width="100%" height={400}><PieChart><Pie data={processedData.eventTypeData} cx="50%" cy="50%" innerRadius={80} outerRadius={140} paddingAngle={3} dataKey="value">{processedData.eventTypeData.map((_, i) => (<Cell key={`c-${i}`} fill={PIE_COLORS[i % PIE_COLORS.length]} />))}</Pie><Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} /></PieChart></ResponsiveContainer>);
+      default: return noDataFallback;
+    }
+  };
+
+  return (
+    <div className="h-[calc(100vh-64px)] overflow-hidden flex flex-col" data-testid="page-analytics">
+      {/* Header */}
+      <div className="h-8 px-2 flex items-center justify-between flex-shrink-0 border-b">
+        <h1 className="text-xs font-bold" data-testid="text-page-title">Overview</h1>
+        <Select value={datePreset} onValueChange={(v: DateRangePreset) => setDatePreset(v)}>
+          <SelectTrigger className="w-24 h-5 text-[9px]" data-testid="select-date-range">
+            <div className="flex items-center gap-1"><CalendarDays className="h-2 w-2" /><SelectValue /></div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="7days">7 days</SelectItem>
+            <SelectItem value="30days">30 days</SelectItem>
+            <SelectItem value="90days">90 days</SelectItem>
+            <SelectItem value="12months">12 months</SelectItem>
+            <SelectItem value="alltime">All time</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Flex-based layout - no fixed heights, uses flex-grow */}
+      <div className="flex-1 p-1 flex flex-col gap-1 min-h-0 overflow-hidden">
+        {/* Top section: 2 equal rows */}
+        <div className="flex-1 flex flex-col gap-1 min-h-0">
+          {/* Row 1 */}
+          <div className="flex-1 flex gap-1 min-h-0">
+            <Card className="flex-[2] cursor-pointer hover-elevate flex flex-col overflow-hidden" onClick={() => setExpandedCard({ title: 'Call Volume', type: 'calls' })} data-testid="card-metric-calls">
+              <CardContent className="p-1 flex-1 flex flex-col min-h-0">
+                <div className="flex items-center justify-between flex-shrink-0"><h3 className="text-[9px] font-semibold">Call Activity</h3><MoreHorizontal className="h-2 w-2 text-muted-foreground" /></div>
+                <div className="flex items-center gap-2 my-0.5 flex-shrink-0">
+                  {isLoading ? <><Skeleton className="h-4 w-10" /><Skeleton className="h-4 w-10" /><Skeleton className="h-4 w-10" /><Skeleton className="h-4 w-10" /></> : (
+                    <><div><p className="text-[7px] text-muted-foreground">Calls</p><p className="text-xs font-bold text-blue-600" data-testid="text-total-calls">{formatNumber(overview?.totalCalls ?? 0)}</p></div>
+                    <div><p className="text-[7px] text-muted-foreground">Orders</p><p className="text-xs font-bold text-teal-600" data-testid="text-total-orders">{formatNumber(overview?.totalOrders ?? 0)}</p></div>
+                    <div><p className="text-[7px] text-muted-foreground">Reserv.</p><p className="text-xs font-bold text-purple-600" data-testid="text-reservations">{overview?.totalReservations ?? 0}</p></div>
+                    <div><p className="text-[7px] text-muted-foreground">Avg Dur.</p><p className="text-xs font-bold text-amber-600" data-testid="text-avg-duration">{formatDuration(overview?.avgDuration ?? 0)}</p></div></>
+                  )}
+                </div>
+                <div className="flex-1 min-h-0">
+                  {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.callVolumeData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={processedData.callVolumeData} barCategoryGap="10%">
+                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 6 }} interval="preserveStartEnd" />
+                        <YAxis hide />
+                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '4px', fontSize: '8px' }} />
+                        <Bar dataKey="calls" fill={CHART_COLORS.blue} radius={[2, 2, 0, 0]} /><Bar dataKey="orders" fill={CHART_COLORS.accent} radius={[2, 2, 0, 0]} opacity={0.7} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : <div className="h-full flex items-center justify-center text-muted-foreground text-[9px]">No data</div>}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="flex-1 cursor-pointer hover-elevate flex flex-col overflow-hidden bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20" onClick={() => setExpandedCard({ title: 'Revenue', type: 'revenue' })} data-testid="card-metric-revenue">
+              <CardContent className="p-1 flex-1 flex flex-col min-h-0">
+                <div className="flex items-center justify-between flex-shrink-0"><h3 className="text-[9px] font-semibold">Revenue</h3><MoreHorizontal className="h-2 w-2 text-muted-foreground" /></div>
+                {isLoading ? <Skeleton className="h-4 w-12 my-0.5" /> : (
+                  <div className="my-0.5 flex-shrink-0">
+                    <p className="text-sm font-bold text-green-700 dark:text-green-400" data-testid="text-revenue">${(processedData.totalRevenue || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+                    <div className="flex items-center gap-0.5">
+                      {comparisonLoading ? <Skeleton className="h-3 w-8" /> : (
+                        <div className={`inline-flex items-center gap-0.5 px-0.5 py-0.5 rounded text-[7px] font-medium ${previousPeriodChange.revenue >= 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                          {previousPeriodChange.revenue >= 0 ? <TrendingUp className="h-2 w-2" /> : <TrendingDown className="h-2 w-2" />}
+                          <span>{Math.abs(previousPeriodChange.revenue).toFixed(0)}%</span>
+                        </div>
+                      )}
+                      {comparisonLoading ? <Skeleton className="h-2 w-6" /> : <span className="text-[7px] text-muted-foreground">vs last</span>}
+                    </div>
+                  </div>
+                )}
+                <div className="space-y-0.5 flex-1">
+                  {isLoading ? <><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-full" /></> : (
+                    <><ProgressBar value={overview?.totalOrders ?? 0} max={Math.max(overview?.totalCalls ?? 1, 1)} color={CHART_COLORS.green} label="Orders" />
+                    <ProgressBar value={overview?.totalReservations ?? 0} max={Math.max(overview?.totalCalls ?? 1, 1)} color={CHART_COLORS.purple} label="Reserv." />
+                    <ProgressBar value={processedData.conversionRate} max={100} color={CHART_COLORS.amber} label="Conv. %" /></>
+                  )}
+                </div>
+                <div className="mt-auto pt-0.5 flex-shrink-0">
+                  {isLoading ? <Skeleton className="h-4 w-full" /> : <><p className="text-[7px] text-muted-foreground">Trend</p><MiniSparkline data={processedData.sparklineData.revenue} color={CHART_COLORS.green} height={14} /></>}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row 2 */}
+          <div className="flex-1 flex gap-1 min-h-0">
+            <Card className="flex-[2] cursor-pointer hover-elevate flex flex-col overflow-hidden" onClick={() => setExpandedCard({ title: 'Orders', type: 'orders' })} data-testid="card-metric-orders-trend">
+              <CardContent className="p-1 flex-1 flex flex-col min-h-0">
+                <div className="flex items-center justify-between flex-shrink-0"><h3 className="text-[9px] font-semibold">Revenue Trend</h3><MoreHorizontal className="h-2 w-2 text-muted-foreground" /></div>
+                <div className="flex-1 min-h-0">
+                  {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.revenueData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={processedData.revenueData}>
+                        <defs><linearGradient id="rag" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CHART_COLORS.green} stopOpacity={0.4}/><stop offset="100%" stopColor={CHART_COLORS.green} stopOpacity={0.05}/></linearGradient></defs>
+                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 6 }} interval="preserveStartEnd" />
+                        <YAxis hide />
+                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '4px', fontSize: '8px' }} formatter={(v: number) => [`$${v.toFixed(0)}`, 'Revenue']} />
+                        <Area type="monotone" dataKey="revenue" stroke={CHART_COLORS.green} strokeWidth={1.5} fill="url(#rag)" dot={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  ) : <div className="h-full flex items-center justify-center text-muted-foreground text-[9px]">No data</div>}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="flex-1 cursor-pointer hover-elevate flex flex-col overflow-hidden" onClick={() => setExpandedCard({ title: 'Peak Hours', type: 'peakhours' })} data-testid="card-metric-duration">
+              <CardContent className="p-1 flex-1 flex flex-col min-h-0">
+                <div className="flex items-center justify-between flex-shrink-0"><h3 className="text-[9px] font-semibold">Peak Hours</h3><MoreHorizontal className="h-2 w-2 text-muted-foreground" /></div>
+                {isLoading ? <Skeleton className="h-3 w-8 my-0.5" /> : (
+                  <div className="my-0.5 flex-shrink-0"><div className="inline-block px-0.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded text-[7px] font-medium">Peak: {processedData.peakDay}</div></div>
+                )}
+                <div className="flex-1 min-h-0">
+                  {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.hourlyData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={processedData.hourlyData}>
+                        <defs><linearGradient id="pg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CHART_COLORS.pink} stopOpacity={0.4}/><stop offset="100%" stopColor={CHART_COLORS.pink} stopOpacity={0.05}/></linearGradient></defs>
+                        <XAxis dataKey="hour" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 5 }} interval={5} />
+                        <YAxis hide />
+                        <Area type="monotone" dataKey="count" stroke={CHART_COLORS.pink} strokeWidth={1} fill="url(#pg)" dot={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  ) : <div className="h-full flex items-center justify-center text-muted-foreground text-[9px]">No data</div>}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Bottom summary row - auto height based on content */}
+        <div className="flex gap-1 flex-shrink-0">
+          <Card className="flex-[7] cursor-pointer hover-elevate overflow-hidden" onClick={() => setExpandedCard({ title: 'Transactions', type: 'orders' })} data-testid="card-metric-orders">
+            <CardContent className="px-2 py-1.5 flex items-center gap-3">
+              {isLoading ? <Skeleton className="h-5 w-12" /> : (
+                <div><p className="text-[7px] text-muted-foreground">Transactions</p><p className="text-sm font-bold">{formatNumber((overview?.totalOrders ?? 0) + (overview?.totalReservations ?? 0))}</p></div>
+              )}
+              {isLoading || comparisonLoading ? <Skeleton className="h-4 w-10" /> : (
+                <div className="text-right"><p className="text-[7px] text-muted-foreground">vs last</p><p className={`text-[9px] font-bold ${previousPeriodChange.orders >= 0 ? 'text-green-600' : 'text-red-600'}`}>{previousPeriodChange.orders >= 0 ? '+' : ''}{previousPeriodChange.orders.toFixed(0)}%</p></div>
+              )}
+              {isLoading ? <Skeleton className="h-3 w-12" /> : (
+                <div className="px-1 py-0.5 bg-muted rounded text-[7px] text-muted-foreground flex items-center gap-0.5"><Target className="h-2 w-2" /><span>Peak:</span><span className="font-medium text-foreground">{processedData.peakDay}</span></div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="flex-[5] cursor-pointer hover-elevate overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20" onClick={() => setExpandedCard({ title: 'Insights', type: 'conversion' })} data-testid="card-metric-insights">
+            <CardContent className="px-2 py-1.5 flex items-center justify-between">
+              <div className="flex items-center gap-1"><Zap className="h-3 w-3 text-blue-600" /><span className="text-[9px] font-semibold">Insights</span></div>
+              {isLoading ? <Skeleton className="h-5 w-10" /> : (
+                <div className="text-center"><p className="text-base font-bold text-blue-600">{processedData.conversionRate.toFixed(0)}%</p><p className="text-[7px] text-muted-foreground">Conv.</p></div>
+              )}
+              {isLoading ? <Skeleton className="h-4 w-10" /> : (
+                <div className="text-right"><p className="text-[7px] text-muted-foreground">Avg Order</p><p className="text-[10px] font-bold">{formatCurrency(processedData.avgOrderValue)}</p></div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Modal */}
+      <Dialog open={!!expandedCard} onOpenChange={(o) => !o && setExpandedCard(null)}>
+        <DialogContent className="max-w-4xl"><DialogHeader><DialogTitle>{expandedCard?.title}</DialogTitle></DialogHeader><div className="py-4">{renderExpandedChart()}</div></DialogContent>
+      </Dialog>
+    </div>
+  );
 }

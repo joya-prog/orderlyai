@@ -54,6 +54,62 @@ const CHART_COLORS = {
 
 const PIE_COLORS = ['hsl(217 91% 60%)', 'hsl(168 76% 42%)', 'hsl(280 65% 60%)', 'hsl(43 96% 56%)'];
 
+interface InteractiveBarProps {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  fill?: string;
+  payload?: { isHovered?: boolean };
+  isHovered?: boolean;
+}
+
+function InteractiveBar({ x = 0, y = 0, width = 0, height = 0, fill = '#3b82f6', isHovered }: InteractiveBarProps) {
+  const radius = 4;
+  const strokeWidth = 2;
+  
+  if (height <= 0) return null;
+  
+  const path = `
+    M ${x + radius} ${y}
+    H ${x + width - radius}
+    Q ${x + width} ${y} ${x + width} ${y + radius}
+    V ${y + height}
+    H ${x}
+    V ${y + radius}
+    Q ${x} ${y} ${x + radius} ${y}
+    Z
+  `;
+  
+  return (
+    <g>
+      <path
+        d={path}
+        fill={isHovered ? fill : 'transparent'}
+        stroke={fill}
+        strokeWidth={strokeWidth}
+        style={{ transition: 'fill 0.15s ease-in-out' }}
+      />
+      {!isHovered && (
+        <>
+          {[0.25, 0.5, 0.75].map((ratio, i) => (
+            <line
+              key={i}
+              x1={x + strokeWidth}
+              y1={y + height * ratio}
+              x2={x + width - strokeWidth}
+              y2={y + height * ratio}
+              stroke={fill}
+              strokeWidth={1}
+              strokeOpacity={0.3}
+            />
+          ))}
+        </>
+      )}
+    </g>
+  );
+}
+
 type ChartType = 'calls' | 'revenue' | 'orders' | 'peakhours' | 'conversion';
 
 interface ExpandedCardData { title: string; type: ChartType; }
@@ -81,6 +137,7 @@ function ProgressBar({ value, max, color, label }: { value: number; max: number;
 export default function AnalyticsPage() {
   const [datePreset, setDatePreset] = useState<DateRangePreset>("30days");
   const [expandedCard, setExpandedCard] = useState<ExpandedCardData | null>(null);
+  const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
   const dateRange = useMemo(() => getDateRangeFromPreset(datePreset), [datePreset]);
 
   const { data: overview, isLoading: overviewLoading } = useQuery<AnalyticsOverview>({
@@ -109,7 +166,7 @@ export default function AnalyticsPage() {
       return { callVolumeData: [], revenueData: [], hourlyData: [], eventTypeData: [], peakDay: 'N/A', conversionRate: 0, avgOrderValue: 0, totalRevenue: 0, sparklineData: { calls: [], revenue: [], orders: [] } };
     }
 
-    const dailyMap = new Map<string, { calls: number; revenue: number; orders: number; timestamp: number }>();
+    const dailyMap = new Map<string, { calls: number; revenue: number; orders: number; reservations: number; timestamp: number }>();
     const hourlyMap = new Map<number, number>();
     const dayMap = new Map<string, number>();
     const eventTypeMap = new Map<string, number>();
@@ -123,11 +180,14 @@ export default function AnalyticsPage() {
       const date = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
       const hour = dateObj.getHours();
-      const existing = dailyMap.get(date) || { calls: 0, revenue: 0, orders: 0, timestamp: dateObj.getTime() };
+      const existing = dailyMap.get(date) || { calls: 0, revenue: 0, orders: 0, reservations: 0, timestamp: dateObj.getTime() };
       existing.calls += 1;
       if (event.eventType === 'order_placed' && event.metadata) {
         const amount = typeof (event.metadata as any).amount === 'number' ? (event.metadata as any).amount : parseFloat((event.metadata as any).amount) || 0;
         existing.revenue += amount; existing.orders += 1; totalRevenue += amount; orderCount++;
+      }
+      if (event.eventType === 'reservation_created') {
+        existing.reservations += 1;
       }
       dailyMap.set(date, existing);
       hourlyMap.set(hour, (hourlyMap.get(hour) || 0) + 1);
@@ -219,43 +279,88 @@ export default function AnalyticsPage() {
         <div className="flex-1 flex flex-col gap-4 min-h-0">
           {/* Row 1 */}
           <div className="flex-1 flex gap-4 min-h-0">
-            <Card className="flex-[2] cursor-pointer hover-elevate flex flex-col overflow-hidden" onClick={() => setExpandedCard({ title: 'Call Volume', type: 'calls' })} data-testid="card-metric-calls">
+            <Card className="flex-[3] cursor-pointer hover-elevate flex flex-col overflow-hidden" onClick={() => setExpandedCard({ title: 'Call Volume', type: 'calls' })} data-testid="card-metric-calls">
               <CardContent className="p-5 flex-1 flex flex-col min-h-0">
                 <div className="flex items-center justify-between flex-shrink-0 mb-3">
                   <h3 className="text-base font-semibold">Call Activity</h3>
                   <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
                 </div>
-                <div className="flex items-center gap-6 mb-4 flex-shrink-0">
-                  {isLoading ? <><Skeleton className="h-12 w-20" /><Skeleton className="h-12 w-20" /><Skeleton className="h-12 w-20" /><Skeleton className="h-12 w-24" /></> : (
+                <div className="flex items-center gap-8 mb-4 flex-shrink-0">
+                  {isLoading ? <><Skeleton className="h-14 w-24" /><Skeleton className="h-14 w-24" /><Skeleton className="h-14 w-24" /><Skeleton className="h-14 w-28" /></> : (
                     <>
                       <div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wide">Calls</p>
-                        <p className="text-2xl font-bold text-blue-600" data-testid="text-total-calls">{formatNumber(overview?.totalCalls ?? 0)}</p>
+                        <p className="text-3xl font-bold text-blue-600" data-testid="text-total-calls">{formatNumber(overview?.totalCalls ?? 0)}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wide">Orders</p>
-                        <p className="text-2xl font-bold text-teal-600" data-testid="text-total-orders">{formatNumber(overview?.totalOrders ?? 0)}</p>
+                        <p className="text-3xl font-bold text-teal-600" data-testid="text-total-orders">{formatNumber(overview?.totalOrders ?? 0)}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wide">Reservations</p>
-                        <p className="text-2xl font-bold text-purple-600" data-testid="text-reservations">{overview?.totalReservations ?? 0}</p>
+                        <p className="text-3xl font-bold text-purple-600" data-testid="text-reservations">{overview?.totalReservations ?? 0}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wide">Avg Duration</p>
-                        <p className="text-2xl font-bold text-amber-600" data-testid="text-avg-duration">{formatDuration(overview?.avgDuration ?? 0)}</p>
+                        <p className="text-3xl font-bold text-amber-600" data-testid="text-avg-duration">{formatDuration(overview?.avgDuration ?? 0)}</p>
                       </div>
                     </>
                   )}
                 </div>
+                <div className="flex items-center gap-4 mb-3 flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: CHART_COLORS.accent }} />
+                    <span className="text-xs text-muted-foreground">Orders</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: CHART_COLORS.purple }} />
+                    <span className="text-xs text-muted-foreground">Reservations</span>
+                  </div>
+                </div>
                 <div className="flex-1 min-h-0">
                   {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.callVolumeData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={processedData.callVolumeData} barGap={4} barCategoryGap="15%">
+                      <BarChart 
+                        data={processedData.callVolumeData} 
+                        barGap={2} 
+                        barCategoryGap="20%"
+                        onMouseMove={(state: any) => {
+                          if (state?.activeTooltipIndex !== undefined) {
+                            setHoveredBarIndex(state.activeTooltipIndex);
+                          }
+                        }}
+                        onMouseLeave={() => setHoveredBarIndex(null)}
+                      >
                         <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} interval="preserveStartEnd" />
                         <YAxis axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} width={30} />
-                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
-                        <Bar dataKey="calls" fill={CHART_COLORS.blue} radius={[4, 4, 0, 0]} barSize={20} />
-                        <Bar dataKey="orders" fill={CHART_COLORS.accent} radius={[4, 4, 0, 0]} barSize={20} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} 
+                          cursor={{ fill: 'transparent' }}
+                        />
+                        <Bar 
+                          dataKey="orders" 
+                          fill={CHART_COLORS.accent} 
+                          barSize={28}
+                          shape={(props: any) => (
+                            <InteractiveBar 
+                              {...props} 
+                              fill={CHART_COLORS.accent}
+                              isHovered={hoveredBarIndex === props.index}
+                            />
+                          )}
+                        />
+                        <Bar 
+                          dataKey="reservations" 
+                          fill={CHART_COLORS.purple} 
+                          barSize={28}
+                          shape={(props: any) => (
+                            <InteractiveBar 
+                              {...props} 
+                              fill={CHART_COLORS.purple}
+                              isHovered={hoveredBarIndex === props.index}
+                            />
+                          )}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No data available</div>}

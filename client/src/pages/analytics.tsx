@@ -223,8 +223,8 @@ export default function AnalyticsPage() {
         <div className="flex-1 flex flex-col gap-4 min-h-0">
           {/* Row 1 */}
           <div className="flex-1 flex gap-4 min-h-0">
-            <Card className="flex-[3] cursor-pointer hover-elevate flex flex-col overflow-hidden" onClick={() => setExpandedCard({ title: 'Call Volume', type: 'calls' })} data-testid="card-metric-calls">
-              <CardContent className="p-5 flex-1 flex flex-col min-h-0">
+            <Card className="flex-[3] cursor-pointer hover-elevate flex flex-col overflow-hidden min-h-[320px]" onClick={() => setExpandedCard({ title: 'Call Volume', type: 'calls' })} data-testid="card-metric-calls">
+              <CardContent className="p-5 flex-1 flex flex-col">
                 <div className="flex items-center justify-between flex-shrink-0 mb-3">
                   <h3 className="text-base font-semibold">Call Activity</h3>
                   <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
@@ -261,7 +261,7 @@ export default function AnalyticsPage() {
                     <span className="text-xs text-muted-foreground">Reservations</span>
                   </div>
                 </div>
-                <div className="flex-1 min-h-0">
+                <div className="flex-1 min-h-[140px]">
                   {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.callVolumeData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={processedData.callVolumeData} barGap={4} barCategoryGap="15%">
@@ -277,8 +277,8 @@ export default function AnalyticsPage() {
               </CardContent>
             </Card>
 
-            <Card className="flex-1 cursor-pointer hover-elevate flex flex-col overflow-hidden bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20" onClick={() => setExpandedCard({ title: 'Revenue', type: 'revenue' })} data-testid="card-metric-revenue">
-              <CardContent className="p-5 flex-1 flex flex-col min-h-0">
+            <Card className="flex-1 cursor-pointer hover-elevate flex flex-col overflow-hidden min-h-[320px] bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20" onClick={() => setExpandedCard({ title: 'Revenue', type: 'revenue' })} data-testid="card-metric-revenue">
+              <CardContent className="p-5 flex-1 flex flex-col">
                 <div className="flex items-center justify-between flex-shrink-0 mb-3">
                   <h3 className="text-base font-semibold">Revenue</h3>
                   <MoreHorizontal className="h-4 w-4 text-muted-foreground" />

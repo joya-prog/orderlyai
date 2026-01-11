@@ -54,61 +54,6 @@ const CHART_COLORS = {
 
 const PIE_COLORS = ['hsl(217 91% 60%)', 'hsl(168 76% 42%)', 'hsl(280 65% 60%)', 'hsl(43 96% 56%)'];
 
-interface InteractiveBarProps {
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  fill?: string;
-  payload?: { isHovered?: boolean };
-  isHovered?: boolean;
-}
-
-function InteractiveBar({ x = 0, y = 0, width = 0, height = 0, fill = '#3b82f6', isHovered }: InteractiveBarProps) {
-  const radius = 4;
-  const strokeWidth = 2;
-  
-  if (height <= 0) return null;
-  
-  const path = `
-    M ${x + radius} ${y}
-    H ${x + width - radius}
-    Q ${x + width} ${y} ${x + width} ${y + radius}
-    V ${y + height}
-    H ${x}
-    V ${y + radius}
-    Q ${x} ${y} ${x + radius} ${y}
-    Z
-  `;
-  
-  return (
-    <g>
-      <path
-        d={path}
-        fill={isHovered ? fill : 'transparent'}
-        stroke={fill}
-        strokeWidth={strokeWidth}
-        style={{ transition: 'fill 0.15s ease-in-out' }}
-      />
-      {!isHovered && (
-        <>
-          {[0.25, 0.5, 0.75].map((ratio, i) => (
-            <line
-              key={i}
-              x1={x + strokeWidth}
-              y1={y + height * ratio}
-              x2={x + width - strokeWidth}
-              y2={y + height * ratio}
-              stroke={fill}
-              strokeWidth={1}
-              strokeOpacity={0.3}
-            />
-          ))}
-        </>
-      )}
-    </g>
-  );
-}
 
 type ChartType = 'calls' | 'revenue' | 'orders' | 'peakhours' | 'conversion';
 
@@ -137,7 +82,6 @@ function ProgressBar({ value, max, color, label }: { value: number; max: number;
 export default function AnalyticsPage() {
   const [datePreset, setDatePreset] = useState<DateRangePreset>("30days");
   const [expandedCard, setExpandedCard] = useState<ExpandedCardData | null>(null);
-  const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
   const dateRange = useMemo(() => getDateRangeFromPreset(datePreset), [datePreset]);
 
   const { data: overview, isLoading: overviewLoading } = useQuery<AnalyticsOverview>({
@@ -320,47 +264,12 @@ export default function AnalyticsPage() {
                 <div className="flex-1 min-h-0">
                   {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.callVolumeData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart 
-                        data={processedData.callVolumeData} 
-                        barGap={2} 
-                        barCategoryGap="20%"
-                        onMouseMove={(state: any) => {
-                          if (state?.activeTooltipIndex !== undefined) {
-                            setHoveredBarIndex(state.activeTooltipIndex);
-                          }
-                        }}
-                        onMouseLeave={() => setHoveredBarIndex(null)}
-                      >
+                      <BarChart data={processedData.callVolumeData} barGap={4} barCategoryGap="15%">
                         <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} interval="preserveStartEnd" />
                         <YAxis axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} width={30} />
-                        <Tooltip 
-                          contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} 
-                          cursor={{ fill: 'transparent' }}
-                        />
-                        <Bar 
-                          dataKey="orders" 
-                          fill={CHART_COLORS.accent} 
-                          barSize={28}
-                          shape={(props: any) => (
-                            <InteractiveBar 
-                              {...props} 
-                              fill={CHART_COLORS.accent}
-                              isHovered={hoveredBarIndex === props.index}
-                            />
-                          )}
-                        />
-                        <Bar 
-                          dataKey="reservations" 
-                          fill={CHART_COLORS.purple} 
-                          barSize={28}
-                          shape={(props: any) => (
-                            <InteractiveBar 
-                              {...props} 
-                              fill={CHART_COLORS.purple}
-                              isHovered={hoveredBarIndex === props.index}
-                            />
-                          )}
-                        />
+                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
+                        <Bar dataKey="orders" fill={CHART_COLORS.accent} radius={[4, 4, 0, 0]} barSize={24} />
+                        <Bar dataKey="reservations" fill={CHART_COLORS.purple} radius={[4, 4, 0, 0]} barSize={24} />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No data available</div>}

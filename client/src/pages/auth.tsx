@@ -901,7 +901,13 @@ export default function Auth() {
       <div className="w-full lg:w-1/2 flex flex-col items-center justify-center bg-white dark:bg-gray-950 p-6 lg:p-10 overflow-hidden">
         <div className="w-full max-w-md">
           {/* Logo */}
-          <div className="flex items-center gap-3 mb-8">
+          <a 
+            href="https://getorderly.io/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 mb-8 hover:opacity-80 transition-opacity cursor-pointer"
+            data-testid="link-logo-auth"
+          >
             <img 
               src={orderlyLogo} 
               alt="Orderly AI" 
@@ -911,7 +917,7 @@ export default function Auth() {
             <span className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
               Orderly AI
             </span>
-          </div>
+          </a>
           
           {renderAuthContent()}
         </div>

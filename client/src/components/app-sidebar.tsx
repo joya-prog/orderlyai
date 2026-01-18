@@ -110,16 +110,24 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <div className="flex items-center gap-3 px-4 py-6">
-            <img 
-              src={orderlyLogo} 
-              alt="Orderly AI" 
-              className="h-10 w-10 rounded-xl object-cover shadow-sm"
-              data-testid="img-logo-sidebar"
-            />
-            <div className="flex flex-col flex-1">
-              <span className="text-lg font-bold tracking-tight">Orderly AI</span>
-              <span className="text-xs text-muted-foreground font-medium">Voice Agent Platform</span>
-            </div>
+            <a 
+              href="https://getorderly.io/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 flex-1 hover:opacity-80 transition-opacity cursor-pointer"
+              data-testid="link-logo-home"
+            >
+              <img 
+                src={orderlyLogo} 
+                alt="Orderly AI" 
+                className="h-10 w-10 rounded-xl object-cover shadow-sm"
+                data-testid="img-logo-sidebar"
+              />
+              <div className="flex flex-col">
+                <span className="text-lg font-bold tracking-tight">Orderly AI</span>
+                <span className="text-xs text-muted-foreground font-medium">Voice Agent Platform</span>
+              </div>
+            </a>
             {isMobile && (
               <Button
                 variant="ghost"

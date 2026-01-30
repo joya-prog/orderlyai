@@ -71,8 +71,8 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
-      <div className="container max-w-2xl px-6 py-12">
+    <div className="min-h-screen w-full bg-gradient-to-b from-background to-muted/30 flex flex-col">
+      <div className="flex-1 flex flex-col justify-center px-6 py-8 sm:px-12 lg:px-24">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-6">
             <img 

@@ -3121,6 +3121,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test SMS endpoint - sends test message directly via Twilio
+  app.post("/api/test-sms", isAuthenticated, async (req: any, res) => {
+    try {
+      const { getTwilioClient, getTwilioFromPhoneNumber } = await import("./twilioClient");
+      const adminNumber = process.env.ADMIN_SMS_NUMBER;
+      
+      const diagnostics: any = {
+        timestamp: new Date().toISOString(),
+        adminNumberSet: !!adminNumber,
+        twilioAccountSidSet: !!process.env.TWILIO_ACCOUNT_SID,
+        twilioAuthTokenSet: !!process.env.TWILIO_AUTH_TOKEN,
+        twilioPhoneNumberSet: !!process.env.TWILIO_PHONE_NUMBER,
+      };
+      
+      if (!adminNumber) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "ADMIN_SMS_NUMBER not configured",
+          diagnostics
+        });
+      }
+
+      try {
+        const client = await getTwilioClient();
+        diagnostics.clientCreated = true;
+        
+        const fromNumber = await getTwilioFromPhoneNumber();
+        diagnostics.fromNumber = fromNumber ? fromNumber.substring(0, 6) + "****" : "NOT SET";
+        diagnostics.toNumber = adminNumber.substring(0, 6) + "****";
+        
+        const result = await client.messages.create({
+          body: `Orderly AI Test SMS - ${new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })}`,
+          from: fromNumber,
+          to: adminNumber
+        });
+        
+        res.json({
+          success: true,
+          messageSid: result.sid,
+          status: result.status,
+          diagnostics
+        });
+      } catch (twilioError: any) {
+        diagnostics.clientCreated = false;
+        res.status(500).json({ 
+          success: false, 
+          error: twilioError.message,
+          code: twilioError.code,
+          status: twilioError.status,
+          moreInfo: twilioError.moreInfo,
+          diagnostics
+        });
+      }
+    } catch (error: any) {
+      console.error("[Test SMS] Error:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
   // Update user profile
   app.patch("/api/auth/profile", isAuthenticated, async (req: any, res) => {
     try {

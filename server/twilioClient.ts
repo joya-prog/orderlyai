@@ -162,27 +162,38 @@ export function verifySms2FACode(phoneNumber: string, userId: string, code: stri
 export async function sendSignupNotification(userEmail: string, signupMethod: string): Promise<{ success: boolean; error?: string }> {
   const adminNumber = process.env.ADMIN_SMS_NUMBER;
   
+  console.log('[Signup Notification] Starting for user:', userEmail, 'method:', signupMethod);
+  console.log('[Signup Notification] Admin number configured:', !!adminNumber);
+  console.log('[Signup Notification] Using env fallback:', useEnvFallback);
+  
   if (!adminNumber) {
     console.log('[Signup Notification] ADMIN_SMS_NUMBER not configured, skipping SMS');
     return { success: false, error: 'ADMIN_SMS_NUMBER not configured' };
   }
   
   try {
+    console.log('[Signup Notification] Getting Twilio client...');
     const client = await getTwilioClient();
+    console.log('[Signup Notification] Got Twilio client');
+    
     const fromNumber = await getTwilioFromPhoneNumber();
+    console.log('[Signup Notification] From number:', fromNumber ? fromNumber.substring(0, 6) + '****' : 'NOT SET');
     
     const message = `New Orderly AI signup!\n\nEmail: ${userEmail}\nMethod: ${signupMethod}\nTime: ${new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })}`;
     
-    await client.messages.create({
+    console.log('[Signup Notification] Sending SMS to:', adminNumber.substring(0, 6) + '****');
+    
+    const result = await client.messages.create({
       body: message,
       from: fromNumber,
       to: adminNumber
     });
     
-    console.log('[Signup Notification] SMS sent for new user:', userEmail);
+    console.log('[Signup Notification] SMS sent successfully! SID:', result.sid);
     return { success: true };
   } catch (error: any) {
     console.error('[Signup Notification] Error sending SMS:', error.message);
+    console.error('[Signup Notification] Full error:', JSON.stringify(error, null, 2));
     return { success: false, error: error.message };
   }
 }

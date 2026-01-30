@@ -2605,6 +2605,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Cancel subscription
+  app.post("/api/billing/cancel-subscription", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      
+      const stripe = await getUncachableStripeClient();
+      if (!stripe) {
+        return res.status(503).json({ message: "Stripe is not configured" });
+      }
+
+      const subscription = await storage.getSubscription(userId);
+      if (!subscription?.stripeSubscriptionId) {
+        return res.status(400).json({ message: "No active subscription found" });
+      }
+
+      // Cancel at period end so user keeps access until subscription expires
+      await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+        cancel_at_period_end: true,
+      });
+
+      // Update local subscription status
+      await storage.updateSubscription(userId, {
+        status: 'canceling',
+      });
+
+      res.json({ message: "Subscription will be canceled at the end of the billing period" });
+    } catch (error: any) {
+      console.error("Error canceling subscription:", error);
+      res.status(500).json({ message: error.message || "Failed to cancel subscription" });
+    }
+  });
+
+  // Delete user account
+  app.delete("/api/auth/account", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { confirmEmail } = req.body;
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Verify confirmation email matches
+      if (confirmEmail !== user.email) {
+        return res.status(400).json({ message: "Email confirmation does not match" });
+      }
+
+      // Cancel any active Stripe subscription first
+      const subscription = await storage.getSubscription(userId);
+      if (subscription?.stripeSubscriptionId) {
+        try {
+          const stripe = await getUncachableStripeClient();
+          if (stripe) {
+            await stripe.subscriptions.cancel(subscription.stripeSubscriptionId);
+          }
+        } catch (stripeError: any) {
+          console.error("Error canceling Stripe subscription during account deletion:", stripeError.message);
+        }
+      }
+
+      // Delete all user data
+      await storage.deleteUserAccount(userId);
+
+      // Destroy the session
+      req.logout((err: any) => {
+        if (err) {
+          console.error("Error during logout:", err);
+        }
+        req.session.destroy((sessionErr: any) => {
+          if (sessionErr) {
+            console.error("Error destroying session:", sessionErr);
+          }
+          res.json({ message: "Account deleted successfully" });
+        });
+      });
+    } catch (error: any) {
+      console.error("Error deleting account:", error);
+      res.status(500).json({ message: error.message || "Failed to delete account" });
+    }
+  });
+
   // Get invoices for user
   app.get("/api/billing/invoices", isAuthenticated, async (req: any, res) => {
     try {

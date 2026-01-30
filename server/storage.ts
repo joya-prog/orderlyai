@@ -231,6 +231,9 @@ export interface IStorage {
   createTwoFactorAuth(twoFactor: InsertTwoFactorAuth): Promise<TwoFactorAuth>;
   updateTwoFactorAuth(userId: string, twoFactor: Partial<InsertTwoFactorAuth>): Promise<TwoFactorAuth | null>;
   deleteTwoFactorAuth(userId: string): Promise<boolean>;
+  
+  // Account deletion
+  deleteUserAccount(userId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1172,6 +1175,16 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(twoFactorAuth)
       .where(eq(twoFactorAuth.userId, userId));
+    return true;
+  }
+
+  async deleteUserAccount(userId: string): Promise<boolean> {
+    // All user-related tables have onDelete: 'cascade' set in the schema,
+    // so deleting the user will automatically cascade to all related data.
+    // Using a transaction to ensure atomicity.
+    await db.transaction(async (tx) => {
+      await tx.delete(users).where(eq(users.id, userId));
+    });
     return true;
   }
 }

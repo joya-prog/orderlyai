@@ -8,7 +8,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { authenticator } from "otplib";
 import { storage } from "./storage";
-import { sendSms2FACode, verifySms2FACode } from "./twilioClient";
+import { sendSms2FACode, verifySms2FACode, sendSignupNotification } from "./twilioClient";
 
 const SALT_ROUNDS = 12;
 
@@ -173,6 +173,7 @@ export async function setupAuth(app: Express) {
                   authProvider: 'google',
                   emailVerified: true,
                 });
+                sendSignupNotification(user.email || 'Unknown', 'Google OAuth').catch(console.error);
               }
             }
             
@@ -219,6 +220,8 @@ export async function setupAuth(app: Express) {
         lastName: last,
         authProvider: 'local',
       });
+      
+      sendSignupNotification(user.email || 'Unknown', 'Email/Password').catch(console.error);
       
       req.login(user, (err) => {
         if (err) {

@@ -121,3 +121,31 @@ export function verifySms2FACode(phoneNumber: string, userId: string, code: stri
   
   return false;
 }
+
+export async function sendSignupNotification(userEmail: string, signupMethod: string): Promise<{ success: boolean; error?: string }> {
+  const adminNumber = process.env.ADMIN_SMS_NUMBER;
+  
+  if (!adminNumber) {
+    console.log('[Signup Notification] ADMIN_SMS_NUMBER not configured, skipping SMS');
+    return { success: false, error: 'ADMIN_SMS_NUMBER not configured' };
+  }
+  
+  try {
+    const client = await getTwilioClient();
+    const fromNumber = await getTwilioFromPhoneNumber();
+    
+    const message = `New Orderly AI signup!\n\nEmail: ${userEmail}\nMethod: ${signupMethod}\nTime: ${new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })}`;
+    
+    await client.messages.create({
+      body: message,
+      from: fromNumber,
+      to: adminNumber
+    });
+    
+    console.log('[Signup Notification] SMS sent for new user:', userEmail);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Signup Notification] Error sending SMS:', error.message);
+    return { success: false, error: error.message };
+  }
+}

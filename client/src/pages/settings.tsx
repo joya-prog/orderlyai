@@ -633,13 +633,7 @@ function DangerZoneSection({ email }: { email: string }) {
 
   return (
     <Card className="shadow-md border-destructive/50">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-destructive">
-          <AlertTriangle className="h-5 w-5" />
-          Danger Zone
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         <div className="flex items-center justify-between p-4 border border-destructive/30 rounded-lg">
           <div>
             <div className="font-medium">Delete Account</div>

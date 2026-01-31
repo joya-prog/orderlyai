@@ -638,7 +638,6 @@ function DangerZoneSection({ email }: { email: string }) {
           <AlertTriangle className="h-5 w-5" />
           Danger Zone
         </CardTitle>
-        <CardDescription>Irreversible actions for your account</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="flex items-center justify-between p-4 border border-destructive/30 rounded-lg">

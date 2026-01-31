@@ -615,27 +615,8 @@ function PreferencesTab() {
 
 function DangerZoneSection({ email }: { email: string }) {
   const { toast } = useToast();
-  const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [confirmEmail, setConfirmEmail] = useState("");
-
-  const { data: subscription } = useQuery<Subscription>({
-    queryKey: ["/api/subscription"],
-  });
-
-  const cancelSubscription = useMutation({
-    mutationFn: async () => {
-      return await apiRequest('POST', '/api/billing/cancel-subscription', {});
-    },
-    onSuccess: () => {
-      toast({ title: "Subscription canceled", description: "Your subscription will end at the current billing period." });
-      queryClient.invalidateQueries({ queryKey: ['/api/subscription'] });
-      setShowCancelDialog(false);
-    },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to cancel subscription", variant: "destructive" });
-    },
-  });
 
   const deleteAccount = useMutation({
     mutationFn: async (data: { confirmEmail: string }) => {
@@ -650,9 +631,6 @@ function DangerZoneSection({ email }: { email: string }) {
     },
   });
 
-  const hasActiveSubscription = subscription?.status === 'active' || subscription?.status === 'trialing';
-  const isCanceling = subscription?.status === 'canceling';
-
   return (
     <Card className="shadow-md border-destructive/50">
       <CardHeader>
@@ -662,68 +640,12 @@ function DangerZoneSection({ email }: { email: string }) {
         </CardTitle>
         <CardDescription>Irreversible actions for your account</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {hasActiveSubscription && !isCanceling && (
-          <>
-            <div className="flex items-center justify-between p-4 border border-destructive/30 rounded-lg">
-              <div>
-                <div className="font-medium">Cancel Subscription</div>
-                <div className="text-sm text-muted-foreground">
-                  Stop your subscription at the end of the current billing period
-                </div>
-              </div>
-              <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" className="border-destructive text-destructive" data-testid="button-cancel-subscription">
-                    Cancel Subscription
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Cancel your subscription?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Your subscription will remain active until the end of your current billing period. You won't be charged again, and you'll keep access to all features until then.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => cancelSubscription.mutate()}
-                      className="bg-destructive text-destructive-foreground"
-                      disabled={cancelSubscription.isPending}
-                      data-testid="button-confirm-cancel-subscription"
-                    >
-                      {cancelSubscription.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                      Yes, Cancel Subscription
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-            <Separator />
-          </>
-        )}
-
-        {isCanceling && (
-          <>
-            <div className="flex items-center justify-between p-4 border border-yellow-500/30 rounded-lg bg-yellow-500/5">
-              <div>
-                <div className="font-medium text-yellow-600">Subscription Canceling</div>
-                <div className="text-sm text-muted-foreground">
-                  Your subscription will end at the current billing period
-                </div>
-              </div>
-              <Badge variant="outline" className="border-yellow-500 text-yellow-600">Canceling</Badge>
-            </div>
-            <Separator />
-          </>
-        )}
-
+      <CardContent>
         <div className="flex items-center justify-between p-4 border border-destructive/30 rounded-lg">
           <div>
             <div className="font-medium">Delete Account</div>
             <div className="text-sm text-muted-foreground">
-              Permanently delete your account and all associated data
+              Permanently delete your account, cancel billing, and remove all data
             </div>
           </div>
           <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -740,7 +662,7 @@ function DangerZoneSection({ email }: { email: string }) {
                   Delete Your Account
                 </DialogTitle>
                 <DialogDescription>
-                  This action cannot be undone. This will permanently delete your account, all your agents, knowledge bases, contacts, and subscription data.
+                  This action cannot be undone. This will permanently delete your account, cancel any active subscription and billing, and remove all your agents, knowledge bases, contacts, and data.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">

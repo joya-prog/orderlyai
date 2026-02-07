@@ -48,3 +48,6 @@ GOOGLE_OAUTH_CALLBACK_URL = "https://orderlyai.studio/api/auth/google/callback"
 
 [userenv.shared]
 ADMIN_SMS_NUMBER = "+14158126266"
+
+[userenv.development]
+GOOGLE_OAUTH_CALLBACK_URL = "https://64a66e8b-d142-420c-a67b-26858b591ccf-00-23zv0nlnvhgdg.riker.replit.dev/api/auth/google/callback"

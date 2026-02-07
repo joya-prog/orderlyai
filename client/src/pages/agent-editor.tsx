@@ -61,7 +61,6 @@ import {
   Keyboard,
   Repeat,
   Clock,
-  Sparkles,
   ChevronDown,
   ChevronRight,
   Loader2,
@@ -588,7 +587,7 @@ function AgentEditorInner() {
   
   // Agent settings state
   const [language, setLanguage] = useState("en-US");
-  const [executionMode, setExecutionMode] = useState<"flex" | "rigid">("flex");
+  const executionMode = "rigid";
   const [globalPrompt, setGlobalPrompt] = useState("");
   const [aiModel, setAiModel] = useState("gpt-4o-mini");
   const [backgroundSound, setBackgroundSound] = useState("none");
@@ -1600,31 +1599,6 @@ function AgentEditorInner() {
                     </div>
                   </div>
                   
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 mb-2 block">Execution Mode</label>
-                    <div className="space-y-2">
-                      <div 
-                        onClick={() => setExecutionMode("flex")}
-                        className={`p-3 rounded-lg border cursor-pointer transition-colors ${executionMode === "flex" ? "border-primary bg-primary/5" : "border-gray-200 dark:border-gray-700"}`}
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <Sparkles className="h-4 w-4 text-primary" />
-                          <span className="text-sm font-medium">Flex Mode</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">Nodes combined flexibly. Some settings may not apply.</p>
-                      </div>
-                      <div 
-                        onClick={() => setExecutionMode("rigid")}
-                        className={`p-3 rounded-lg border cursor-pointer transition-colors ${executionMode === "rigid" ? "border-primary bg-primary/5" : "border-gray-200 dark:border-gray-700"}`}
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <GitBranch className="h-4 w-4 text-violet-500" />
-                          <span className="text-sm font-medium">Rigid Mode</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">Follows nodes step by step exactly.</p>
-                      </div>
-                    </div>
-                  </div>
                   
                   <div>
                     <label className="text-xs font-medium text-gray-500 mb-2 block">Global Prompt</label>

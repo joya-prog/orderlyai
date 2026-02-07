@@ -3361,7 +3361,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Find the phone number this call was made to/from to identify the user
       const phoneNumbers = await db.execute(sql`
-        SELECT * FROM phone_numbers WHERE phone_number = ${To} OR phone_number = ${From}
+        SELECT * FROM phone_numbers WHERE number = ${To} OR number = ${From}
       `);
 
       if (!phoneNumbers.rows || phoneNumbers.rows.length === 0) {

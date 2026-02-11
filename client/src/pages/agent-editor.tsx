@@ -603,6 +603,7 @@ function AgentEditorInner() {
   const [voiceVolume, setVoiceVolume] = useState([1]);
   
   // Call configuration state
+  const [repeatCustomerRecognition, setRepeatCustomerRecognition] = useState(true);
   const [voicemailDetection, setVoicemailDetection] = useState(false);
   const [warmTransferEnabled, setWarmTransferEnabled] = useState(false);
   const [warmTransferNumber, setWarmTransferNumber] = useState("");
@@ -713,6 +714,7 @@ function AgentEditorInner() {
       setBeginMessageDelay([parseInt(agent.beginMessageDelayMs || "1000")]);
       setMaxCallDuration([parseInt(agent.maxCallDurationMs || "3600000")]);
       setInactivityTimeout([parseInt(agent.inactivityTimeoutMs || "30000")]);
+      setRepeatCustomerRecognition(agent.repeatCustomerRecognition !== false);
       setVoicemailDetection(agent.voicemailDetection || false);
       const warmEnabled = agent.warmTransferEnabled || false;
       setWarmTransferEnabled(warmEnabled);
@@ -879,6 +881,7 @@ function AgentEditorInner() {
         beginMessageDelayMs: beginMessageDelay[0].toString(),
         maxCallDurationMs: maxCallDuration[0].toString(),
         inactivityTimeoutMs: inactivityTimeout[0].toString(),
+        repeatCustomerRecognition,
         voicemailDetection,
         warmTransferEnabled,
         warmTransferNumber: warmTransferEnabled ? warmTransferNumber : null,
@@ -936,7 +939,7 @@ function AgentEditorInner() {
     } finally {
       isSavingRef.current = false;
     }
-  }, [id, isNew, agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, nodes, edges]);
+  }, [id, isNew, agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, repeatCustomerRecognition, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, nodes, edges]);
   
   // Debounced auto-save trigger that handles concurrency properly
   const triggerAutoSave = useCallback(() => {
@@ -982,7 +985,7 @@ function AgentEditorInner() {
     // Use the debounced trigger which handles concurrency
     triggerAutoSave();
     
-  }, [agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, nodes, edges, triggerAutoSave, isNew]);
+  }, [agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, repeatCustomerRecognition, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, nodes, edges, triggerAutoSave, isNew]);
 
   // Handlers
   const updateNodeData = useCallback((nodeId: string, newData: any) => {
@@ -1064,6 +1067,7 @@ function AgentEditorInner() {
         beginMessageDelayMs: beginMessageDelay[0].toString(),
         maxCallDurationMs: maxCallDuration[0].toString(),
         inactivityTimeoutMs: inactivityTimeout[0].toString(),
+        repeatCustomerRecognition,
         voicemailDetection,
         warmTransferEnabled,
         warmTransferNumber: warmTransferEnabled ? warmTransferNumber : null,
@@ -1086,7 +1090,7 @@ function AgentEditorInner() {
     } finally {
       setIsSaving(false);
     }
-  }, [agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, nodes, edges, saveMutation, saveFlowMutation, isNew]);
+  }, [agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, repeatCustomerRecognition, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, nodes, edges, saveMutation, saveFlowMutation, isNew]);
 
   // Initialize chat when switching to test tab - fetch greeting once
   useEffect(() => {
@@ -1599,6 +1603,20 @@ function AgentEditorInner() {
                     </div>
                   </div>
                   
+                  <div className="flex items-center justify-between gap-2 p-3 rounded-lg border">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-primary" />
+                      <div>
+                        <span className="text-sm font-medium" data-testid="text-returning-caller-label">Returning Caller Recognition</span>
+                        <p className="text-xs text-muted-foreground">Recognize regulars by phone number and personalize their experience</p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={repeatCustomerRecognition}
+                      onCheckedChange={setRepeatCustomerRecognition}
+                      data-testid="switch-returning-caller"
+                    />
+                  </div>
                   
                   <div>
                     <label className="text-xs font-medium text-gray-500 mb-2 block">Global Prompt</label>

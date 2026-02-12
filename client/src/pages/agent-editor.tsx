@@ -84,9 +84,11 @@ import {
   Maximize2,
   Check,
   AlertCircle,
+  Info,
 } from "lucide-react";
 import { VoiceSelector } from "@/components/voice-selector";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 // ============================================================================
@@ -1607,7 +1609,23 @@ function AgentEditorInner() {
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-primary" />
                       <div>
-                        <span className="text-sm font-medium" data-testid="text-returning-caller-label">Returning Caller Recognition</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-medium" data-testid="text-returning-caller-label">Returning Caller Recognition</span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span
+                                className="inline-flex items-center justify-center h-4 w-4 rounded-full border text-muted-foreground cursor-help flex-shrink-0"
+                                tabIndex={0}
+                                data-testid="info-returning-caller"
+                              >
+                                <Info className="h-3 w-3" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs text-xs">
+                              When enabled, the agent will recognize returning callers by their phone number. It will greet them by name, reference their previous orders, recommend their favorites, and provide a personalized experience based on their call history.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
                         <p className="text-xs text-muted-foreground">Recognize regulars by phone number and personalize their experience</p>
                       </div>
                     </div>

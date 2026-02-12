@@ -144,6 +144,18 @@ function PaymentForm({ onSuccess }: { onSuccess: () => void }) {
         </div>
       </div>
 
+      <div className="space-y-1 text-xs text-muted-foreground">
+        <p data-testid="text-pricing-note">Price varies with usage</p>
+        <p data-testid="text-next-billing-date">
+          Your next billing date is the first of the month:{" "}
+          {(() => {
+            const now = new Date();
+            const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+            return `${String(next.getMonth() + 1).padStart(2, "0")}/${String(next.getDate()).padStart(2, "0")}/${next.getFullYear()}`;
+          })()}
+        </p>
+      </div>
+
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <ShieldCheck className="h-3.5 w-3.5" />
         <span>Your payment info is encrypted and secure</span>

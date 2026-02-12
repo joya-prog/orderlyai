@@ -258,11 +258,12 @@ Reply with ONLY the number (e.g., "1" or "2"). If none clearly match, reply with
         response = node.content || node.label;
     }
 
-    const { nextNodeId } = await this.evaluateTransition(node, userInput, conversationHistory);
-
+    // Don't evaluate transitions here - the node has just been entered and
+    // should present its content to the user. Transitions from this node
+    // will be evaluated on the NEXT user input in processUserInput().
     return {
       response,
-      nextNodeId,
+      nextNodeId: null,
       nodeType: node.type,
       isEnd: node.type === 'end' || node.type === 'end_call'
     };
@@ -317,7 +318,10 @@ Reply with ONLY the number (e.g., "1" or "2"). If none clearly match, reply with
 
     const result = await this.executeNode(nextNodeId, userInput, state.conversationHistory);
 
-    state.currentNodeId = result.nextNodeId;
+    // Stay on the node we just executed so the agent waits for user response
+    // before evaluating outgoing transitions. If the executed node already
+    // determined a further transition (e.g. condition nodes), use that instead.
+    state.currentNodeId = result.nextNodeId ?? nextNodeId;
     state.visitedNodes.add(nextNodeId);
     state.conversationHistory.push(
       { role: 'user', content: userInput },

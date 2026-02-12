@@ -24,6 +24,7 @@ import PhoneNumbers from "@/pages/phone-numbers";
 import Integrations from "@/pages/integrations";
 import Logs from "@/pages/logs";
 import Settings from "@/pages/settings";
+import Billing from "@/pages/billing";
 
 function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -67,6 +68,7 @@ function Router() {
       <Route path="/integrations" component={Integrations} />
       <Route path="/logs" component={Logs} />
       <Route path="/settings" component={Settings} />
+      <Route path="/billing" component={Billing} />
       <Route path="/templates" component={Templates} />
       <Route component={NotFound} />
     </Switch>

@@ -10,7 +10,8 @@ import {
   Plug2,
   FileText,
   MessageSquare,
-  X
+  X,
+  CreditCard,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -103,6 +104,7 @@ export function AppSidebar() {
   const minutesUsed = parseInt(usageMetrics?.minutesUsed || '0');
   const minutesLimit = parseInt(subscription?.minutesLimit || '0');
   const usagePercentage = minutesLimit > 0 ? Math.round((minutesUsed / minutesLimit) * 100) : 0;
+  const isTrialOrFree = !subscription?.stripeSubscriptionId || subscription?.planType === 'trial';
   const { toggleSidebar, isMobile } = useSidebar();
 
   return (
@@ -209,6 +211,20 @@ export function AppSidebar() {
                 </span>
               </div>
             </div>
+
+            {isTrialOrFree && (
+              <Link href="/billing">
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="w-full mt-3 gap-2"
+                  data-testid="button-add-payment-sidebar"
+                >
+                  <CreditCard className="h-3.5 w-3.5" />
+                  Add Payment
+                </Button>
+              </Link>
+            )}
           </div>
         </SidebarGroup>
       </SidebarContent>

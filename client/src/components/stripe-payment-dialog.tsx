@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import {
   Elements,
@@ -174,12 +174,12 @@ export function StripePaymentDialog({ open, onOpenChange }: StripePaymentDialogP
     enabled: open,
   });
 
-  const [stripePromise, setStripePromise] = useState<ReturnType<typeof loadStripe> | null>(null);
-
-  useEffect(() => {
-    if (stripeConfig?.publishableKey && !stripePromise) {
-      setStripePromise(loadStripe(stripeConfig.publishableKey));
+  const stripePromise = useMemo(() => {
+    const key = stripeConfig?.publishableKey;
+    if (key && typeof key === "string" && key.startsWith("pk_")) {
+      return loadStripe(key);
     }
+    return null;
   }, [stripeConfig?.publishableKey]);
 
   return (

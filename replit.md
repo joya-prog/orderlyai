@@ -32,7 +32,7 @@ PostgreSQL (Neon serverless) is the primary database, managed with Drizzle ORM. 
 ### Core Features
 
 - **Signup Notifications**: Sends SMS alerts via Twilio when new users register (both email/password and Google OAuth signups).
-- **Billing**: Manages subscriptions, usage tracking, and invoice history via Stripe.
+- **Billing**: Pure usage-based pricing (no monthly subscription fee). Rates vary by chosen AI model and voice provider. Usage tracking and invoice history managed via Stripe.
 - **Phone Numbers**: Allows searching, purchasing, assigning, and releasing Twilio numbers.
 - **Contacts Management**: Provides full CRUD operations, search, filter, and tagging for customer contacts.
 - **POS Integrations**: Supports OAuth 2.0 flows for Square and Toast POS, including server-side proxy endpoints for accessing live menu data, customer management, order creation, and payment processing.

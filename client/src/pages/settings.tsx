@@ -91,8 +91,7 @@ interface TwoFactorSetup {
 
 type SettingsTab = "preferences" | "billing" | "security" | "api-keys";
 
-const BASE_MONTHLY_FEE = 149;
-const USAGE_RATE_PER_MINUTE = 0.29;
+
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("preferences");
@@ -1354,7 +1353,7 @@ function BillingTab({
         <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap space-y-0 pb-4">
           <div>
             <CardTitle>Current Plan</CardTitle>
-            <CardDescription>Your active subscription details</CardDescription>
+            <CardDescription>Your plan and usage details</CardDescription>
           </div>
           <div className="flex gap-2 flex-wrap">
             {subscription?.stripeCustomerId && (
@@ -1386,9 +1385,9 @@ function BillingTab({
           ) : subscription ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
               <div>
-                <div className="text-sm text-muted-foreground mb-1">Subscription</div>
+                <div className="text-sm text-muted-foreground mb-1">Plan</div>
                 <div className="font-semibold text-lg">
-                  ${BASE_MONTHLY_FEE}/month
+                  Pay Per Use
                 </div>
                 <Badge variant={subscription.status === 'active' ? 'default' : 'secondary'} className="mt-1">
                   {subscription.status}
@@ -1400,13 +1399,13 @@ function BillingTab({
                   {billingUsage ? Math.round(billingUsage.currentPeriodUsage) : usageMetrics?.minutesUsed || '0'}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  at ${USAGE_RATE_PER_MINUTE}/min
+                  rate varies by AI model
                 </div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground mb-1">Est. Usage Cost</div>
                 <div className="font-semibold text-lg">
-                  ${((billingUsage?.currentPeriodUsage || parseInt(usageMetrics?.minutesUsed || '0')) * USAGE_RATE_PER_MINUTE).toFixed(2)}
+                  {billingUsage ? `$${billingUsage.currentPeriodUsage.toFixed(2)}` : '$0.00'}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
                   this billing period (est.)
@@ -1424,7 +1423,7 @@ function BillingTab({
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
-              No subscription found. Choose a plan below to get started.
+              No active plan. Add a payment method to start using Orderly AI.
             </div>
           )}
           

@@ -18,8 +18,7 @@ import { Link } from "wouter";
 import { SiStripe } from "react-icons/si";
 import type { Subscription, Invoice } from "@shared/schema";
 
-const BASE_MONTHLY_FEE = 149;
-const USAGE_RATE_PER_MINUTE = 0.29;
+
 
 function formatDate(dateStr: string | Date | null): string {
   if (!dateStr) return "N/A";
@@ -133,7 +132,7 @@ export default function BillingPage() {
           <div className="space-y-10">
             <section>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4" data-testid="text-subscription-heading">
-                Current Subscription
+                Current Plan
               </h3>
 
               <div className="space-y-1">
@@ -162,10 +161,10 @@ export default function BillingPage() {
                 ) : (
                   <div className="space-y-1">
                     <p className="text-2xl font-bold" data-testid="text-plan-price">
-                      Price varies with usage
+                      Pay Per Use
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      ${BASE_MONTHLY_FEE}/mo base + ${USAGE_RATE_PER_MINUTE}/min usage
+                      Price varies with usage based on your chosen AI model and voice
                     </p>
                     {nextBillingDate && (
                       <p className="text-sm text-muted-foreground" data-testid="text-next-billing">

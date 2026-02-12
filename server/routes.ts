@@ -2215,7 +2215,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       service: 'toast',
     });
 
-    const authUrl = `https://ws-api.toasttab.com/authentication/v1/oauth/authorize?client_id=${clientId}&response_type=code&state=${nonce}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    const scopes = [
+      'config:read',
+      'menus:read',
+      'orders:read',
+      'orders.orders:write',
+      'orders.items:write',
+      'orders.payments:write',
+      'guest.pi:read',
+      'restaurants:read',
+    ].join(' ');
+
+    const authUrl = `https://ws-api.toasttab.com/authentication/v1/oauth/authorize?client_id=${clientId}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${nonce}&redirect_uri=${encodeURIComponent(redirectUri)}`;
     
     res.redirect(authUrl);
   });

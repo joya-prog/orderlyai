@@ -33,15 +33,13 @@ function PaymentForm({ onSuccess }: { onSuccess: () => void }) {
 
   const setupIntentMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/billing/create-setup-intent");
-      return res.json();
+      return await apiRequest("POST", "/api/billing/create-setup-intent");
     },
   });
 
   const confirmMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/billing/confirm-payment-method");
-      return res.json();
+      return await apiRequest("POST", "/api/billing/confirm-payment-method");
     },
   });
 

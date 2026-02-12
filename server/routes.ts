@@ -2541,7 +2541,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get Stripe publishable key for frontend
   app.get("/api/billing/stripe-config", async (req, res) => {
     try {
-      const publishableKey = getStripePublishableKey();
+      const publishableKey = await getStripePublishableKey();
       res.json({ 
         publishableKey,
         hasStripeConnection: !!publishableKey 
@@ -2662,6 +2662,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error creating portal session:", error);
       res.status(500).json({ message: error.message || "Failed to create portal session" });
+    }
+  });
+
+  app.post("/api/billing/create-setup-intent", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const stripe = await getUncachableStripeClient();
+      if (!stripe) {
+        return res.status(503).json({ message: "Stripe is not configured" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      let subscription = await storage.getSubscription(userId);
+      let customerId = subscription?.stripeCustomerId;
+
+      if (!customerId) {
+        const customer = await stripe.customers.create({
+          email: user.email || undefined,
+          name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || undefined,
+          metadata: { userId },
+        });
+        customerId = customer.id;
+        if (subscription) {
+          await storage.updateSubscription(userId, { stripeCustomerId: customerId });
+        } else {
+          await storage.createSubscription({
+            userId,
+            planType: 'trial',
+            stripeCustomerId: customerId,
+            minutesLimit: '100',
+          });
+        }
+      }
+
+      const setupIntent = await stripe.setupIntents.create({
+        customer: customerId,
+        payment_method_types: ['card'],
+      });
+
+      res.json({ clientSecret: setupIntent.client_secret });
+    } catch (error: any) {
+      console.error("Error creating setup intent:", error);
+      res.status(500).json({ message: error.message || "Failed to create setup intent" });
+    }
+  });
+
+  app.post("/api/billing/confirm-payment-method", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const stripe = await getUncachableStripeClient();
+      if (!stripe) {
+        return res.status(503).json({ message: "Stripe is not configured" });
+      }
+
+      const subscription = await storage.getSubscription(userId);
+      if (!subscription?.stripeCustomerId) {
+        return res.status(400).json({ message: "No Stripe customer found" });
+      }
+
+      const customer = await stripe.customers.retrieve(subscription.stripeCustomerId);
+      if (customer.deleted) {
+        return res.status(400).json({ message: "Customer not found" });
+      }
+
+      const paymentMethods = await stripe.paymentMethods.list({
+        customer: subscription.stripeCustomerId,
+        type: 'card',
+      });
+
+      if (paymentMethods.data.length > 0) {
+        const defaultPm = paymentMethods.data[0];
+        await stripe.customers.update(subscription.stripeCustomerId, {
+          invoice_settings: { default_payment_method: defaultPm.id },
+        });
+
+        await storage.updateSubscription(userId, {
+          planType: subscription.planType === 'trial' ? 'standard' : subscription.planType,
+        });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error confirming payment method:", error);
+      res.status(500).json({ message: error.message || "Failed to confirm payment method" });
     }
   });
 

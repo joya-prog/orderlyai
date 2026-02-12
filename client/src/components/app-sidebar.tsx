@@ -1,10 +1,10 @@
+import { useState } from "react";
 import { 
   BookOpen, 
   LayoutTemplate, 
   Settings, 
   LogOut,
   BarChart3,
-  Zap,
   Users,
   Phone,
   Plug2,
@@ -30,6 +30,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { StripePaymentDialog } from "@/components/stripe-payment-dialog";
 import orderlyLogo from "@assets/WXdQJT24YKxTTzIwCPlW3AJf4Y_1763761787840.avif";
 import type { Subscription, UsageMetric } from "@shared/schema";
 
@@ -84,6 +85,7 @@ const mainItems = [
 export function AppSidebar() {
   const [location] = useLocation();
   const { user } = useAuth();
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
 
   // Fetch subscription and usage data
   const { data: subscription } = useQuery<Subscription>({
@@ -213,17 +215,16 @@ export function AppSidebar() {
             </div>
 
             {isTrialOrFree && (
-              <Link href="/billing">
-                <Button
-                  variant="default"
-                  size="sm"
-                  className="w-full mt-3 gap-2"
-                  data-testid="button-add-payment-sidebar"
-                >
-                  <CreditCard className="h-3.5 w-3.5" />
-                  Add Payment
-                </Button>
-              </Link>
+              <Button
+                variant="default"
+                size="sm"
+                className="w-full mt-3 gap-2"
+                onClick={() => setPaymentDialogOpen(true)}
+                data-testid="button-add-payment-sidebar"
+              >
+                <CreditCard className="h-3.5 w-3.5" />
+                Add Payment
+              </Button>
             )}
           </div>
         </SidebarGroup>
@@ -262,6 +263,11 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+
+      <StripePaymentDialog
+        open={paymentDialogOpen}
+        onOpenChange={setPaymentDialogOpen}
+      />
     </Sidebar>
   );
 }

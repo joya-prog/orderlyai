@@ -214,7 +214,7 @@ export function AppSidebar() {
               </div>
             </div>
 
-            {isTrialOrFree && (
+            {!subscription?.stripeSubscriptionId && (
               <Button
                 variant="default"
                 size="sm"

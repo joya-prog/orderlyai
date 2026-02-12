@@ -2538,6 +2538,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== BILLING & WEBHOOKS ====================
 
+  async function getOrCreateMeteredPrice(stripe: any) {
+    const ORDERLY_PRODUCT_NAME = 'Orderly AI Usage';
+    const ORDERLY_METERED_PRICE_LOOKUP = 'orderly_usage_per_minute';
+
+    const existingPrices = await stripe.prices.list({
+      lookup_keys: [ORDERLY_METERED_PRICE_LOOKUP],
+      active: true,
+      limit: 1,
+    });
+
+    if (existingPrices.data.length > 0) {
+      return existingPrices.data[0];
+    }
+
+    const products = await stripe.products.list({ active: true, limit: 100 });
+    let product = products.data.find((p: any) => p.name === ORDERLY_PRODUCT_NAME);
+
+    if (!product) {
+      product = await stripe.products.create({
+        name: ORDERLY_PRODUCT_NAME,
+        metadata: { type: 'usage_billing' },
+      });
+    }
+
+    const price = await stripe.prices.create({
+      product: product.id,
+      currency: 'usd',
+      unit_amount: 29,
+      recurring: {
+        interval: 'month',
+        usage_type: 'metered',
+        aggregate_usage: 'sum',
+      },
+      lookup_key: ORDERLY_METERED_PRICE_LOOKUP,
+      metadata: { description: 'Per minute usage charge' },
+    });
+
+    return price;
+  }
+
   // Get Stripe publishable key for frontend
   app.get("/api/billing/stripe-config", async (req, res) => {
     try {
@@ -2741,9 +2781,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           invoice_settings: { default_payment_method: defaultPm.id },
         });
 
-        await storage.updateSubscription(userId, {
-          planType: subscription.planType === 'trial' ? 'standard' : subscription.planType,
-        });
+        if (!subscription.stripeSubscriptionId) {
+          const meteredPrice = await getOrCreateMeteredPrice(stripe);
+
+          const stripeSub = await stripe.subscriptions.create({
+            customer: subscription.stripeCustomerId,
+            items: [{ price: meteredPrice.id }],
+            payment_behavior: 'default_incomplete',
+            expand: ['latest_invoice.payment_intent'],
+          });
+
+          const now = new Date();
+          const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+          await storage.updateSubscription(userId, {
+            planType: 'standard',
+            status: 'active',
+            stripeSubscriptionId: stripeSub.id,
+            currentPeriodStart: now,
+            currentPeriodEnd: periodEnd,
+            minutesLimit: '999999',
+          });
+        } else {
+          await storage.updateSubscription(userId, {
+            planType: subscription.planType === 'trial' ? 'standard' : subscription.planType,
+          });
+        }
       }
 
       res.json({ success: true });

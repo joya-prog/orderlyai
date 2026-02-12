@@ -192,23 +192,15 @@ export async function updateRetellConversationFlow(flowId: string, config: Parti
   }
 
   try {
+    // Only update global settings (model, temperature, global prompt).
+    // Do NOT overwrite nodes here — nodes are managed by syncWorkflowToRetell.
     await retellClient.conversationFlow.update(flowId, {
       model_choice: config.model ? {
         model: config.model as any,
         type: 'cascading',
       } : undefined,
       model_temperature: config.modelTemperature,
-      nodes: config.generalPrompt ? [
-        {
-          id: 'start',
-          type: 'conversation',
-          instruction: {
-            type: 'prompt',
-            text: config.generalPrompt,
-          },
-        },
-      ] : undefined,
-      global_prompt: config.beginMessage || undefined,
+      global_prompt: config.generalPrompt || config.beginMessage || undefined,
     });
 
     console.log('[Retell] Updated Conversation Flow:', flowId);
@@ -238,16 +230,16 @@ export async function syncWorkflowToRetell(
   }
 
   try {
-    // Step 1: Find the start node (node with no incoming edges, or greeting type)
+    // Step 1: Find the start node (greeting type or node with no incoming edges)
     const nodesWithIncoming = new Set(connections.map(c => c.targetNodeId));
-    let startNode = nodes.find(n => !nodesWithIncoming.has(n.id));
+    let startNode = nodes.find(n => n.type === 'greeting');
     if (!startNode) {
-      startNode = nodes.find(n => n.type === 'greeting') || nodes[0];
+      startNode = nodes.find(n => !nodesWithIncoming.has(n.id)) || nodes[0];
     }
     
     console.log(`[Retell] Start node identified: ${startNode.id} (${startNode.type}: "${startNode.label}")`);
 
-    // Step 2: Build adjacency list for topological sorting
+    // Step 2: Build adjacency list for BFS ordering
     const adjacencyList = new Map<string, string[]>();
     nodes.forEach(n => adjacencyList.set(n.id, []));
     connections.forEach(conn => {
@@ -258,7 +250,7 @@ export async function syncWorkflowToRetell(
       }
     });
 
-    // Step 3: BFS from start node to get topologically sorted order
+    // Step 3: BFS from start node
     const sortedNodeIds: string[] = [];
     const visited = new Set<string>();
     const queue: string[] = [startNode.id];
@@ -268,128 +260,146 @@ export async function syncWorkflowToRetell(
       if (visited.has(nodeId)) continue;
       visited.add(nodeId);
       sortedNodeIds.push(nodeId);
-      
       const neighbors = adjacencyList.get(nodeId) || [];
-      neighbors.forEach(n => {
-        if (!visited.has(n)) {
-          queue.push(n);
-        }
-      });
+      neighbors.forEach(n => { if (!visited.has(n)) queue.push(n); });
     }
     
-    // Add any orphaned nodes not reachable from start
-    nodes.forEach(n => {
-      if (!visited.has(n.id)) {
-        sortedNodeIds.push(n.id);
-      }
-    });
+    // Add orphaned nodes
+    nodes.forEach(n => { if (!visited.has(n.id)) sortedNodeIds.push(n.id); });
 
-    // Create node lookup map
     const nodeMap = new Map(nodes.map(n => [n.id, n]));
 
-    // Step 4: Build connection map with sourceHandle for transition mapping
+    // Step 4: Build connection map (sourceHandle -> targetNodeId, sourceNodeId -> targetNodeId)
     const connectionMap = new Map<string, string>();
+    // Also build a multi-map: sourceNodeId -> all connections from that node
+    const connectionsBySource = new Map<string, OrderlyFlowConnection[]>();
     connections.forEach(conn => {
       if (conn.sourceHandle) {
         connectionMap.set(conn.sourceHandle, conn.targetNodeId);
       }
-      // Also map by sourceNodeId as fallback for nodes with single transition
       if (!connectionMap.has(conn.sourceNodeId)) {
         connectionMap.set(conn.sourceNodeId, conn.targetNodeId);
       }
+      const existing = connectionsBySource.get(conn.sourceNodeId) || [];
+      existing.push(conn);
+      connectionsBySource.set(conn.sourceNodeId, existing);
     });
 
     console.log(`[Retell] Connection map built with ${connectionMap.size} entries`);
 
-    // Step 5: Create Retell Begin node
-    const beginNodeId = 'begin_node';
-    const retellNodes: any[] = [{
-      id: beginNodeId,
-      type: 'begin',
-      begin_settings: {
-        who_speaks_first: 'agent',
-      },
-      transitions: [{
-        condition: 'Call connected',
-        next_node_id: startNode.id,
-      }],
-    }];
+    // Step 5: Convert Orderly nodes to Retell API format
+    const retellNodes: any[] = [];
 
-    // Step 6: Convert Orderly nodes to Retell format in topological order
     sortedNodeIds.forEach((nodeId) => {
       const node = nodeMap.get(nodeId);
       if (!node) return;
 
-      // Map Orderly node types to Retell types
+      // Map Orderly node types to Retell API node types
       let retellNodeType = 'conversation';
-      if (node.type === 'end') {
-        retellNodeType = 'end_call';
-      } else if (node.type === 'transfer') {
-        retellNodeType = 'transfer_call';
+      if (node.type === 'end' || node.type === 'end_call') {
+        retellNodeType = 'end';
+      } else if (node.type === 'transfer_call' || node.type === 'transfer') {
+        retellNodeType = 'call_transfer';
+      } else if (node.type === 'press_digit' || node.type === 'keypad_input') {
+        retellNodeType = 'press_digit';
       }
 
-      // Build instruction based on content mode
-      const instruction = node.contentMode === 'static' 
-        ? { type: 'static' as const, text: node.content || node.label }
-        : { type: 'prompt' as const, text: node.content || node.label };
+      // Build instruction (Retell uses 'prompt' or 'static_sentence')
+      const instructionType = node.contentMode === 'static' ? 'static_sentence' : 'prompt';
+      const instruction = {
+        type: instructionType,
+        text: node.content || node.label || 'Continue the conversation.',
+      };
 
-      // Build transitions with target node IDs using sourceHandle lookup
-      const nodeTransitions: { condition: string; next_node_id: string | null }[] = [];
+      // Build edges (Retell's transition format) from connections
+      const edges: any[] = [];
+      const nodeConnections = connectionsBySource.get(node.id) || [];
+
+      if (node.transitions && node.transitions.length > 0) {
+        // Use defined transitions to build edges
+        node.transitions.forEach((transition, idx) => {
+          const handleId = `${node.id}-${transition.id}`;
+          let targetNodeId = connectionMap.get(handleId);
+          if (!targetNodeId) {
+            targetNodeId = connectionMap.get(node.id);
+          }
+          
+          if (targetNodeId) {
+            const conditionText = transition.condition || transition.label || 'Continue';
+            console.log(`[Retell] Edge: "${conditionText}" -> ${targetNodeId} (handle: ${handleId})`);
+            edges.push({
+              id: `edge_${node.id}_${idx}`,
+              transition_condition: {
+                type: 'prompt',
+                prompt: conditionText,
+              },
+              destination_node_id: targetNodeId,
+            });
+          }
+        });
+      }
       
-      (node.transitions || []).forEach(transition => {
-        const handleId = `${node.id}-${transition.id}`;
-        let targetNodeId = connectionMap.get(handleId);
-        
-        // Fallback to sourceNodeId lookup if handle not found
-        if (!targetNodeId) {
-          targetNodeId = connectionMap.get(node.id);
-        }
-        
-        if (targetNodeId) {
-          const condition = transition.condition || transition.label || 'Continue';
-          console.log(`[Retell] Transition: "${condition}" -> ${targetNodeId} (handle: ${handleId})`);
-          nodeTransitions.push({
-            condition,
-            next_node_id: targetNodeId,
+      // If no transitions matched, use connections directly to build edges
+      if (edges.length === 0 && nodeConnections.length > 0) {
+        nodeConnections.forEach((conn, idx) => {
+          const conditionText = conn.label || 'Continue';
+          console.log(`[Retell] Edge (from connection): "${conditionText}" -> ${conn.targetNodeId}`);
+          edges.push({
+            id: `edge_${node.id}_conn_${idx}`,
+            transition_condition: {
+              type: 'prompt',
+              prompt: conditionText,
+            },
+            destination_node_id: conn.targetNodeId,
           });
-        }
-      });
-
-      // If node has no transitions defined but has outgoing connections, add default transition
-      if (nodeTransitions.length === 0) {
-        const defaultTarget = connectionMap.get(node.id);
-        if (defaultTarget) {
-          nodeTransitions.push({
-            condition: 'Continue',
-            next_node_id: defaultTarget,
-          });
-          console.log(`[Retell] Added default transition for ${node.id} -> ${defaultTarget}`);
-        }
+        });
       }
 
-      // Build Retell node
+      // Build the Retell node
       const retellNode: any = {
         id: node.id,
         type: retellNodeType,
-        instruction,
       };
 
-      // Add transitions if any exist
-      if (nodeTransitions.length > 0) {
-        retellNode.transitions = nodeTransitions;
-      }
-
-      // Add node-specific config
-      if (node.type === 'transfer' && node.config?.transferTo) {
-        retellNode.phone_number = node.config.transferTo;
+      // Type-specific handling
+      if (retellNodeType === 'end') {
+        // End nodes: no instruction or edges needed
+      } else if (retellNodeType === 'call_transfer') {
+        const config = node.config as Record<string, any> | undefined;
+        if (config?.transferTo) {
+          retellNode.transfer_destination = {
+            type: 'phone',
+            number: config.transferTo,
+          };
+          retellNode.instruction = instruction;
+        } else {
+          // No transfer destination configured — fall back to conversation node
+          retellNode.type = 'conversation';
+          retellNode.instruction = instruction;
+          console.log(`[Retell] Node ${node.id} has no transfer destination, using conversation type`);
+        }
+        if (edges.length > 0) {
+          retellNode.edges = edges;
+        }
+      } else if (retellNodeType === 'press_digit') {
+        retellNode.instruction = instruction;
+        if (edges.length > 0) {
+          retellNode.edges = edges;
+        }
+      } else {
+        // conversation nodes
+        retellNode.instruction = instruction;
+        if (edges.length > 0) {
+          retellNode.edges = edges;
+        }
       }
 
       retellNodes.push(retellNode);
     });
 
-    console.log(`[Retell] Syncing ${retellNodes.length} nodes in order: ${retellNodes.map(n => n.id).join(' -> ')}`);
+    console.log(`[Retell] Syncing ${retellNodes.length} nodes: ${retellNodes.map(n => `${n.id}(${n.type})`).join(' -> ')}`);
 
-    // Step 7: Update Retell conversation flow with Begin node as starting point
+    // Step 6: Update Retell conversation flow
     await retellClient.conversationFlow.update(flowId, {
       model_choice: model ? {
         model: model as any,
@@ -398,7 +408,8 @@ export async function syncWorkflowToRetell(
       model_temperature: 0.7,
       nodes: retellNodes,
       global_prompt: globalPrompt || undefined,
-      starting_node_id: beginNodeId,
+      start_node_id: startNode.id,
+      start_speaker: 'agent',
     } as any);
 
     console.log(`[Retell] Successfully synced workflow to flow: ${flowId}`);

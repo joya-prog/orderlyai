@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer } from "ws";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./auth";
-import { generateAgentResponse, transcribeAudio, synthesizeSpeech, VoiceConfig, buildFlowContext } from "./openai";
+import { generateAgentResponse, transcribeAudio, synthesizeSpeech, VoiceConfig, buildFlowContext, analyzeCallTranscript } from "./openai";
 import { handleTwilioWebSocket, generateTwiML, getActiveCalls, handleBrowserTestWebSocket } from "./voiceCallHandler";
 import { createWorkflowExecutor, WorkflowState } from "./workflowExecutor";
 import * as retell from "./retell";
@@ -2394,6 +2394,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching call log:", error);
       res.status(500).json({ message: "Failed to fetch call log" });
+    }
+  });
+
+  app.post("/api/call-logs/:id/analyze", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const log = await storage.getCallLogById(req.params.id);
+
+      if (!log) {
+        return res.status(404).json({ message: "Call log not found" });
+      }
+      if (log.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      if (!log.transcript) {
+        return res.status(400).json({ message: "No transcript available to analyze" });
+      }
+
+      const analysis = await analyzeCallTranscript(log.transcript);
+
+      const updated = await storage.updateCallLog(log.id, {
+        callerName: analysis.callerName,
+        sentiment: analysis.sentiment,
+        callOutcome: analysis.callOutcome,
+        orderSummary: analysis.orderSummary,
+      });
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error analyzing call log:", error);
+      res.status(500).json({ message: "Failed to analyze call log" });
     }
   });
 

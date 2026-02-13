@@ -293,6 +293,56 @@ export interface Voice {
   description?: string;
 }
 
+export interface CallAnalysis {
+  callerName: string | null;
+  sentiment: 'positive' | 'neutral' | 'negative';
+  callOutcome: string;
+  orderSummary: string | null;
+}
+
+export async function analyzeCallTranscript(transcript: string): Promise<CallAnalysis> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `You are analyzing a restaurant phone call transcript. Extract the following information and respond in JSON format:
+{
+  "callerName": "The caller's name if they provided it, or null if unknown",
+  "sentiment": "positive" | "neutral" | "negative" (overall tone of the call),
+  "callOutcome": "order_placed" | "reservation_made" | "info_provided" | "transferred" | "callback_scheduled" | "no_resolution",
+  "orderSummary": "A brief summary of what was ordered (e.g. '2x Margherita Pizza, 1x Caesar Salad, 1x Coke'), or null if no order was placed"
+}
+Be concise and accurate. Only set orderSummary if an order was actually confirmed/placed.`
+        },
+        {
+          role: "user",
+          content: transcript,
+        },
+      ],
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      return { callerName: null, sentiment: 'neutral', callOutcome: 'no_resolution', orderSummary: null };
+    }
+
+    const parsed = JSON.parse(content);
+    return {
+      callerName: parsed.callerName || null,
+      sentiment: ['positive', 'neutral', 'negative'].includes(parsed.sentiment) ? parsed.sentiment : 'neutral',
+      callOutcome: parsed.callOutcome || 'no_resolution',
+      orderSummary: parsed.orderSummary || null,
+    };
+  } catch (error) {
+    console.error("Error analyzing call transcript:", error);
+    return { callerName: null, sentiment: 'neutral', callOutcome: 'no_resolution', orderSummary: null };
+  }
+}
+
 export async function listOpenAIVoices(): Promise<Voice[]> {
   return [
     { id: "alloy", name: "Alloy", provider: "openai", language: "en", gender: "neutral", description: "Neutral and balanced" },

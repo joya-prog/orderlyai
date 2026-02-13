@@ -478,6 +478,8 @@ export const callLogs = pgTable("call_logs", {
   endReason: text("end_reason"), // 'customer_hangup', 'agent_hangup', 'transfer', 'voicemail', 'timeout', 'error'
   callOutcome: text("call_outcome"), // 'order_placed', 'reservation_made', 'info_provided', 'transferred', 'no_resolution', 'callback_scheduled'
   costCents: text("cost_cents"), // Cost in cents (e.g., "87" for $0.87)
+  callerName: text("caller_name"), // Name of the caller if identified
+  orderSummary: text("order_summary"), // Summary of items ordered (JSON string or plain text)
   metadata: jsonb("metadata"), // Additional call data
   createdAt: timestamp("created_at").defaultNow(),
 });

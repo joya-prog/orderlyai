@@ -2538,6 +2538,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== BILLING & WEBHOOKS ====================
 
+  const ORDERLY_METER_EVENT_NAME = 'orderly_call_minutes';
+
+  async function getOrCreateMeter(stripe: any) {
+    const meters = await stripe.billing.meters.list({ limit: 100 });
+    let meter = meters.data.find((m: any) => m.event_name === ORDERLY_METER_EVENT_NAME && m.status === 'active');
+
+    if (meter) {
+      return meter;
+    }
+
+    meter = await stripe.billing.meters.create({
+      display_name: 'Orderly AI Call Minutes',
+      event_name: ORDERLY_METER_EVENT_NAME,
+      default_aggregation: { formula: 'sum' },
+      customer_mapping: {
+        type: 'by_id',
+        event_payload_key: 'stripe_customer_id',
+      },
+    });
+
+    return meter;
+  }
+
   async function getOrCreateMeteredPrice(stripe: any) {
     const ORDERLY_PRODUCT_NAME = 'Orderly AI Usage';
     const ORDERLY_METERED_PRICE_LOOKUP = 'orderly_usage_per_minute';
@@ -2551,6 +2574,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (existingPrices.data.length > 0) {
       return existingPrices.data[0];
     }
+
+    const meter = await getOrCreateMeter(stripe);
 
     const products = await stripe.products.list({ active: true, limit: 100 });
     let product = products.data.find((p: any) => p.name === ORDERLY_PRODUCT_NAME);
@@ -2569,7 +2594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       recurring: {
         interval: 'month',
         usage_type: 'metered',
-        aggregate_usage: 'sum',
+        meter: meter.id,
       },
       lookup_key: ORDERLY_METERED_PRICE_LOOKUP,
       metadata: { description: 'Per minute usage charge' },
@@ -3612,30 +3637,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         callLogId: CallSid,
       });
 
-      // Report usage to Stripe if user has active subscription
+      // Report usage to Stripe via Billing Meter Events API
       const subscription = await storage.getSubscription(userId);
-      if (subscription?.stripeSubscriptionId) {
+      if (subscription?.stripeSubscriptionId && subscription?.stripeCustomerId) {
         const stripe = await getUncachableStripeClient();
         if (stripe) {
           try {
-            // Get the subscription item ID for metered billing
-            const stripeSub = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
-            const meteredItem = stripeSub.items.data.find((item: any) => 
-              item.price.recurring?.usage_type === 'metered'
-            );
-
-            if (meteredItem) {
-              // Use Stripe's usage record API - cast to any for SDK version compatibility
-              await (stripe.subscriptionItems as any).createUsageRecord(
-                meteredItem.id,
-                {
-                  quantity: durationMinutes,
-                  timestamp: Math.floor(Date.now() / 1000),
-                  action: 'increment',
-                }
-              );
-              console.log(`Reported ${durationMinutes} minutes to Stripe for user ${userId}`);
-            }
+            const eventTimestamp = Math.floor(Date.now() / 1000);
+            await stripe.billing.meterEvents.create({
+              event_name: ORDERLY_METER_EVENT_NAME,
+              payload: {
+                stripe_customer_id: subscription.stripeCustomerId,
+                value: String(durationMinutes),
+              },
+              timestamp: eventTimestamp,
+              identifier: `call_${CallSid}_${eventTimestamp}`,
+            });
+            console.log(`Reported ${durationMinutes} minutes to Stripe meter for user ${userId}`);
           } catch (stripeError: any) {
             console.error("Error reporting usage to Stripe:", stripeError.message);
           }

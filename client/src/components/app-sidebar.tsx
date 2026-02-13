@@ -84,6 +84,53 @@ const mainItems = [
   },
 ];
 
+function MiniUsageGraph({ minutesUsed }: { minutesUsed: number }) {
+  const points = [0, 0.15, 0.3, 0.25, 0.5, 0.45, 0.7, 0.65, 0.85, 1.0];
+  const scaledPoints = points.map(p => Math.round(p * minutesUsed));
+
+  const width = 180;
+  const height = 32;
+  const padding = 2;
+  const graphWidth = width - padding * 2;
+  const graphHeight = height - padding * 2;
+  const maxVal = Math.max(...scaledPoints, 1);
+
+  const linePoints = scaledPoints.map((val, i) => {
+    const x = padding + (i / (scaledPoints.length - 1)) * graphWidth;
+    const y = padding + graphHeight - (val / maxVal) * graphHeight;
+    return `${x},${y}`;
+  }).join(" ");
+
+  const areaPoints = `${padding},${height - padding} ${linePoints} ${width - padding},${height - padding}`;
+
+  return (
+    <div className="w-full" data-testid="usage-mini-graph">
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-8" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="usageFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0.05" />
+          </linearGradient>
+        </defs>
+        <polygon
+          points={areaPoints}
+          fill="url(#usageFill)"
+          className="text-blue-500 dark:text-blue-400"
+        />
+        <polyline
+          points={linePoints}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="text-blue-500 dark:text-blue-400"
+        />
+      </svg>
+    </div>
+  );
+}
+
 export function AppSidebar() {
   const [location] = useLocation();
   const { user } = useAuth();
@@ -170,20 +217,23 @@ export function AppSidebar() {
         <SidebarGroup className="mt-auto">
           <div className="mx-3 px-4 py-4 rounded-2xl bg-blue-50/80 dark:bg-blue-950/30" data-testid="usage-indicator">
             {subscription?.stripeSubscriptionId ? (
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                  <span className="text-sm font-bold text-blue-900 dark:text-blue-100" data-testid="plan-name">
-                    Pay As You Go
-                  </span>
+              <Link href="/billing">
+                <div className="flex flex-col gap-2 cursor-pointer hover-elevate rounded-xl p-1 -m-1 transition-colors" data-testid="link-billing-usage">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                    <span className="text-sm font-bold text-blue-900 dark:text-blue-100" data-testid="plan-name">
+                      Pay As You Go
+                    </span>
+                  </div>
+                  <MiniUsageGraph minutesUsed={minutesUsed} />
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-blue-500/70 dark:text-blue-400/70 flex-shrink-0" />
+                    <span className="text-xs font-medium text-blue-600/80 dark:text-blue-400/80" data-testid="usage-text">
+                      {minutesUsed} min used this period
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-blue-500/70 dark:text-blue-400/70 flex-shrink-0" />
-                  <span className="text-xs font-medium text-blue-600/80 dark:text-blue-400/80" data-testid="usage-text">
-                    {minutesUsed} min used this period
-                  </span>
-                </div>
-              </div>
+              </Link>
             ) : (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col min-w-0">

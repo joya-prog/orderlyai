@@ -12,6 +12,8 @@ import {
   MessageSquare,
   X,
   CreditCard,
+  CheckCircle2,
+  Clock,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -102,11 +104,7 @@ export function AppSidebar() {
     return `${firstName?.[0] || ""}${lastName?.[0] || ""}`.toUpperCase();
   };
 
-  // Calculate usage percentage
   const minutesUsed = parseInt(usageMetrics?.minutesUsed || '0');
-  const minutesLimit = parseInt(subscription?.minutesLimit || '0');
-  const usagePercentage = minutesLimit > 0 ? Math.round((minutesUsed / minutesLimit) * 100) : 0;
-  const isTrialOrFree = !subscription?.stripeSubscriptionId || subscription?.planType === 'trial';
   const { toggleSidebar, isMobile } = useSidebar();
 
   return (
@@ -171,60 +169,42 @@ export function AppSidebar() {
         {/* Usage Indicator */}
         <SidebarGroup className="mt-auto">
           <div className="mx-3 px-4 py-4 rounded-2xl bg-blue-50/80 dark:bg-blue-950/30" data-testid="usage-indicator">
-            <div className="flex items-center gap-3">
-              {/* Circular Progress */}
-              <div className="relative h-12 w-12 flex-shrink-0">
-                <svg className="transform -rotate-90 h-12 w-12">
-                  <circle
-                    cx="24"
-                    cy="24"
-                    r="20"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    fill="none"
-                    className="text-blue-200 dark:text-blue-900"
-                  />
-                  <circle
-                    cx="24"
-                    cy="24"
-                    r="20"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    fill="none"
-                    strokeDasharray={`${2 * Math.PI * 20}`}
-                    strokeDashoffset={`${2 * Math.PI * 20 * (1 - usagePercentage / 100)}`}
-                    className="text-blue-600 dark:text-blue-400 transition-all duration-300"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-xs font-bold text-blue-700 dark:text-blue-300" data-testid="usage-percentage">
-                    {usagePercentage}%
+            {subscription?.stripeSubscriptionId ? (
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                  <span className="text-sm font-bold text-blue-900 dark:text-blue-100" data-testid="plan-name">
+                    Pay As You Go
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-blue-500/70 dark:text-blue-400/70 flex-shrink-0" />
+                  <span className="text-xs font-medium text-blue-600/80 dark:text-blue-400/80" data-testid="usage-text">
+                    {minutesUsed} min used this period
                   </span>
                 </div>
               </div>
-
-              {/* Usage Info */}
-              <div className="flex flex-col min-w-0">
-                <span className="text-sm font-bold capitalize text-blue-900 dark:text-blue-100" data-testid="plan-name">
-                  {subscription?.planType || 'Loading...'}
-                </span>
-                <span className="text-xs font-medium text-blue-600/80 dark:text-blue-400/80" data-testid="usage-text">
-                  {minutesUsed} / {minutesLimit} MIN
-                </span>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-bold capitalize text-blue-900 dark:text-blue-100" data-testid="plan-name">
+                    {subscription?.planType || 'Free Trial'}
+                  </span>
+                  <span className="text-xs font-medium text-blue-600/80 dark:text-blue-400/80" data-testid="usage-text">
+                    {minutesUsed} min used
+                  </span>
+                </div>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="w-full gap-2"
+                  onClick={() => setPaymentDialogOpen(true)}
+                  data-testid="button-add-payment-sidebar"
+                >
+                  <CreditCard className="h-3.5 w-3.5" />
+                  Add Payment
+                </Button>
               </div>
-            </div>
-
-            {!subscription?.stripeSubscriptionId && (
-              <Button
-                variant="default"
-                size="sm"
-                className="w-full mt-3 gap-2"
-                onClick={() => setPaymentDialogOpen(true)}
-                data-testid="button-add-payment-sidebar"
-              >
-                <CreditCard className="h-3.5 w-3.5" />
-                Add Payment
-              </Button>
             )}
           </div>
         </SidebarGroup>

@@ -105,7 +105,7 @@ function MiniUsageGraph({ minutesUsed }: { minutesUsed: number }) {
 
   return (
     <div className="w-full" data-testid="usage-mini-graph">
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-8" preserveAspectRatio="none">
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-5" preserveAspectRatio="none">
         <defs>
           <linearGradient id="usageFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="currentColor" stopOpacity="0.3" />
@@ -215,23 +215,22 @@ export function AppSidebar() {
 
         {/* Usage Indicator */}
         <SidebarGroup className="mt-auto">
-          <div className="mx-3 px-4 py-4 rounded-2xl bg-blue-50/80 dark:bg-blue-950/30" data-testid="usage-indicator">
+          <div className="mx-3 px-3 py-3 rounded-2xl bg-blue-50/80 dark:bg-blue-950/30" data-testid="usage-indicator">
             {subscription?.stripeSubscriptionId ? (
               <Link href="/billing">
-                <div className="flex flex-col gap-2 cursor-pointer hover-elevate rounded-xl p-1 -m-1 transition-colors" data-testid="link-billing-usage">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                    <span className="text-sm font-bold text-blue-900 dark:text-blue-100" data-testid="plan-name">
-                      Pay As You Go
+                <div className="flex flex-col gap-1 cursor-pointer hover-elevate rounded-xl p-1 -m-1 transition-colors" data-testid="link-billing-usage">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                      <span className="text-xs font-bold text-blue-900 dark:text-blue-100" data-testid="plan-name">
+                        Pay As You Go
+                      </span>
+                    </div>
+                    <span className="text-xs font-medium text-blue-600/80 dark:text-blue-400/80" data-testid="usage-text">
+                      {minutesUsed} min
                     </span>
                   </div>
                   <MiniUsageGraph minutesUsed={minutesUsed} />
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-blue-500/70 dark:text-blue-400/70 flex-shrink-0" />
-                    <span className="text-xs font-medium text-blue-600/80 dark:text-blue-400/80" data-testid="usage-text">
-                      {minutesUsed} min used this period
-                    </span>
-                  </div>
                 </div>
               </Link>
             ) : (

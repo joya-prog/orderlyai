@@ -10,10 +10,10 @@ import * as retell from "./retell";
 import multer from "multer";
 
 const upload = multer({ storage: multer.memoryStorage() });
-import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema, insertIntegrationConfigSchema, insertAnalyticsEventSchema, onboardingSchema } from "@shared/schema";
+import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema, insertIntegrationConfigSchema, insertAnalyticsEventSchema, onboardingSchema, users } from "@shared/schema";
 import twilio from "twilio";
 import crypto from "crypto";
-import { getTwilioClient, getTwilioAccountSid, getTwilioAuthToken, sendSms2FACode, verifySms2FACode } from "./twilioClient";
+import { getTwilioClient, getTwilioAccountSid, getTwilioAuthToken, sendSms2FACode, verifySms2FACode, sendSignupNotification } from "./twilioClient";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
@@ -66,11 +66,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         restaurantPhone,
         restaurantWebsite,
       });
+
+      sendSignupNotification({
+        email: user.email || 'Unknown',
+        signupMethod: user.authProvider === 'google' ? 'Google OAuth' : 'Email/Password',
+        restaurantName: restaurantName || undefined,
+        restaurantType: restaurantType || undefined,
+        restaurantPhone: restaurantPhone || undefined,
+      }).catch(console.error);
       
       res.json(user);
     } catch (error) {
       console.error("Error completing onboarding:", error);
       res.status(500).json({ message: "Failed to complete onboarding" });
+    }
+  });
+
+  // Admin routes
+  app.get("/api/admin/signups", isAuthenticated, async (req: any, res) => {
+    try {
+      const allUsers = await db
+        .select({
+          id: users.id,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          profileImageUrl: users.profileImageUrl,
+          authProvider: users.authProvider,
+          restaurantName: users.restaurantName,
+          restaurantType: users.restaurantType,
+          restaurantPhone: users.restaurantPhone,
+          restaurantWebsite: users.restaurantWebsite,
+          onboardingCompleted: users.onboardingCompleted,
+          createdAt: users.createdAt,
+        })
+        .from(users)
+        .orderBy(sql`${users.createdAt} desc`);
+      res.json(allUsers);
+    } catch (error) {
+      console.error("Error fetching signups:", error);
+      res.status(500).json({ message: "Failed to fetch signups" });
     }
   });
 

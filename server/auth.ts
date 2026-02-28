@@ -173,7 +173,7 @@ export async function setupAuth(app: Express) {
                   authProvider: 'google',
                   emailVerified: true,
                 });
-                sendSignupNotification(user.email || 'Unknown', 'Google OAuth').catch(console.error);
+                sendSignupNotification({ email: user.email || 'Unknown', signupMethod: 'Google OAuth' }).catch(console.error);
               }
             }
             
@@ -221,7 +221,7 @@ export async function setupAuth(app: Express) {
         authProvider: 'local',
       });
       
-      sendSignupNotification(user.email || 'Unknown', 'Email/Password').catch(console.error);
+      sendSignupNotification({ email: user.email || 'Unknown', signupMethod: 'Email/Password' }).catch(console.error);
       
       req.login(user, (err) => {
         if (err) {

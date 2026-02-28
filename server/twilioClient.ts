@@ -159,10 +159,19 @@ export function verifySms2FACode(phoneNumber: string, userId: string, code: stri
   return false;
 }
 
-export async function sendSignupNotification(userEmail: string, signupMethod: string): Promise<{ success: boolean; error?: string }> {
+export interface SignupNotificationData {
+  email: string;
+  signupMethod: string;
+  restaurantName?: string;
+  restaurantType?: string;
+  restaurantPhone?: string;
+}
+
+export async function sendSignupNotification(data: SignupNotificationData): Promise<{ success: boolean; error?: string }> {
   const adminNumber = process.env.ADMIN_SMS_NUMBER;
+  const { email, signupMethod, restaurantName, restaurantType, restaurantPhone } = data;
   
-  console.log('[Signup Notification] Starting for user:', userEmail, 'method:', signupMethod);
+  console.log('[Signup Notification] Starting for user:', email, 'method:', signupMethod);
   console.log('[Signup Notification] Admin number configured:', !!adminNumber);
   console.log('[Signup Notification] Using env fallback:', useEnvFallback);
   
@@ -179,7 +188,18 @@ export async function sendSignupNotification(userEmail: string, signupMethod: st
     const fromNumber = await getTwilioFromPhoneNumber();
     console.log('[Signup Notification] From number:', fromNumber ? fromNumber.substring(0, 6) + '****' : 'NOT SET');
     
-    const message = `New Orderly AI signup!\n\nEmail: ${userEmail}\nMethod: ${signupMethod}\nTime: ${new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })}`;
+    const lines = [
+      `New Orderly AI signup!`,
+      ``,
+      `Email: ${email}`,
+      `Method: ${signupMethod}`,
+    ];
+    if (restaurantName) lines.push(`Restaurant: ${restaurantName}`);
+    if (restaurantType) lines.push(`Type: ${restaurantType.replace(/_/g, ' ')}`);
+    if (restaurantPhone) lines.push(`Phone: ${restaurantPhone}`);
+    lines.push(`Time: ${new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })}`);
+    
+    const message = lines.join('\n');
     
     console.log('[Signup Notification] Sending SMS to:', adminNumber.substring(0, 6) + '****');
     

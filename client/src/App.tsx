@@ -25,6 +25,7 @@ import Integrations from "@/pages/integrations";
 import Logs from "@/pages/logs";
 import Settings from "@/pages/settings";
 import Billing from "@/pages/billing";
+import AdminSignups from "@/pages/admin-signups";
 
 function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -70,6 +71,7 @@ function Router() {
       <Route path="/settings" component={Settings} />
       <Route path="/billing" component={Billing} />
       <Route path="/templates" component={Templates} />
+      <Route path="/admin/signups" component={AdminSignups} />
       <Route component={NotFound} />
     </Switch>
   );

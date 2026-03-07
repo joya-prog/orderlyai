@@ -45,7 +45,7 @@ integrations = ["javascript_openai:1.0.0", "javascript_log_in_with_replit:1.0.0"
 [userenv]
 
 [userenv.production]
-GOOGLE_OAUTH_CALLBACK_URL = "https://orderly-ai-studio.replit.app/api/auth/google/callback"
+GOOGLE_OAUTH_CALLBACK_URL = "https://orderlyai.studio/api/auth/google/callback"
 
 [userenv.shared]
 ADMIN_SMS_NUMBER = "+14158126266"

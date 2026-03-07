@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Clock,
   ShieldCheck,
+  LifeBuoy,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -310,6 +311,16 @@ export function AppSidebar() {
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <a
+              href="mailto:hello@getorderly.io"
+              className="flex items-center gap-2 w-full px-2 py-2 rounded-md text-sm text-muted-foreground hover-elevate"
+              data-testid="link-ask-for-help"
+            >
+              <LifeBuoy className="h-4 w-4 flex-shrink-0" />
+              <span>Ask for help</span>
+            </a>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

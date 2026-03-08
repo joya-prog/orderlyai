@@ -370,9 +370,24 @@ export async function setupAuth(app: Express) {
   });
 
   app.get("/api/auth/google/callback", (req: any, res, next) => {
+    console.log("[Google OAuth] Callback query params:", JSON.stringify({
+      code: req.query.code ? '[present]' : '[missing]',
+      state: req.query.state ? '[present]' : '[missing]',
+      error: req.query.error,
+      error_description: req.query.error_description,
+    }));
     passport.authenticate("google", async (err: any, user: any) => {
       if (err || !user) {
-        console.error("Google OAuth failed:", err?.message || err, "user present:", !!user);
+        console.error("[Google OAuth] Auth failed - error details:", JSON.stringify({
+          message: err?.message,
+          name: err?.name,
+          code: err?.code,
+          statusCode: err?.statusCode,
+          data: err?.data,
+          oauthError: err?.oauthError,
+          isString: typeof err === 'string',
+          raw: typeof err === 'string' ? err : undefined,
+        }));
         return res.redirect("/auth?error=google_failed");
       }
       

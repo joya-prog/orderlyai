@@ -21,6 +21,7 @@ export default function Auth() {
   const [authView, setAuthView] = useState<AuthView>('login');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [mobileView, setMobileView] = useState<'landing' | 'form'>('landing');
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,6 +63,7 @@ export default function Auth() {
     if (token) {
       setResetToken(token);
       setAuthView('reset-password');
+      setMobileView('form');
     } else if (requires2fa === 'true') {
       // Clear URL params first
       window.history.replaceState({}, document.title, '/auth');
@@ -70,6 +72,7 @@ export default function Auth() {
         // Token from email/password login (passed in response)
         setPendingToken(pendingFromUrl);
         setAuthView('2fa-verify');
+        setMobileView('form');
       } else {
         // Token from Google OAuth (stored in session, fetch it)
         fetch('/api/auth/2fa/pending-token', { credentials: 'include' })
@@ -82,6 +85,7 @@ export default function Auth() {
             setTwoFactorMethod(data.method || 'totp');
             setPhoneLastFour(data.phoneLastFour || '');
             setAuthView('2fa-verify');
+            setMobileView('form');
             if (data.method === 'sms') {
               toast({
                 title: "Verification Code Sent",
@@ -897,20 +901,115 @@ export default function Auth() {
 
   return (
     <div className="h-screen flex overflow-hidden">
-      {/* Left Side - Auth Forms */}
-      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center bg-white dark:bg-gray-950 p-6 lg:p-10 overflow-hidden">
+
+      {/* ── MOBILE: Landing view (calculator + CTAs) ── */}
+      {mobileView === 'landing' && (
+        <div className="flex flex-col w-full lg:hidden bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 overflow-y-auto">
+          {/* Logo strip */}
+          <div className="px-6 pt-8 pb-2 flex items-center gap-3">
+            <img
+              src={orderlyLogo}
+              alt="Orderly AI"
+              className="h-9 w-9 rounded-lg object-cover"
+            />
+            <span className="text-lg font-semibold tracking-tight text-white">
+              Orderly AI
+            </span>
+          </div>
+
+          {/* Calculator section */}
+          <div className="flex-1 px-5 pt-4 pb-2">
+            <h2 className="text-2xl font-bold text-white mb-1">
+              Estimate your Cost
+            </h2>
+            <p className="text-white/70 text-sm mb-5">
+              Adjust your usage and AI model to see real-time pricing for our AI voice agent solution.
+            </p>
+            <PricingCalculator variant="compact" />
+            <p className="text-white/40 text-[10px] mt-3 text-center">
+              Pricing is estimated. Actual costs may vary.
+            </p>
+          </div>
+
+          {/* CTA buttons */}
+          <div className="px-5 pb-10 pt-4 space-y-3">
+            <Button
+              className="w-full h-12 bg-white text-indigo-700 font-semibold text-base rounded-xl"
+              onClick={() => {
+                resetFormState();
+                setAuthView('signup');
+                setMobileView('form');
+              }}
+              data-testid="button-mobile-get-started"
+            >
+              Get Started Free
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full h-12 border-white/40 text-white bg-white/10 font-medium text-base rounded-xl"
+              onClick={() => {
+                resetFormState();
+                setAuthView('login');
+                setMobileView('form');
+              }}
+              data-testid="button-mobile-login"
+            >
+              Log In
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── MOBILE: Form view ── */}
+      {mobileView === 'form' && (
+        <div className="flex flex-col w-full lg:hidden bg-white dark:bg-gray-950 overflow-y-auto">
+          {/* Back button */}
+          <button
+            type="button"
+            onClick={() => setMobileView('landing')}
+            className="flex items-center gap-1.5 text-sm text-indigo-600 font-medium px-5 pt-6 pb-2"
+            data-testid="button-mobile-back"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </button>
+          <div className="flex flex-col items-center px-6 pb-10 pt-2">
+            <div className="w-full max-w-md">
+              <a
+                href="https://getorderly.io/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 mb-7 hover:opacity-80 transition-opacity"
+                data-testid="link-logo-auth-mobile"
+              >
+                <img
+                  src={orderlyLogo}
+                  alt="Orderly AI"
+                  className="h-9 w-9 rounded-lg object-cover"
+                />
+                <span className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">
+                  Orderly AI
+                </span>
+              </a>
+              {renderAuthContent()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DESKTOP: Left side — Auth forms (lg+) ── */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center bg-white dark:bg-gray-950 p-10 overflow-hidden">
         <div className="w-full max-w-md">
-          {/* Logo */}
-          <a 
+          <a
             href="https://getorderly.io/"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-3 mb-8 hover:opacity-80 transition-opacity cursor-pointer"
             data-testid="link-logo-auth"
           >
-            <img 
-              src={orderlyLogo} 
-              alt="Orderly AI" 
+            <img
+              src={orderlyLogo}
+              alt="Orderly AI"
               className="h-10 w-10 rounded-lg object-cover"
               data-testid="img-logo-auth"
             />
@@ -918,30 +1017,28 @@ export default function Auth() {
               Orderly AI
             </span>
           </a>
-          
           {renderAuthContent()}
         </div>
       </div>
 
-      {/* Right Side - Pricing Calculator */}
+      {/* ── DESKTOP: Right side — Pricing Calculator (lg+) ── */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 p-6 flex-col items-center justify-center">
         <div className="w-full max-w-sm">
           <div className="mb-4">
-            <h2 className="text-xl font-bold text-white mb-1" style={{ fontFamily: "'Inter', sans-serif" }}>
+            <h2 className="text-xl font-bold text-white mb-1">
               Estimate your Cost
             </h2>
             <p className="text-white/70 text-xs">
               Adjust your usage, and AI model to see real time pricing for our AI voice agent solution.
             </p>
           </div>
-
           <PricingCalculator variant="compact" />
-
           <p className="text-white/50 text-[10px] mt-3 text-center">
             Pricing is estimated. Actual costs may vary.
           </p>
         </div>
       </div>
+
     </div>
   );
 }

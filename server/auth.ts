@@ -364,66 +364,15 @@ export async function setupAuth(app: Express) {
     if (!process.env.GOOGLE_CLIENT_ID) {
       return res.status(501).json({ message: "Google authentication not configured" });
     }
-    
-    // Generate CSRF state token and store in session
-    const state = crypto.randomBytes(32).toString('hex');
-    req.session.oauthState = state;
-    req.session.oauthStateCreatedAt = Date.now();
-    
-    // Force session save before redirect
-    req.session.save((err: any) => {
-      if (err) {
-        console.error("Failed to save OAuth state to session:", err);
-        return res.redirect("/auth?error=session_error");
-      }
-      
-      passport.authenticate("google", { 
-        scope: ["profile", "email"],
-        state 
-      })(req, res, next);
-    });
+    passport.authenticate("google", {
+      scope: ["profile", "email"],
+    })(req, res, next);
   });
 
   app.get("/api/auth/google/callback", (req: any, res, next) => {
-    // Validate CSRF state
-    const state = req.query.state as string;
-    if (!state) {
-      console.error("OAuth callback missing state parameter");
-      return res.redirect("/auth?error=missing_state");
-    }
-    
-    // Validate state matches session
-    const storedState = req.session.oauthState;
-    const stateCreatedAt = req.session.oauthStateCreatedAt;
-    
-    if (!storedState) {
-      console.error("OAuth callback: no state in session");
-      return res.redirect("/auth?error=session_expired");
-    }
-    
-    if (storedState !== state) {
-      console.error("OAuth callback: state mismatch - potential CSRF");
-      delete req.session.oauthState;
-      delete req.session.oauthStateCreatedAt;
-      return res.redirect("/auth?error=state_mismatch");
-    }
-    
-    // Check state expiration (10 minutes)
-    const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
-    if (stateCreatedAt && stateCreatedAt < tenMinutesAgo) {
-      console.error("OAuth callback: state expired");
-      delete req.session.oauthState;
-      delete req.session.oauthStateCreatedAt;
-      return res.redirect("/auth?error=state_expired");
-    }
-    
-    // Clear state after validation (one-time use)
-    delete req.session.oauthState;
-    delete req.session.oauthStateCreatedAt;
-    
-    passport.authenticate("google", { session: false }, async (err: any, user: any) => {
+    passport.authenticate("google", async (err: any, user: any) => {
       if (err || !user) {
-        console.error("Google OAuth passport.authenticate failed:", err?.message || err, "user present:", !!user);
+        console.error("Google OAuth failed:", err?.message || err, "user present:", !!user);
         return res.redirect("/auth?error=google_failed");
       }
       

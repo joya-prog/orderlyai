@@ -149,6 +149,10 @@ export async function setupAuth(app: Express) {
     const callbackURL = process.env.GOOGLE_OAUTH_CALLBACK_URL || 
       `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}/api/auth/google/callback`;
     
+    console.log('[Google OAuth] Initializing with callbackURL:', callbackURL);
+    console.log('[Google OAuth] GOOGLE_OAUTH_CALLBACK_URL env:', process.env.GOOGLE_OAUTH_CALLBACK_URL || '(not set, using REPLIT_DOMAINS)');
+    console.log('[Google OAuth] REPLIT_DOMAINS:', process.env.REPLIT_DOMAINS);
+    
     passport.use(
       new GoogleStrategy(
         {

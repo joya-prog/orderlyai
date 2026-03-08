@@ -468,7 +468,12 @@ export async function setupAuth(app: Express) {
         if (loginErr) {
           return res.redirect("/auth?error=login_failed");
         }
-        return res.redirect("/");
+        req.session.save((saveErr: any) => {
+          if (saveErr) {
+            console.error("Failed to save session after Google OAuth login:", saveErr);
+          }
+          return res.redirect("/");
+        });
       });
     })(req, res, next);
   });

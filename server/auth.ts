@@ -197,6 +197,8 @@ export async function setupAuth(app: Express) {
     console.log('[Google OAuth] Initializing with callbackURL:', callbackURL);
     console.log('[Google OAuth] GOOGLE_OAUTH_CALLBACK_URL env:', process.env.GOOGLE_OAUTH_CALLBACK_URL || '(not set, using REPLIT_DOMAINS)');
     console.log('[Google OAuth] REPLIT_DOMAINS:', process.env.REPLIT_DOMAINS);
+    console.log('[Google OAuth] CLIENT_ID prefix:', process.env.GOOGLE_CLIENT_ID?.substring(0, 20));
+    console.log('[Google OAuth] CLIENT_SECRET prefix:', process.env.GOOGLE_CLIENT_SECRET?.substring(0, 10));
     
     passport.use(
       new GoogleStrategy(

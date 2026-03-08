@@ -1,0 +1,270 @@
+You are building a **secure Admin Control Center** for a SaaS platform called **Orderly AI**, which provides AI voice agents for restaurants.
+
+The purpose of this dashboard is **internal operations only**.
+Only **one master admin account (the founder)** should have full access to everything in the system.
+
+Build a **complete Admin Dashboard module** that integrates into the existing Orderly AI dashboard.
+
+Focus on **clarity, security, and scalability**.
+
+---
+
+SYSTEM REQUIREMENTS
+
+• Framework: use the same stack already used in this project
+• The Admin panel should live at: `/admin`
+• Access must be restricted to **admin users only**
+• If a non-admin tries to access `/admin`, redirect them to `/login`
+
+---
+
+1. ADMIN AUTHENTICATION
+
+Create a secure admin authentication system.
+
+Features:
+• Admin login (email + password)
+• Optional magic link login
+• Multi-factor authentication support
+• Session management
+• Force logout capability
+• Login audit logs
+
+Roles (for future expansion):
+• Super Admin (full access)
+• Support Agent (view-only)
+• Billing Admin (billing only)
+
+For now, **seed one Super Admin account** that only I control.
+
+---
+
+2. RESTAURANT MANAGEMENT PANEL
+
+Create a page that lists all restaurants using the platform.
+
+Table fields:
+• Restaurant Name
+• Location
+• Status (Active / Trial / Suspended)
+• Plan Tier
+• Signup Date
+• POS Integration Status
+• Phone Number Assigned
+• Last Activity
+
+Capabilities:
+• Search
+• Filters (status, plan, POS type)
+• View restaurant details
+• Suspend account
+• Edit restaurant info
+• Delete account
+• Export list to CSV
+• “Login as restaurant” (admin impersonation)
+
+---
+
+3. AI AGENT CONFIGURATION VIEW
+
+Each restaurant should have editable AI settings.
+
+Settings include:
+• Voice selection
+• Greeting script
+• Tone/personality
+• After-hours message
+• Hold message
+
+Knowledge configuration:
+• Menu items
+• FAQs
+• Restaurant hours
+• Promotions
+• Dietary/allergy instructions
+
+Conversation settings:
+• Call routing rules
+• Order confirmation flow
+• Payment handling
+• Multi-language toggle
+
+---
+
+4. PHONE NUMBER MANAGEMENT
+
+Create a phone system management panel.
+
+Features:
+• View purchased phone numbers
+• Assign numbers to restaurants
+• Show provider status (Twilio or voice provider)
+• Call routing rules
+• Voicemail configuration
+
+---
+
+5. POS INTEGRATION CENTER
+
+Show integrations with restaurant POS systems.
+
+Features:
+• Supported POS list (Square, Toast, Clover, etc.)
+• Integration status indicator
+• Last sync timestamp
+• Menu sync button
+• POS webhook logs
+• Failed order error logs
+• Test order simulator
+
+---
+
+6. ANALYTICS DASHBOARD
+
+Create a global analytics overview page.
+
+Display metrics such as:
+• Total restaurants
+• Calls today / week / month
+• Orders completed
+• AI success rate
+• Average call duration
+• Live calls happening now
+
+Include charts for:
+• Call volume over time
+• Call outcomes
+• Peak call hours
+
+Allow exporting reports to CSV or PDF.
+
+---
+
+7. REAL-TIME OPERATIONS MONITOR
+
+Build a live monitoring page.
+
+Display:
+• Active calls in progress
+• Call queue size
+• System health indicators
+• Recent system errors
+• Integration failures
+
+Alerts should support:
+• Email
+• Slack
+• Telegram
+• SMS
+
+---
+
+8. SUPPORT & TROUBLESHOOTING
+
+Create a support tools section.
+
+Features:
+• Call logs database
+• Call recordings
+• Full transcripts
+• Call search filters
+• Flag calls for review
+
+Include debugging tools:
+• Test call simulator
+• AI response playground
+• Webhook testing
+• Application logs viewer
+
+---
+
+9. BILLING MANAGEMENT
+
+Create an admin billing interface.
+
+Features:
+• Subscription plans (Starter, Pro, Enterprise)
+• Trial management
+• Invoice history
+• Payment status
+• Refund handling
+
+Integrate with Stripe for payments.
+
+Display metrics:
+• MRR
+• churn rate
+• revenue by plan
+
+---
+
+10. SYSTEM SETTINGS
+
+Create global configuration settings.
+
+Include:
+• Default AI voice
+• AI model selection
+• temperature / token settings
+• feature flags
+• maintenance mode
+
+Integration settings:
+• API keys (voice providers, AI providers, POS)
+• webhook URLs
+• environment configs
+
+Security controls:
+• API key rotation
+• rate limiting
+• allowed domains
+• data retention settings
+
+---
+
+11. AUDIT LOGS
+
+Track every admin action.
+
+Log:
+• login events
+• configuration changes
+• restaurant edits
+• billing changes
+• support actions
+
+Each log entry should include:
+• user
+• action
+• timestamp
+• affected resource
+
+---
+
+12. ADMIN NOTIFICATION CENTER
+
+Create an in-app notification system.
+
+Admin notifications:
+• system alerts
+• new restaurant signups
+• integration failures
+• billing issues
+
+Include:
+• unread notification count
+• archive / mark as read
+• notification preferences
+
+---
+
+FINAL REQUIREMENTS
+
+• Clean, modern admin UI
+• Mobile responsive
+• Fast loading tables
+• Proper API structure for backend endpoints
+• Secure authentication middleware
+• Clear folder structure for maintainability
+
+This Admin Dashboard should function as the **central command center** for managing the entire Orderly AI platform.

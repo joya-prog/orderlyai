@@ -7,8 +7,53 @@ import connectPg from "connect-pg-simple";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { authenticator } from "otplib";
+import { Resend } from "resend";
 import { storage } from "./storage";
 import { sendSms2FACode, verifySms2FACode, sendSignupNotification } from "./twilioClient";
+
+// Resend email client
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "Orderly AI <noreply@getorderly.io>";
+
+async function sendPasswordResetEmail(toEmail: string, resetUrl: string): Promise<void> {
+  if (!resend) {
+    console.warn("[Email] RESEND_API_KEY not set — skipping email send. Reset URL:", resetUrl);
+    return;
+  }
+
+  const { error } = await resend.emails.send({
+    from: FROM_EMAIL,
+    to: toEmail,
+    subject: "Reset your Orderly AI password",
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f9f7f4; margin: 0; padding: 40px 20px;">
+          <div style="max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 40px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);">
+            <div style="margin-bottom: 28px;">
+              <h1 style="font-size: 22px; font-weight: 700; color: #1a1a1a; margin: 0 0 8px 0;">Reset your password</h1>
+              <p style="color: #666; font-size: 15px; margin: 0;">You requested a password reset for your Orderly AI account.</p>
+            </div>
+            <a href="${resetUrl}" style="display: inline-block; background: #2d6a4f; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-size: 15px; font-weight: 600; margin-bottom: 28px;">
+              Reset Password
+            </a>
+            <p style="color: #999; font-size: 13px; margin: 0 0 8px 0;">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+            <p style="color: #bbb; font-size: 12px; margin: 0;">Orderly AI · Voice Agent Platform for Restaurants</p>
+          </div>
+        </body>
+      </html>
+    `,
+  });
+
+  if (error) {
+    console.error("[Email] Failed to send password reset email:", error);
+    throw new Error(`Email send failed: ${error.message}`);
+  }
+
+  console.log(`[Email] Password reset email sent to ${toEmail}`);
+}
 
 const SALT_ROUNDS = 12;
 
@@ -777,15 +822,24 @@ export async function setupAuth(app: Express) {
         expiresAt,
       });
       
-      // In production, this would send an email with the reset link
-      // For now, we'll just return success and log the token for testing
-      const resetUrl = `${req.protocol}://${req.get('host')}/auth/reset-password?token=${token}`;
-      console.log(`Password reset requested for ${email}. Reset URL: ${resetUrl}`);
-      
+      // Build reset URL — use production domain if available
+      const host = process.env.NODE_ENV === 'production'
+        ? (process.env.REPLIT_DOMAINS?.split(',').find(d => !d.includes('replit.dev')) || req.get('host'))
+        : req.get('host');
+      const resetUrl = `${req.protocol}://${host}/auth/reset-password?token=${token}`;
+
+      // Send the reset email via Resend
+      try {
+        await sendPasswordResetEmail(email, resetUrl);
+      } catch (emailError) {
+        console.error("Failed to send reset email:", emailError);
+        // Don't expose email failure to the user — still return success
+      }
+
+      console.log(`[Auth] Password reset requested for ${email}.`);
+
       res.json({ 
         message: "If an account exists with that email, you will receive a password reset link.",
-        // Only include token in development for testing
-        ...(process.env.NODE_ENV !== 'production' && { resetToken: token, resetUrl })
       });
     } catch (error: any) {
       console.error("Forgot password error:", error);

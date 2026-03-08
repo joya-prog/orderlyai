@@ -215,25 +215,39 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Admin</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={location === "/admin/signups"}
-                  data-testid="nav-admin-signups"
-                >
-                  <Link href="/admin/signups">
-                    <ShieldCheck className="h-4 w-4" />
-                    <span>Signups</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {user?.role === 'admin' && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Admin</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location.startsWith("/admin/restaurants")}
+                    data-testid="nav-admin-restaurants"
+                  >
+                    <Link href="/admin/restaurants">
+                      <ShieldCheck className="h-4 w-4" />
+                      <span>Restaurants</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location === "/admin/signups"}
+                    data-testid="nav-admin-signups"
+                  >
+                    <Link href="/admin/signups">
+                      <ShieldCheck className="h-4 w-4" />
+                      <span>Signups</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {/* Usage Indicator */}
         <SidebarGroup className="mt-auto">

@@ -42,7 +42,13 @@ export const users = pgTable("users", {
   restaurantPhone: varchar("restaurant_phone"),
   restaurantWebsite: varchar("restaurant_website"),
   onboardingCompleted: boolean("onboarding_completed").default(false),
-  
+
+  // Role-based access control
+  role: varchar("role").default('user'), // 'user', 'admin', 'support', 'billing'
+
+  // Account status
+  accountStatus: varchar("account_status").default('trial'), // 'active', 'trial', 'suspended'
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -733,3 +739,18 @@ export const insertTwoFactorAuthSchema = createInsertSchema(twoFactorAuth).omit(
 
 export type InsertTwoFactorAuth = z.infer<typeof insertTwoFactorAuthSchema>;
 export type TwoFactorAuth = typeof twoFactorAuth.$inferSelect;
+
+// Admin audit logs
+export const adminAuditLogs = pgTable("admin_audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  adminUserId: varchar("admin_user_id").notNull().references(() => users.id),
+  action: varchar("action").notNull(), // e.g. 'suspend_account', 'delete_account', 'edit_restaurant', 'impersonate'
+  targetUserId: varchar("target_user_id").references(() => users.id),
+  targetResource: varchar("target_resource"), // e.g. 'user', 'agent', 'phone_number'
+  details: jsonb("details"), // arbitrary context about the action
+  ipAddress: varchar("ip_address"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type AdminAuditLog = typeof adminAuditLogs.$inferSelect;
+export type InsertAdminAuditLog = typeof adminAuditLogs.$inferInsert;

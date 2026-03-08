@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer } from "ws";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./auth";
+import { setupAuth, isAuthenticated, isAdmin, isSuperAdmin } from "./auth";
 import { generateAgentResponse, transcribeAudio, synthesizeSpeech, VoiceConfig, buildFlowContext, analyzeCallTranscript } from "./openai";
 import { handleTwilioWebSocket, generateTwiML, getActiveCalls, handleBrowserTestWebSocket } from "./voiceCallHandler";
 import { createWorkflowExecutor, WorkflowState } from "./workflowExecutor";
@@ -10,13 +10,13 @@ import * as retell from "./retell";
 import multer from "multer";
 
 const upload = multer({ storage: multer.memoryStorage() });
-import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema, insertIntegrationConfigSchema, insertAnalyticsEventSchema, onboardingSchema, users } from "@shared/schema";
+import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema, insertIntegrationConfigSchema, insertAnalyticsEventSchema, onboardingSchema, users, adminAuditLogs } from "@shared/schema";
 import twilio from "twilio";
 import crypto from "crypto";
 import { getTwilioClient, getTwilioAccountSid, getTwilioAuthToken, sendSms2FACode, verifySms2FACode, sendSignupNotification } from "./twilioClient";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { db } from "./db";
-import { sql } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
 
 // Initialize Twilio client - but prefer the Replit connection integration
 const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -82,8 +82,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin routes
-  app.get("/api/admin/signups", isAuthenticated, async (req: any, res) => {
+  // ─── Admin Routes (protected by isAdmin middleware) ───────────────────────
+
+  // Helper: write to audit log
+  async function writeAuditLog(adminUserId: string, action: string, targetUserId: string | null, resource: string, details: any, ip: string) {
+    try {
+      await db.insert(adminAuditLogs).values({
+        adminUserId,
+        action,
+        targetUserId: targetUserId || null,
+        targetResource: resource,
+        details,
+        ipAddress: ip,
+      });
+    } catch (e) {
+      console.error("Audit log write failed:", e);
+    }
+  }
+
+  // GET /api/admin/signups — legacy alias kept for backward compat
+  app.get("/api/admin/signups", isAdmin, async (req: any, res) => {
     try {
       const allUsers = await db
         .select({
@@ -98,6 +116,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           restaurantPhone: users.restaurantPhone,
           restaurantWebsite: users.restaurantWebsite,
           onboardingCompleted: users.onboardingCompleted,
+          role: users.role,
+          accountStatus: users.accountStatus,
           createdAt: users.createdAt,
         })
         .from(users)
@@ -107,6 +127,217 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching signups:", error);
       res.status(500).json({ message: "Failed to fetch signups" });
     }
+  });
+
+  // GET /api/admin/restaurants — full restaurant list with enriched data
+  app.get("/api/admin/restaurants", isAdmin, async (req: any, res) => {
+    try {
+      const search = (req.query.search as string || '').toLowerCase();
+      const statusFilter = req.query.status as string;
+      const allUsers = await db
+        .select({
+          id: users.id,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          profileImageUrl: users.profileImageUrl,
+          authProvider: users.authProvider,
+          restaurantName: users.restaurantName,
+          restaurantType: users.restaurantType,
+          restaurantPhone: users.restaurantPhone,
+          restaurantWebsite: users.restaurantWebsite,
+          onboardingCompleted: users.onboardingCompleted,
+          role: users.role,
+          accountStatus: users.accountStatus,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt,
+        })
+        .from(users)
+        .where(sql`${users.role} != 'admin'`)
+        .orderBy(sql`${users.createdAt} desc`);
+
+      let filtered = allUsers;
+      if (search) {
+        filtered = filtered.filter(u =>
+          u.restaurantName?.toLowerCase().includes(search) ||
+          u.email?.toLowerCase().includes(search) ||
+          `${u.firstName} ${u.lastName}`.toLowerCase().includes(search)
+        );
+      }
+      if (statusFilter && statusFilter !== 'all') {
+        filtered = filtered.filter(u => u.accountStatus === statusFilter);
+      }
+
+      res.json(filtered);
+    } catch (error) {
+      console.error("Error fetching restaurants:", error);
+      res.status(500).json({ message: "Failed to fetch restaurants" });
+    }
+  });
+
+  // GET /api/admin/restaurants/export — CSV export
+  app.get("/api/admin/restaurants/export", isAdmin, async (req: any, res) => {
+    try {
+      const allUsers = await db
+        .select({
+          id: users.id,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          restaurantName: users.restaurantName,
+          restaurantType: users.restaurantType,
+          restaurantPhone: users.restaurantPhone,
+          restaurantWebsite: users.restaurantWebsite,
+          accountStatus: users.accountStatus,
+          authProvider: users.authProvider,
+          onboardingCompleted: users.onboardingCompleted,
+          createdAt: users.createdAt,
+        })
+        .from(users)
+        .where(sql`${users.role} != 'admin'`)
+        .orderBy(sql`${users.createdAt} desc`);
+
+      const headers = ['ID', 'Email', 'First Name', 'Last Name', 'Restaurant Name', 'Type', 'Phone', 'Website', 'Status', 'Auth Provider', 'Onboarded', 'Signup Date'];
+      const rows = allUsers.map(u => [
+        u.id, u.email, u.firstName, u.lastName, u.restaurantName,
+        u.restaurantType, u.restaurantPhone, u.restaurantWebsite,
+        u.accountStatus, u.authProvider, u.onboardingCompleted, u.createdAt
+      ].map(v => `"${(v ?? '').toString().replace(/"/g, '""')}"`).join(','));
+
+      const csv = [headers.join(','), ...rows].join('\n');
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="restaurants.csv"');
+      res.send(csv);
+    } catch (error) {
+      console.error("Error exporting restaurants:", error);
+      res.status(500).json({ message: "Failed to export" });
+    }
+  });
+
+  // GET /api/admin/restaurants/:id — single restaurant detail
+  app.get("/api/admin/restaurants/:id", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const [user] = await db.select().from(users).where(eq(users.id, id));
+      if (!user) return res.status(404).json({ message: "Not found" });
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching restaurant:", error);
+      res.status(500).json({ message: "Failed to fetch restaurant" });
+    }
+  });
+
+  // PATCH /api/admin/restaurants/:id — edit restaurant info
+  app.patch("/api/admin/restaurants/:id", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { restaurantName, restaurantType, restaurantPhone, restaurantWebsite, accountStatus } = req.body;
+      const updates: any = {};
+      if (restaurantName !== undefined) updates.restaurantName = restaurantName;
+      if (restaurantType !== undefined) updates.restaurantType = restaurantType;
+      if (restaurantPhone !== undefined) updates.restaurantPhone = restaurantPhone;
+      if (restaurantWebsite !== undefined) updates.restaurantWebsite = restaurantWebsite;
+      if (accountStatus !== undefined) updates.accountStatus = accountStatus;
+      updates.updatedAt = new Date();
+
+      const [updated] = await db.update(users).set(updates).where(eq(users.id, id)).returning();
+      await writeAuditLog(req.user.id, 'edit_restaurant', id, 'user', updates, req.ip || '');
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating restaurant:", error);
+      res.status(500).json({ message: "Failed to update restaurant" });
+    }
+  });
+
+  // PATCH /api/admin/restaurants/:id/status — suspend or activate
+  app.patch("/api/admin/restaurants/:id/status", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { accountStatus } = req.body;
+      if (!['active', 'trial', 'suspended'].includes(accountStatus)) {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+      const [updated] = await db.update(users).set({ accountStatus, updatedAt: new Date() }).where(eq(users.id, id)).returning();
+      await writeAuditLog(req.user.id, accountStatus === 'suspended' ? 'suspend_account' : 'activate_account', id, 'user', { accountStatus }, req.ip || '');
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating status:", error);
+      res.status(500).json({ message: "Failed to update status" });
+    }
+  });
+
+  // DELETE /api/admin/restaurants/:id — delete account
+  app.delete("/api/admin/restaurants/:id", isSuperAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await writeAuditLog(req.user.id, 'delete_account', id, 'user', {}, req.ip || '');
+      await db.delete(users).where(eq(users.id, id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting restaurant:", error);
+      res.status(500).json({ message: "Failed to delete restaurant" });
+    }
+  });
+
+  // POST /api/admin/impersonate/:id — login as a restaurant user
+  app.post("/api/admin/impersonate/:id", isSuperAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const [target] = await db.select().from(users).where(eq(users.id, id));
+      if (!target) return res.status(404).json({ message: "User not found" });
+
+      // Store original admin ID so we can restore later
+      req.session.originalAdminId = req.user.id;
+
+      await writeAuditLog(req.user.id, 'impersonate', id, 'user', { targetEmail: target.email }, req.ip || '');
+
+      req.login(target, (err: any) => {
+        if (err) return res.status(500).json({ message: "Failed to impersonate" });
+        res.json({ success: true, user: target });
+      });
+    } catch (error) {
+      console.error("Error impersonating:", error);
+      res.status(500).json({ message: "Failed to impersonate" });
+    }
+  });
+
+  // POST /api/admin/impersonate/stop — return to admin account
+  app.post("/api/admin/impersonate/stop", isAuthenticated, async (req: any, res) => {
+    try {
+      const originalAdminId = req.session.originalAdminId;
+      if (!originalAdminId) return res.status(400).json({ message: "Not in impersonation session" });
+
+      const [admin] = await db.select().from(users).where(eq(users.id, originalAdminId));
+      if (!admin) return res.status(404).json({ message: "Admin user not found" });
+
+      delete req.session.originalAdminId;
+      req.login(admin, (err: any) => {
+        if (err) return res.status(500).json({ message: "Failed to restore admin session" });
+        res.json({ success: true, user: admin });
+      });
+    } catch (error) {
+      console.error("Error stopping impersonation:", error);
+      res.status(500).json({ message: "Failed to stop impersonation" });
+    }
+  });
+
+  // GET /api/admin/audit-logs — list audit logs
+  app.get("/api/admin/audit-logs", isAdmin, async (req: any, res) => {
+    try {
+      const logs = await db.select().from(adminAuditLogs).orderBy(sql`${adminAuditLogs.createdAt} desc`).limit(200);
+      res.json(logs);
+    } catch (error) {
+      console.error("Error fetching audit logs:", error);
+      res.status(500).json({ message: "Failed to fetch audit logs" });
+    }
+  });
+
+  // GET /api/admin/session — check if currently impersonating
+  app.get("/api/admin/session", isAuthenticated, async (req: any, res) => {
+    res.json({
+      isImpersonating: !!req.session.originalAdminId,
+      originalAdminId: req.session.originalAdminId || null,
+    });
   });
 
   // Agent routes

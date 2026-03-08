@@ -41,6 +41,15 @@ PostgreSQL (Neon serverless) is the primary database, managed with Drizzle ORM. 
 - **Test Center**: Integrated testing for agents with text and real-time voice modes using the Retell Web SDK, displaying live transcripts and agent states.
 - **Workflow Executor**: A state machine-based system that uses GPT-4o-mini for evaluating conversation flow transitions during agent execution and testing.
 
+### Admin Control Center
+
+- **Role-Based Access Control**: Users have a `role` field ('user', 'admin', 'support', 'billing') and `accountStatus` ('trial', 'active', 'suspended'). Only `admin` role users see the Admin sidebar section.
+- **Restaurant Management Panel** (`/admin/restaurants`): Full table of all restaurants with stats, search, status filters, and per-row action menus (view, edit, suspend/activate, login-as, delete). CSV export available.
+- **Restaurant Detail Page** (`/admin/restaurants/:id`): Edit restaurant info, toggle account status, impersonate (login-as), and delete account with danger zone.
+- **Admin Impersonation**: Super admin can log in as any restaurant user. A sticky amber banner shows "Viewing as [name] — Admin mode" with a "Return to Admin" button while impersonating.
+- **Admin Audit Logs**: Every destructive/edit admin action (edit, suspend, delete, impersonate) is logged to `admin_audit_logs` table with admin user, action, target, and IP.
+- **Admin Middleware**: `isAdmin` and `isSuperAdmin` Express middleware in `server/auth.ts` protect all `/api/admin/*` routes. Super admin account: suhrabjoya@gmail.com.
+
 ### Retell AI White-Label Integration
 
 Orderly AI integrates Retell AI as a white-label voice engine for its core voice AI infrastructure. It operates in a multi-tenant setup, syncing agent, LLM, and voice configurations bidirectionally. Call routing occurs directly through Retell for optimal latency. The platform supports various voice providers (ElevenLabs, OpenAI TTS, Cartesia, Deepgram, PlayHT) and LLMs (GPT-4o, GPT-4o Mini, Claude 3.5 Sonnet, Claude 3 Haiku). Agent configurations, including voice, speech, backchannel, ambient sound, and call management settings, are synced to Retell.

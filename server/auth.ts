@@ -878,3 +878,17 @@ export const isAuthenticated: RequestHandler = (req, res, next) => {
   }
   return res.status(401).json({ message: "Unauthorized" });
 };
+
+export const isAdmin: RequestHandler = (req: any, res, next) => {
+  if (req.isAuthenticated() && (req.user?.role === 'admin' || req.user?.role === 'support' || req.user?.role === 'billing')) {
+    return next();
+  }
+  return res.status(403).json({ message: "Forbidden" });
+};
+
+export const isSuperAdmin: RequestHandler = (req: any, res, next) => {
+  if (req.isAuthenticated() && req.user?.role === 'admin') {
+    return next();
+  }
+  return res.status(403).json({ message: "Forbidden" });
+};

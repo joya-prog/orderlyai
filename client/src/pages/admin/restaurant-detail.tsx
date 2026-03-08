@@ -1,0 +1,321 @@
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useParams, useLocation } from "wouter";
+import {
+  ArrowLeft, Edit2, Ban, CheckCircle, Trash2, LogIn, Save, X,
+  Building2, Mail, Phone, Globe, Calendar, ShieldAlert,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { User } from "@shared/schema";
+
+type Restaurant = User & { accountStatus: string };
+
+function StatusBadge({ status }: { status: string | null }) {
+  if (status === "active") return <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 no-default-active-elevate">Active</Badge>;
+  if (status === "suspended") return <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 no-default-active-elevate">Suspended</Badge>;
+  return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 no-default-active-elevate">Trial</Badge>;
+}
+
+export default function AdminRestaurantDetail() {
+  const { id } = useParams<{ id: string }>();
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const [isEditing, setIsEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [form, setForm] = useState<Partial<Restaurant>>({});
+
+  const { data: restaurant, isLoading } = useQuery<Restaurant>({
+    queryKey: ["/api/admin/restaurants", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/restaurants/${id}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+    enabled: !!id,
+  });
+
+  const editMutation = useMutation({
+    mutationFn: (data: Partial<Restaurant>) => apiRequest("PATCH", `/api/admin/restaurants/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/restaurants"] });
+      toast({ title: "Saved" });
+      setIsEditing(false);
+    },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: (accountStatus: string) => apiRequest("PATCH", `/api/admin/restaurants/${id}/status`, { accountStatus }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/restaurants", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/restaurants"] });
+      toast({ title: "Status updated" });
+    },
+    onError: () => toast({ title: "Failed to update status", variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => apiRequest("DELETE", `/api/admin/restaurants/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/restaurants"] });
+      toast({ title: "Account deleted" });
+      navigate("/admin/restaurants");
+    },
+    onError: () => toast({ title: "Failed to delete account", variant: "destructive" }),
+  });
+
+  const impersonateMutation = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/admin/impersonate/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      toast({ title: "Now viewing as restaurant user" });
+      navigate("/");
+    },
+    onError: () => toast({ title: "Failed to impersonate", variant: "destructive" }),
+  });
+
+  function startEdit() {
+    if (!restaurant) return;
+    setForm({
+      restaurantName: restaurant.restaurantName || "",
+      restaurantType: restaurant.restaurantType || "",
+      restaurantPhone: restaurant.restaurantPhone || "",
+      restaurantWebsite: restaurant.restaurantWebsite || "",
+      accountStatus: restaurant.accountStatus,
+    });
+    setIsEditing(true);
+  }
+
+  if (isLoading) {
+    return <div className="p-8 text-center text-muted-foreground text-sm">Loading...</div>;
+  }
+
+  if (!restaurant) {
+    return <div className="p-8 text-center text-muted-foreground text-sm">Restaurant not found</div>;
+  }
+
+  return (
+    <div className="p-6 space-y-6 max-w-4xl">
+      <div className="flex flex-wrap items-center gap-3 justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/admin/restaurants")} data-testid="button-back">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">{restaurant.restaurantName || "Unnamed Restaurant"}</h1>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-sm text-muted-foreground">{restaurant.email}</p>
+              <StatusBadge status={restaurant.accountStatus} />
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="default" onClick={() => impersonateMutation.mutate()} data-testid="button-login-as">
+            <LogIn className="h-4 w-4 mr-2" />
+            Login As
+          </Button>
+          <Button
+            variant="outline"
+            size="default"
+            onClick={() => statusMutation.mutate(restaurant.accountStatus === "suspended" ? "active" : "suspended")}
+            data-testid="button-toggle-status"
+          >
+            {restaurant.accountStatus === "suspended" ? (
+              <><CheckCircle className="h-4 w-4 mr-2" />Activate</>
+            ) : (
+              <><Ban className="h-4 w-4 mr-2" />Suspend</>
+            )}
+          </Button>
+          {!isEditing ? (
+            <Button size="default" onClick={startEdit} data-testid="button-edit">
+              <Edit2 className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button variant="outline" size="default" onClick={() => setIsEditing(false)} data-testid="button-cancel-edit">
+                <X className="h-4 w-4 mr-2" />Cancel
+              </Button>
+              <Button size="default" onClick={() => editMutation.mutate(form)} data-testid="button-save-edit">
+                <Save className="h-4 w-4 mr-2" />Save
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        {/* Restaurant Info */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              Restaurant Info
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isEditing ? (
+              <>
+                <div className="space-y-1.5">
+                  <Label>Restaurant Name</Label>
+                  <Input
+                    value={form.restaurantName || ""}
+                    onChange={e => setForm(f => ({ ...f, restaurantName: e.target.value }))}
+                    data-testid="input-restaurant-name"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Restaurant Type</Label>
+                  <Select value={form.restaurantType || ""} onValueChange={v => setForm(f => ({ ...f, restaurantType: v }))}>
+                    <SelectTrigger data-testid="select-restaurant-type">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fine_dining">Fine Dining</SelectItem>
+                      <SelectItem value="casual_dining">Casual Dining</SelectItem>
+                      <SelectItem value="fast_casual">Fast Casual</SelectItem>
+                      <SelectItem value="cafe">Cafe</SelectItem>
+                      <SelectItem value="bar">Bar</SelectItem>
+                      <SelectItem value="catering">Catering</SelectItem>
+                      <SelectItem value="hotel">Hotel</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Phone</Label>
+                  <Input
+                    value={form.restaurantPhone || ""}
+                    onChange={e => setForm(f => ({ ...f, restaurantPhone: e.target.value }))}
+                    data-testid="input-restaurant-phone"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Website</Label>
+                  <Input
+                    value={form.restaurantWebsite || ""}
+                    onChange={e => setForm(f => ({ ...f, restaurantWebsite: e.target.value }))}
+                    data-testid="input-restaurant-website"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Account Status</Label>
+                  <Select value={form.accountStatus || "trial"} onValueChange={v => setForm(f => ({ ...f, accountStatus: v }))}>
+                    <SelectTrigger data-testid="select-account-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="trial">Trial</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="suspended">Suspended</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            ) : (
+              <>
+                <InfoRow icon={<Building2 className="h-4 w-4" />} label="Name" value={restaurant.restaurantName || "—"} />
+                <InfoRow icon={<Building2 className="h-4 w-4" />} label="Type" value={restaurant.restaurantType?.replace(/_/g, " ") || "—"} />
+                <InfoRow icon={<Phone className="h-4 w-4" />} label="Phone" value={restaurant.restaurantPhone || "—"} />
+                <InfoRow icon={<Globe className="h-4 w-4" />} label="Website" value={restaurant.restaurantWebsite || "—"} />
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Account Info */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4" />
+              Account Info
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <InfoRow icon={<Mail className="h-4 w-4" />} label="Email" value={restaurant.email || "—"} />
+            <InfoRow icon={<Calendar className="h-4 w-4" />} label="Signed Up" value={restaurant.createdAt ? new Date(restaurant.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "—"} />
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Auth Method</span>
+              <Badge variant="outline" className="text-xs no-default-active-elevate">{restaurant.authProvider === "google" ? "Google" : "Email"}</Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Onboarding</span>
+              {restaurant.onboardingCompleted ? (
+                <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 text-xs no-default-active-elevate">Complete</Badge>
+              ) : (
+                <Badge variant="outline" className="text-xs no-default-active-elevate">Incomplete</Badge>
+              )}
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Status</span>
+              <StatusBadge status={restaurant.accountStatus} />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Danger Zone */}
+      <Card className="border-destructive/30">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base text-destructive">Danger Zone</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">Delete this account</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Permanently remove this restaurant and all associated data</p>
+            </div>
+            <Button variant="outline" size="default" className="border-destructive/50 text-destructive" onClick={() => setConfirmDelete(true)} data-testid="button-delete-account">
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Account</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {restaurant.restaurantName || restaurant.email} and all their data. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-delete-cancel">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground"
+              onClick={() => deleteMutation.mutate()}
+              data-testid="button-delete-confirm"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-muted-foreground flex-shrink-0">{icon}</span>
+      <span className="text-sm text-muted-foreground w-20 flex-shrink-0">{label}</span>
+      <span className="text-sm font-medium truncate">{value}</span>
+    </div>
+  );
+}

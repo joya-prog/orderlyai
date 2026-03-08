@@ -1,7 +1,7 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { useEffect, useRef } from "react";
-import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "./lib/queryClient";
+import { QueryClientProvider, useQuery, useMutation } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
@@ -10,6 +10,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/useAuth";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { Button } from "@/components/ui/button";
+import { ShieldCheck } from "lucide-react";
 import NotFound from "@/pages/not-found";
 import Auth from "@/pages/auth";
 import Onboarding from "@/pages/onboarding";
@@ -26,6 +28,45 @@ import Logs from "@/pages/logs";
 import Settings from "@/pages/settings";
 import Billing from "@/pages/billing";
 import AdminSignups from "@/pages/admin-signups";
+import AdminRestaurants from "@/pages/admin/restaurants";
+import AdminRestaurantDetail from "@/pages/admin/restaurant-detail";
+
+function ImpersonationBanner() {
+  const { data: adminSession } = useQuery<{ isImpersonating: boolean; originalAdminId: string | null }>({
+    queryKey: ["/api/admin/session"],
+    refetchInterval: 0,
+  });
+  const { user } = useAuth();
+
+  const stopMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/impersonate/stop"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/session"] });
+      window.location.href = "/admin/restaurants";
+    },
+  });
+
+  if (!adminSession?.isImpersonating) return null;
+
+  return (
+    <div className="sticky top-0 z-[9999] bg-amber-500 text-amber-950 px-4 py-2 flex items-center justify-between gap-3 text-sm font-medium" data-testid="banner-impersonation">
+      <div className="flex items-center gap-2">
+        <ShieldCheck className="h-4 w-4 flex-shrink-0" />
+        <span>Viewing as <strong>{user?.restaurantName || user?.email}</strong> — Admin mode</span>
+      </div>
+      <Button
+        size="sm"
+        variant="outline"
+        className="border-amber-800 text-amber-950 bg-amber-400"
+        onClick={() => stopMutation.mutate()}
+        data-testid="button-stop-impersonation"
+      >
+        Return to Admin
+      </Button>
+    </div>
+  );
+}
 
 function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -72,6 +113,15 @@ function Router() {
       <Route path="/billing" component={Billing} />
       <Route path="/templates" component={Templates} />
       <Route path="/admin/signups" component={AdminSignups} />
+      <Route path="/admin">
+        {user?.role === "admin" ? <Redirect to="/admin/restaurants" /> : <Redirect to="/" />}
+      </Route>
+      <Route path="/admin/restaurants" component={
+        user?.role === "admin" ? AdminRestaurants : () => <Redirect to="/" />
+      } />
+      <Route path="/admin/restaurants/:id" component={
+        user?.role === "admin" ? AdminRestaurantDetail : () => <Redirect to="/" />
+      } />
       <Route component={NotFound} />
     </Switch>
   );
@@ -106,6 +156,7 @@ function SidebarResponsiveWrapper() {
     <div className="flex h-screen w-full">
       <AppSidebar />
       <div className="flex flex-col flex-1 min-w-0">
+        <ImpersonationBanner />
         {/* Hide main header on agent editor pages - agent editor has its own header with these controls */}
         {!isAgentEditorPage && (
           <header className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6 border-b sticky top-0 bg-background/80 backdrop-blur-sm z-50">

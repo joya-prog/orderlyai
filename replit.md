@@ -48,7 +48,7 @@ PostgreSQL (Neon serverless) is the primary database, managed with Drizzle ORM. 
 - **Restaurant Detail Page** (`/admin/restaurants/:id`): Edit restaurant info, toggle account status, impersonate (login-as), and delete account with danger zone.
 - **Admin Impersonation**: Super admin can log in as any restaurant user. A sticky amber banner shows "Viewing as [name] — Admin mode" with a "Return to Admin" button while impersonating.
 - **Admin Audit Logs**: Every destructive/edit admin action (edit, suspend, delete, impersonate) is logged to `admin_audit_logs` table with admin user, action, target, and IP.
-- **Admin Middleware**: `isAdmin` and `isSuperAdmin` Express middleware in `server/auth.ts` protect all `/api/admin/*` routes. Super admin account: suhrabjoya@gmail.com.
+- **Admin Middleware**: `isAdmin` and `isSuperAdmin` Express middleware in `server/auth.ts` protect all `/api/admin/*` routes. Super admin account: hello@getorderly.io. When this email signs in via Google OAuth, admin role and active status are automatically assigned.
 
 ### Retell AI White-Label Integration
 

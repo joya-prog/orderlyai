@@ -87,6 +87,7 @@ export interface IStorage {
     restaurantPhone?: string;
     restaurantWebsite?: string;
   }): Promise<User>;
+  updateUserRole(id: string, role: string, accountStatus?: string): Promise<User>;
 
   // Agent operations
   getAgents(userId: string): Promise<Agent[]>;
@@ -300,6 +301,13 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(users.id, id))
       .returning();
+    return user;
+  }
+
+  async updateUserRole(id: string, role: string, accountStatus?: string): Promise<User> {
+    const updates: Record<string, any> = { role, updatedAt: new Date() };
+    if (accountStatus) updates.accountStatus = accountStatus;
+    const [user] = await db.update(users).set(updates).where(eq(users.id, id)).returning();
     return user;
   }
 

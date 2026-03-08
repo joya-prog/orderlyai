@@ -209,11 +209,14 @@ export async function setupAuth(app: Express) {
           try {
             let user = await storage.getUserByGoogleId(profile.id);
             
+            const SUPER_ADMIN_EMAIL = 'hello@getorderly.io';
+
             if (!user) {
               const existingUser = await storage.getUserByEmail(profile.emails?.[0]?.value || '');
               if (existingUser) {
                 user = await storage.linkGoogleAccount(existingUser.id, profile.id);
               } else {
+                const isSuperAdminEmail = profile.emails?.[0]?.value === SUPER_ADMIN_EMAIL;
                 user = await storage.createUser({
                   email: profile.emails?.[0]?.value,
                   firstName: profile.name?.givenName,
@@ -222,9 +225,16 @@ export async function setupAuth(app: Express) {
                   googleId: profile.id,
                   authProvider: 'google',
                   emailVerified: true,
+                  ...(isSuperAdminEmail ? { role: 'admin', accountStatus: 'active' } : {}),
                 });
-                sendSignupNotification({ email: user.email || 'Unknown', signupMethod: 'Google OAuth' }).catch(console.error);
+                if (!isSuperAdminEmail) {
+                  sendSignupNotification({ email: user.email || 'Unknown', signupMethod: 'Google OAuth' }).catch(console.error);
+                }
               }
+            }
+
+            if (user.email === SUPER_ADMIN_EMAIL && user.role !== 'admin') {
+              user = await storage.updateUserRole(user.id, 'admin', 'active');
             }
             
             return done(null, user);

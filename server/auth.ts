@@ -421,8 +421,9 @@ export async function setupAuth(app: Express) {
     delete req.session.oauthState;
     delete req.session.oauthStateCreatedAt;
     
-    passport.authenticate("google", async (err: any, user: any) => {
+    passport.authenticate("google", { session: false }, async (err: any, user: any) => {
       if (err || !user) {
+        console.error("Google OAuth passport.authenticate failed:", err?.message || err, "user present:", !!user);
         return res.redirect("/auth?error=google_failed");
       }
       

@@ -163,4 +163,3 @@ Always maintain a courteous, professional demeanor while being warm and helpful.
   }
 }
 
-seed().catch(console.error).finally(() => process.exit());

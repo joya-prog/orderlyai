@@ -616,6 +616,9 @@ export const usageLedger = pgTable("usage_ledger", {
   
   // Usage tracking
   minutesUsed: text("minutes_used").notNull().default('0'),
+  aiModel: text("ai_model"),
+  voiceProvider: text("voice_provider"),
+  costCents: text("cost_cents").notNull().default('0'),
   
   // Stripe reporting
   reportedToStripeAt: timestamp("reported_to_stripe_at"),

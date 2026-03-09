@@ -12,13 +12,19 @@ import {
   ArrowLeft,
   Plus,
   Pencil,
+  AlertTriangle,
+  Phone,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
 import { SiStripe } from "react-icons/si";
-import type { Subscription, Invoice } from "@shared/schema";
+import type { Subscription, Invoice, UsageLedger } from "@shared/schema";
 
-
+interface CreditBalance {
+  creditGrantedCents: number;
+  balanceCents: number;
+  hasCredit: boolean;
+}
 
 function formatDate(dateStr: string | Date | null): string {
   if (!dateStr) return "N/A";
@@ -26,10 +32,42 @@ function formatDate(dateStr: string | Date | null): string {
   return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
+function formatShortDate(dateStr: string | Date | null): string {
+  if (!dateStr) return "N/A";
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 function formatCurrency(amount: string | number | null): string {
   if (amount === null || amount === undefined) return "$0.00";
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(num / 100);
+}
+
+function formatDuration(seconds: string | null): string {
+  if (!seconds) return "—";
+  const s = parseInt(seconds);
+  if (isNaN(s)) return "—";
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${m}m ${rem}s`;
+}
+
+function formatModelLabel(model: string | null): string {
+  const labels: Record<string, string> = {
+    'gpt-4o-mini': 'GPT-4o Mini',
+    'gpt-4o': 'GPT-4o',
+    'claude-3.5-sonnet': 'Claude 3.5 Sonnet',
+    'claude-3-haiku': 'Claude 3 Haiku',
+    'gpt-4-turbo': 'GPT-4 Turbo',
+    'gpt-3.5-turbo': 'GPT-3.5 Turbo',
+    'gpt-5-nano': 'GPT-5 nano',
+    'gpt-4.1-mini': 'GPT-4.1 mini',
+    'gpt-4.1': 'GPT-4.1',
+    'claude-3.5-haiku': 'Claude 3.5 Haiku',
+    'claude-sonnet': 'Claude Sonnet',
+  };
+  return model ? (labels[model] || model) : '—';
 }
 
 export default function BillingPage() {
@@ -42,6 +80,14 @@ export default function BillingPage() {
 
   const { data: invoices = [], isLoading: loadingInvoices } = useQuery<Invoice[]>({
     queryKey: ["/api/billing/invoices"],
+  });
+
+  const { data: creditBalance, isLoading: loadingCredit } = useQuery<CreditBalance>({
+    queryKey: ["/api/billing/credit-balance"],
+  });
+
+  const { data: usageLedger = [], isLoading: loadingCallLogs } = useQuery<UsageLedger[]>({
+    queryKey: ["/api/billing/usage-ledger"],
   });
 
   const createPortalSession = useMutation({
@@ -84,6 +130,15 @@ export default function BillingPage() {
   const nextBillingDate = subscription?.currentPeriodEnd
     ? formatDate(subscription.currentPeriodEnd)
     : null;
+
+  const creditGranted = creditBalance?.creditGrantedCents ?? 1000;
+  const creditRemaining = creditBalance?.balanceCents ?? 0;
+  const creditUsed = Math.max(0, creditGranted - creditRemaining);
+  const creditPct = creditGranted > 0 ? (creditUsed / creditGranted) * 100 : 0;
+  const creditLow = creditRemaining > 0 && creditRemaining <= 200;
+  const creditExhausted = creditBalance && !creditBalance.hasCredit && !!subscription?.stripeCustomerId;
+
+  const recentCalls = usageLedger.slice(0, 10);
 
   return (
     <div className="flex min-h-screen" data-testid="billing-page">
@@ -130,6 +185,101 @@ export default function BillingPage() {
           </div>
         ) : (
           <div className="space-y-10">
+
+            {/* Trial Credit Section */}
+            {isTrialOrFree && (
+              <>
+                <section>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4" data-testid="text-credit-heading">
+                    Trial Credit
+                  </h3>
+
+                  {loadingCredit ? (
+                    <div className="flex items-center gap-2 py-4">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Loading credit balance...</span>
+                    </div>
+                  ) : creditExhausted ? (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 space-y-3" data-testid="credit-exhausted-banner">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Trial credit used</p>
+                          <p className="text-sm text-amber-700 dark:text-amber-300 mt-0.5">
+                            Your $10 trial credit has been fully used. Add a payment method to keep your agents running.
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => createCheckoutSession.mutate()}
+                        disabled={createCheckoutSession.isPending}
+                        data-testid="button-add-payment-credit-exhausted"
+                      >
+                        {createCheckoutSession.isPending ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <CreditCard className="h-4 w-4 mr-2" />
+                        )}
+                        Add Payment Method
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3" data-testid="credit-balance-section">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-2xl font-bold" data-testid="text-credit-remaining">
+                          {formatCurrency(creditRemaining)}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          of {formatCurrency(creditGranted)} trial credit
+                        </span>
+                      </div>
+
+                      {/* Progress bar */}
+                      <div className="h-2 rounded-full bg-muted overflow-hidden" data-testid="credit-progress-bar">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            creditLow
+                              ? 'bg-amber-500'
+                              : 'bg-primary'
+                          }`}
+                          style={{ width: `${Math.min(100, creditPct)}%` }}
+                        />
+                      </div>
+
+                      {creditLow ? (
+                        <p className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-1.5" data-testid="text-credit-low-warning">
+                          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                          Credit running low — add a payment method to avoid interruption.
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground" data-testid="text-credit-info">
+                          Usage is deducted after each call based on your agent's AI model and voice provider.
+                        </p>
+                      )}
+
+                      {creditLow && (
+                        <Button
+                          size="sm"
+                          onClick={() => createCheckoutSession.mutate()}
+                          disabled={createCheckoutSession.isPending}
+                          data-testid="button-add-payment-credit-low"
+                        >
+                          {createCheckoutSession.isPending ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <CreditCard className="h-4 w-4 mr-2" />
+                          )}
+                          Add Payment Method
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </section>
+
+                <Separator />
+              </>
+            )}
+
             <section>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4" data-testid="text-subscription-heading">
                 Current Plan
@@ -265,6 +415,50 @@ export default function BillingPage() {
                   </Button>
                 )}
               </div>
+            </section>
+
+            <Separator />
+
+            {/* Call Usage Log */}
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4" data-testid="text-usage-heading">
+                Recent Call Usage
+              </h3>
+
+              {loadingCallLogs ? (
+                <div className="flex items-center gap-2 py-4">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Loading call history...</span>
+                </div>
+              ) : recentCalls.length > 0 ? (
+                <div className="space-y-1" data-testid="usage-call-log">
+                  <div className="grid grid-cols-5 gap-2 pb-2 border-b">
+                    <span className="text-xs font-medium text-muted-foreground">Date</span>
+                    <span className="text-xs font-medium text-muted-foreground">Duration</span>
+                    <span className="text-xs font-medium text-muted-foreground col-span-2">Model</span>
+                    <span className="text-xs font-medium text-muted-foreground text-right">Cost</span>
+                  </div>
+                  {recentCalls.map((entry) => (
+                    <div key={entry.id} className="grid grid-cols-5 gap-2 py-2 border-b border-muted/50 last:border-0" data-testid={`row-usage-${entry.id}`}>
+                      <span className="text-sm text-muted-foreground">{formatShortDate(entry.createdAt)}</span>
+                      <span className="text-sm">{entry.minutesUsed ? `${parseFloat(entry.minutesUsed).toFixed(1)}m` : '—'}</span>
+                      <span className="text-sm col-span-2 text-muted-foreground">
+                        {formatModelLabel(entry.aiModel)}
+                        {entry.voiceProvider ? ` + ${entry.voiceProvider}` : ''}
+                      </span>
+                      <span className="text-sm font-medium text-right" data-testid={`text-usage-cost-${entry.id}`}>
+                        {entry.costCents ? formatCurrency(entry.costCents) : '—'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center gap-2" data-testid="text-no-calls">
+                  <Phone className="h-8 w-8 text-muted-foreground/40" />
+                  <p className="text-sm text-muted-foreground">No calls yet.</p>
+                  <p className="text-xs text-muted-foreground">Usage will appear here after your first call.</p>
+                </div>
+              )}
             </section>
 
             <Separator />

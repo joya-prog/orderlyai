@@ -5,6 +5,8 @@ import { generateAgentResponse, transcribeAudio, synthesizeSpeech, VoiceConfig, 
 import { synthesizeElevenLabsSpeech } from './elevenlabs';
 import { Agent, FlowNode, FlowConnection } from '@shared/schema';
 import { WorkflowExecutor, WorkflowState, createWorkflowExecutor } from './workflowExecutor';
+import { calculateCallCostCents } from '../shared/pricing';
+import { getUncachableStripeClient } from './stripeClient';
 
 const MULAW_RATE = 8000;
 const CHUNK_SIZE = 320;
@@ -673,10 +675,14 @@ export async function handleTwilioWebSocket(ws: WebSocket, req: any): Promise<vo
             // Analyze conversation for sentiment and outcome
             const analysis = analyzeConversation(session.conversationHistory);
             
-            // Calculate cost: $0.29/minute
-            const costCents = Math.ceil((callDuration / 60) * 29);
+            // Calculate cost based on the agent's actual AI model and voice provider
+            const costCents = calculateCallCostCents(
+              callDuration,
+              session.agent.aiModel,
+              session.agent.voiceProvider,
+            );
             
-            await storage.createCallLog({
+            const callLog = await storage.createCallLog({
               userId: session.userId,
               agentId: session.agent.id,
               phoneNumberId: session.phoneNumberId,
@@ -692,8 +698,41 @@ export async function handleTwilioWebSocket(ws: WebSocket, req: any): Promise<vo
               endReason: 'customer_hangup',
               callOutcome: analysis.outcome,
               costCents: costCents.toString(),
-              metadata: { provider: 'orderly' },
+              metadata: { provider: 'orderly', aiModel: session.agent.aiModel, voiceProvider: session.agent.voiceProvider },
             });
+
+            // Record usage in ledger with model/voice details
+            const now = new Date();
+            const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+            await storage.createUsageLedgerEntry({
+              userId: session.userId,
+              agentId: session.agent.id,
+              callLogId: callLog.id,
+              periodStart,
+              periodEnd,
+              minutesUsed: durationMinutes,
+              aiModel: session.agent.aiModel,
+              voiceProvider: session.agent.voiceProvider,
+              costCents: costCents.toString(),
+            });
+
+            // Deduct call cost from Stripe customer balance (trial credit)
+            try {
+              const subscription = await storage.getSubscription(session.userId);
+              if (subscription?.stripeCustomerId && costCents > 0) {
+                const stripe = await getUncachableStripeClient();
+                if (stripe) {
+                  await stripe.customers.createBalanceTransaction(subscription.stripeCustomerId, {
+                    amount: costCents,
+                    currency: 'usd',
+                    description: `Call: ${durationMinutes}min × ${session.agent.aiModel} + ${session.agent.voiceProvider}`,
+                  });
+                }
+              }
+            } catch (stripeErr) {
+              console.error('[Billing] Failed to deduct call cost from Stripe balance:', stripeErr);
+            }
             
             await storage.createAnalyticsEvent({
               userId: session.userId,

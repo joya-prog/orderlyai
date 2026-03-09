@@ -184,6 +184,7 @@ export interface IStorage {
 
   // Usage ledger operations (for Stripe metered billing)
   createUsageLedgerEntry(entry: InsertUsageLedger): Promise<UsageLedger>;
+  getUsageLedgerForUser(userId: string, limit?: number): Promise<UsageLedger[]>;
   getUnreportedUsageEntries(userId: string): Promise<UsageLedger[]>;
   markUsageReported(id: string, stripeUsageRecordId: string): Promise<UsageLedger | null>;
   getTotalUsageForPeriod(userId: string, periodStart: Date, periodEnd: Date): Promise<number>;
@@ -882,6 +883,15 @@ export class DatabaseStorage implements IStorage {
   async createUsageLedgerEntry(entry: InsertUsageLedger): Promise<UsageLedger> {
     const [created] = await db.insert(usageLedger).values(entry).returning();
     return created;
+  }
+
+  async getUsageLedgerForUser(userId: string, limit = 50): Promise<UsageLedger[]> {
+    return await db
+      .select()
+      .from(usageLedger)
+      .where(eq(usageLedger.userId, userId))
+      .orderBy(sql`${usageLedger.createdAt} DESC`)
+      .limit(limit);
   }
 
   async getUnreportedUsageEntries(userId: string): Promise<UsageLedger[]> {

@@ -3285,6 +3285,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get usage ledger entries for current user (call-by-call with model/cost breakdown)
+  app.get("/api/billing/usage-ledger", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const entries = await storage.getUsageLedgerForUser(userId, 20);
+      res.json(entries);
+    } catch (error) {
+      console.error("Error fetching usage ledger:", error);
+      res.status(500).json({ message: "Failed to fetch usage ledger" });
+    }
+  });
+
+  // Get trial credit balance from Stripe customer balance
+  app.get("/api/billing/credit-balance", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const subscription = await storage.getSubscription(userId);
+
+      if (!subscription?.stripeCustomerId) {
+        return res.json({
+          creditGrantedCents: 1000,
+          balanceCents: 0,
+          hasCredit: false,
+        });
+      }
+
+      const stripe = await getUncachableStripeClient();
+      if (!stripe) {
+        return res.json({ creditGrantedCents: 1000, balanceCents: 0, hasCredit: false });
+      }
+
+      const customer = await stripe.customers.retrieve(subscription.stripeCustomerId);
+      if (customer.deleted) {
+        return res.json({ creditGrantedCents: 1000, balanceCents: 0, hasCredit: false });
+      }
+
+      // Stripe balance: negative = credit remaining, positive = amount owed
+      const balanceCents = Math.max(0, -(customer.balance ?? 0));
+      res.json({
+        creditGrantedCents: 1000,
+        balanceCents,
+        hasCredit: balanceCents > 0,
+      });
+    } catch (error: any) {
+      console.error("Error fetching credit balance:", error);
+      res.status(500).json({ message: "Failed to fetch credit balance" });
+    }
+  });
+
   // ==================== USER PREFERENCES ====================
 
   // Get user preferences

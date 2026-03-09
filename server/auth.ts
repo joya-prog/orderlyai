@@ -10,10 +10,56 @@ import { authenticator } from "otplib";
 import { Resend } from "resend";
 import { storage } from "./storage";
 import { sendSms2FACode, verifySms2FACode, sendSignupNotification } from "./twilioClient";
+import { getUncachableStripeClient } from "./stripeClient";
+import { DEFAULT_TRIAL_CREDIT_CENTS } from "../shared/pricing";
 
 // Resend email client
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "Orderly AI <noreply@getorderly.io>";
+
+async function provisionTrialCredit(userId: string, email: string, name: string): Promise<void> {
+  try {
+    const stripe = await getUncachableStripeClient();
+    if (!stripe) {
+      console.warn('[Trial] Stripe not configured — skipping trial credit provisioning');
+      return;
+    }
+
+    let subscription = await storage.getSubscription(userId);
+    let customerId = subscription?.stripeCustomerId;
+
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email,
+        name: name || undefined,
+        metadata: { userId },
+      });
+      customerId = customer.id;
+
+      if (subscription) {
+        await storage.updateSubscription(userId, { stripeCustomerId: customerId });
+      } else {
+        await storage.createSubscription({
+          userId,
+          planType: 'trial',
+          stripeCustomerId: customerId,
+          minutesLimit: '0',
+        });
+      }
+    }
+
+    // Apply $10 trial credit as negative balance (credit)
+    await stripe.customers.createBalanceTransaction(customerId, {
+      amount: -DEFAULT_TRIAL_CREDIT_CENTS,
+      currency: 'usd',
+      description: 'Orderly AI $10 Trial Credit',
+    });
+
+    console.log(`[Trial] Provisioned $${DEFAULT_TRIAL_CREDIT_CENTS / 100} trial credit for user ${userId}`);
+  } catch (err) {
+    console.error('[Trial] Failed to provision trial credit:', err);
+  }
+}
 
 async function sendPasswordResetEmail(toEmail: string, resetUrl: string): Promise<void> {
   if (!resend) {
@@ -231,6 +277,8 @@ export async function setupAuth(app: Express) {
                 });
                 if (!isSuperAdminEmail) {
                   sendSignupNotification({ email: user.email || 'Unknown', signupMethod: 'Google OAuth' }).catch(console.error);
+                  const fullName = `${profile.name?.givenName || ''} ${profile.name?.familyName || ''}`.trim();
+                  provisionTrialCredit(user.id, user.email || '', fullName).catch(console.error);
                 }
               }
             }
@@ -284,6 +332,8 @@ export async function setupAuth(app: Express) {
       });
       
       sendSignupNotification({ email: user.email || 'Unknown', signupMethod: 'Email/Password' }).catch(console.error);
+      const fullName = `${first || ''} ${last || ''}`.trim();
+      provisionTrialCredit(user.id, user.email || '', fullName).catch(console.error);
       
       req.login(user, (err) => {
         if (err) {

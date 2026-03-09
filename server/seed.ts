@@ -1,5 +1,13 @@
 import { db } from "./db";
 import { templates } from "@shared/schema";
+import { eq } from "drizzle-orm";
+
+export async function ensureTemplatesSeeded() {
+  const existing = await db.select().from(templates).where(eq(templates.isPublic, true)).limit(1);
+  if (existing.length > 0) return;
+  console.log("[Seed] No templates found — seeding defaults...");
+  await seed().catch(console.error);
+}
 
 async function seed() {
   console.log("Seeding database with default templates...");

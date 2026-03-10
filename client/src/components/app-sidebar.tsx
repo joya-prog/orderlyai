@@ -16,6 +16,9 @@ import {
   Clock,
   ShieldCheck,
   LifeBuoy,
+  AlertTriangle,
+  ChevronRight,
+  Wallet,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -33,6 +36,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useAuth } from "@/hooks/useAuth";
 import { StripePaymentDialog } from "@/components/stripe-payment-dialog";
 import orderlyLogo from "@assets/WXdQJT24YKxTTzIwCPlW3AJf4Y_1763761787840.avif";
@@ -148,6 +152,11 @@ export function AppSidebar() {
     enabled: !!subscription,
   });
 
+  const { data: creditBalance } = useQuery<{ creditGrantedCents: number; balanceCents: number; hasCredit: boolean }>({
+    queryKey: ["/api/billing/credit-balance"],
+    refetchInterval: 60_000,
+  });
+
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     if (!firstName && !lastName) return "U";
     return `${firstName?.[0] || ""}${lastName?.[0] || ""}`.toUpperCase();
@@ -155,6 +164,14 @@ export function AppSidebar() {
 
   const minutesUsed = parseInt(usageMetrics?.minutesUsed || '0');
   const { toggleSidebar, isMobile } = useSidebar();
+
+  const creditRemaining = creditBalance?.balanceCents ?? 1000;
+  const creditGranted = creditBalance?.creditGrantedCents ?? 1000;
+  const creditUsedPct = creditGranted > 0 ? Math.min(100, ((creditGranted - creditRemaining) / creditGranted) * 100) : 0;
+  const creditRemainingDollars = (creditRemaining / 100).toFixed(2);
+  const creditGrantedDollars = (creditGranted / 100).toFixed(2);
+  const isLowCredit = creditRemaining > 0 && creditRemaining <= 200;
+  const isExhausted = creditRemaining <= 0;
 
   return (
     <Sidebar collapsible="offcanvas" className="border-r-0">
@@ -270,26 +287,86 @@ export function AppSidebar() {
                 </div>
               </Link>
             ) : (
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-bold capitalize text-blue-900 dark:text-blue-100" data-testid="plan-name">
-                    {subscription?.planType || 'Free Trial'}
-                  </span>
-                  <span className="text-xs font-medium text-blue-600/80 dark:text-blue-400/80" data-testid="usage-text">
-                    {minutesUsed} min used
-                  </span>
-                </div>
-                <Button
-                  variant="default"
-                  size="sm"
-                  className="w-full gap-2"
-                  onClick={() => setPaymentDialogOpen(true)}
-                  data-testid="button-add-payment-sidebar"
+              <HoverCard openDelay={150} closeDelay={100}>
+                <HoverCardTrigger asChild>
+                  <div
+                    className="flex items-center justify-between gap-2 cursor-default hover-elevate rounded-xl p-1 -m-1"
+                    data-testid="credit-widget-trigger"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Wallet className={`h-4 w-4 flex-shrink-0 ${isExhausted ? "text-amber-500" : isLowCredit ? "text-amber-500" : "text-blue-600 dark:text-blue-400"}`} />
+                      <span
+                        className={`text-xs font-bold truncate ${isExhausted ? "text-amber-700 dark:text-amber-400" : "text-blue-900 dark:text-blue-100"}`}
+                        data-testid="credit-remaining-text"
+                      >
+                        {isExhausted ? "Credit exhausted" : `$${creditRemainingDollars} remaining`}
+                      </span>
+                    </div>
+                    <ChevronRight className="h-3 w-3 flex-shrink-0 text-blue-400/60 dark:text-blue-500/60" />
+                  </div>
+                </HoverCardTrigger>
+                <HoverCardContent
+                  side="right"
+                  align="end"
+                  sideOffset={12}
+                  className="w-72 p-0 overflow-hidden"
+                  data-testid="credit-widget-popover"
                 >
-                  <CreditCard className="h-3.5 w-3.5" />
-                  Add Payment
-                </Button>
-              </div>
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/60 dark:to-blue-900/30 px-4 pt-4 pb-3 border-b border-blue-100 dark:border-blue-800/50">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-blue-500 dark:text-blue-400 mb-1">Trial Credit</p>
+                    <p className="text-2xl font-bold text-blue-900 dark:text-blue-100" data-testid="credit-amount-large">
+                      ${creditRemainingDollars}
+                    </p>
+                    <p className="text-xs text-blue-600/70 dark:text-blue-400/70">
+                      of ${creditGrantedDollars} trial credit
+                    </p>
+                  </div>
+                  <div className="px-4 py-3 flex flex-col gap-3">
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs text-muted-foreground">Used</span>
+                        <span className="text-xs font-medium text-foreground">{Math.round(creditUsedPct)}%</span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${isExhausted ? "bg-amber-500" : isLowCredit ? "bg-amber-400" : "bg-blue-500"}`}
+                          style={{ width: `${creditUsedPct}%` }}
+                          data-testid="credit-progress-bar"
+                        />
+                      </div>
+                    </div>
+                    {isExhausted ? (
+                      <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 px-3 py-2">
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-amber-700 dark:text-amber-400">Your credit has been used up. Add a payment method to continue.</p>
+                      </div>
+                    ) : isLowCredit ? (
+                      <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 px-3 py-2">
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-amber-700 dark:text-amber-400">Credit running low. Add a payment method before it runs out.</p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Use this credit to test your voice agent.</p>
+                    )}
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        size="sm"
+                        className="w-full gap-2"
+                        onClick={() => setPaymentDialogOpen(true)}
+                        data-testid="button-add-payment-popover"
+                      >
+                        <CreditCard className="h-3.5 w-3.5" />
+                        Add Payment Method
+                      </Button>
+                      <Link href="/billing">
+                        <Button variant="ghost" size="sm" className="w-full text-muted-foreground" data-testid="link-billing-details">
+                          View billing details
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
             )}
           </div>
         </SidebarGroup>

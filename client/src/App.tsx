@@ -10,6 +10,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/useAuth";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { OnboardingTour } from "@/components/onboarding-tour";
 import { Button } from "@/components/ui/button";
 import { ShieldCheck } from "lucide-react";
 import NotFound from "@/pages/not-found";
@@ -30,6 +31,7 @@ import Billing from "@/pages/billing";
 import AdminSignups from "@/pages/admin-signups";
 import AdminRestaurants from "@/pages/admin/restaurants";
 import AdminRestaurantDetail from "@/pages/admin/restaurant-detail";
+import AdminSupport from "@/pages/admin/support";
 
 function ImpersonationBanner() {
   const { data: adminSession } = useQuery<{ isImpersonating: boolean; originalAdminId: string | null }>({
@@ -122,16 +124,21 @@ function Router() {
       <Route path="/admin/restaurants/:id" component={
         user?.role === "admin" ? AdminRestaurantDetail : () => <Redirect to="/" />
       } />
+      <Route path="/admin/support" component={
+        user?.role === "admin" ? AdminSupport : () => <Redirect to="/" />
+      } />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
 function SidebarResponsiveWrapper() {
+  const { user } = useAuth();
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const { setOpen } = useSidebar();
   const prevLocation = useRef<string | null>(null);
   const [location] = useLocation();
+  const tourShouldAutoStart = !!(user && user.onboardingCompleted && !(user as any).tourCompleted);
   
   // Check if we're on the agent editor page (should auto-collapse sidebar)
   const isAgentEditorPage = location.startsWith('/agents/') && location !== '/agents';
@@ -168,6 +175,7 @@ function SidebarResponsiveWrapper() {
           <Router />
         </main>
       </div>
+      <OnboardingTour autoStart={tourShouldAutoStart} />
     </div>
   );
 }

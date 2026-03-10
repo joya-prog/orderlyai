@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   ChevronRight,
   Wallet,
+  Map,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -39,6 +40,8 @@ import { Button } from "@/components/ui/button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useAuth } from "@/hooks/useAuth";
 import { StripePaymentDialog } from "@/components/stripe-payment-dialog";
+import { HelpChat, useUnreadSupportCount } from "@/components/help-chat";
+import { useOnboardingTour } from "@/components/onboarding-tour";
 import orderlyLogo from "@assets/WXdQJT24YKxTTzIwCPlW3AJf4Y_1763761787840.avif";
 import type { Subscription, UsageMetric } from "@shared/schema";
 
@@ -141,6 +144,9 @@ export function AppSidebar() {
   const [location] = useLocation();
   const { user } = useAuth();
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [helpChatOpen, setHelpChatOpen] = useState(false);
+  const unreadCount = useUnreadSupportCount();
+  const { startTour } = useOnboardingTour();
 
   // Fetch subscription and usage data
   const { data: subscription } = useQuery<Subscription>({
@@ -258,6 +264,18 @@ export function AppSidebar() {
                     <Link href="/admin/signups">
                       <ShieldCheck className="h-4 w-4" />
                       <span>Signups</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location === "/admin/support"}
+                    data-testid="nav-admin-support"
+                  >
+                    <Link href="/admin/support">
+                      <LifeBuoy className="h-4 w-4" />
+                      <span>Support</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -404,14 +422,33 @@ export function AppSidebar() {
             </div>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <a
-              href="mailto:hello@getorderly.io"
-              className="flex items-center gap-2 w-full px-2 py-2 rounded-md text-sm text-muted-foreground hover-elevate"
-              data-testid="link-ask-for-help"
-            >
-              <LifeBuoy className="h-4 w-4 flex-shrink-0" />
-              <span>Ask for help</span>
-            </a>
+            <div className="flex items-center gap-1 px-2 py-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex-1 justify-start gap-2 text-muted-foreground relative"
+                onClick={() => setHelpChatOpen(true)}
+                data-testid="button-ask-for-help"
+              >
+                <LifeBuoy className="h-4 w-4 flex-shrink-0" />
+                <span>Ask for help</span>
+                {unreadCount > 0 && (
+                  <span className="ml-auto flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white font-bold" data-testid="badge-help-unread">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground flex-shrink-0"
+                onClick={() => startTour()}
+                title="Take the tour"
+                data-testid="button-take-tour"
+              >
+                <Map className="h-4 w-4" />
+              </Button>
+            </div>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
@@ -420,6 +457,7 @@ export function AppSidebar() {
         open={paymentDialogOpen}
         onOpenChange={setPaymentDialogOpen}
       />
+      <HelpChat open={helpChatOpen} onOpenChange={setHelpChatOpen} />
     </Sidebar>
   );
 }

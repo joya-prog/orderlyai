@@ -50,6 +50,13 @@ PostgreSQL (Neon serverless) is the primary database, managed with Drizzle ORM. 
 - **Admin Impersonation**: Super admin can log in as any restaurant user. A sticky amber banner shows "Viewing as [name] — Admin mode" with a "Return to Admin" button while impersonating.
 - **Admin Audit Logs**: Every destructive/edit admin action (edit, suspend, delete, impersonate) is logged to `admin_audit_logs` table with admin user, action, target, and IP.
 - **Admin Middleware**: `isAdmin` and `isSuperAdmin` Express middleware in `server/auth.ts` protect all `/api/admin/*` routes. Super admin account: hello@getorderly.io. When this email signs in via Google OAuth, admin role and active status are automatically assigned.
+- **Admin Usage Stats**: `GET /api/admin/restaurants/:id/stats` returns per-user `totalCalls`, `totalMinutes`, `totalCostCents`, `avgCostPerMinuteCents` aggregated from `usage_ledger` and `call_logs`. The restaurant detail page shows a "Usage & Billing" card with these 4 stats.
+- **Admin Support Inbox**: Admin can view and reply to user help messages at `/admin/support`. Full thread view with user account context (calls, minutes, spend). Routes: `GET/POST /api/admin/support`, `GET/POST /api/admin/support/:userId/reply`.
+- **Delete Fix**: `DELETE /api/admin/restaurants/:id` now checks both direct admin role and `req.session.originalAdminId` (to allow deletion while impersonating another user).
+
+### User Features
+- **Onboarding Tour**: Driver.js powered 7-step guided tour that auto-starts on first login (after onboarding completed but before `tourCompleted=true`). Can be re-triggered via the map icon in the sidebar footer. Completion calls `PATCH /api/user/tour` to set `users.tour_completed=true`.
+- **Help Chat**: Users can send messages to admin from the sidebar LifeBuoy button. Admin replies appear in the chat. Unread badge shows when admin has replied. Routes: `GET/POST /api/support/messages`, `GET /api/support/unread-count`.
 
 ### Retell AI White-Label Integration
 

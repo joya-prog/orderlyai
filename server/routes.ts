@@ -10,13 +10,13 @@ import * as retell from "./retell";
 import multer from "multer";
 
 const upload = multer({ storage: multer.memoryStorage() });
-import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema, insertIntegrationConfigSchema, insertAnalyticsEventSchema, onboardingSchema, users, adminAuditLogs } from "@shared/schema";
+import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema, insertIntegrationConfigSchema, insertAnalyticsEventSchema, onboardingSchema, users, adminAuditLogs, agents, usageLedger, callLogs, supportMessages } from "@shared/schema";
 import twilio from "twilio";
 import crypto from "crypto";
 import { getTwilioClient, getTwilioAccountSid, getTwilioAuthToken, sendSms2FACode, verifySms2FACode, sendSignupNotification } from "./twilioClient";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { db } from "./db";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, and, sum, count, desc } from "drizzle-orm";
 
 // Initialize Twilio client - but prefer the Replit connection integration
 const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -227,6 +227,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/admin/restaurants/:id/stats — per-user usage & cost stats
+  app.get("/api/admin/restaurants/:id/stats", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+
+      // Get user's agent IDs
+      const userAgents = await db.select({ id: agents.id }).from(agents).where(eq(agents.userId, id));
+      const agentIds = userAgents.map(a => a.id);
+
+      let totalCalls = 0;
+      let totalMinutes = 0;
+      let totalCostCents = 0;
+
+      if (agentIds.length > 0) {
+        // Query usage_ledger for cost/minutes
+        const ledgerRows = await db.select().from(usageLedger).where(eq(usageLedger.userId, id));
+        totalMinutes = ledgerRows.reduce((acc, r) => acc + parseFloat(r.minutesUsed || '0'), 0);
+        totalCostCents = ledgerRows.reduce((acc, r) => acc + parseInt(r.costCents || '0'), 0);
+
+        // Query call_logs for call count
+        const callRows = await db.select({ id: callLogs.id }).from(callLogs).where(eq(callLogs.userId, id));
+        totalCalls = callRows.length;
+      }
+
+      const avgCostPerMinuteCents = totalMinutes > 0 ? Math.round(totalCostCents / totalMinutes) : 0;
+
+      res.json({ totalCalls, totalMinutes: Math.round(totalMinutes * 100) / 100, totalCostCents, avgCostPerMinuteCents });
+    } catch (error) {
+      console.error("Error fetching restaurant stats:", error);
+      res.status(500).json({ message: "Failed to fetch stats" });
+    }
+  });
+
   // PATCH /api/admin/restaurants/:id — edit restaurant info
   app.patch("/api/admin/restaurants/:id", isAdmin, async (req: any, res) => {
     try {
@@ -267,15 +300,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // DELETE /api/admin/restaurants/:id — delete account
-  app.delete("/api/admin/restaurants/:id", isSuperAdmin, async (req: any, res) => {
+  app.delete("/api/admin/restaurants/:id", isAuthenticated, async (req: any, res) => {
     try {
+      // Support both direct admin requests and requests while impersonating
+      const actualAdminId = req.session?.originalAdminId || req.user.id;
+      const [adminUser] = await db.select().from(users).where(eq(users.id, actualAdminId));
+      if (!adminUser || adminUser.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden: admin role required" });
+      }
+
       const { id } = req.params;
-      await writeAuditLog(req.user.id, 'delete_account', id, 'user', {}, req.ip || '');
+
+      // Don't allow deleting the super admin account itself
+      if (id === actualAdminId) {
+        return res.status(400).json({ message: "Cannot delete your own admin account" });
+      }
+
+      await writeAuditLog(actualAdminId, 'delete_account', id, 'user', {}, req.ip || '');
       await db.delete(users).where(eq(users.id, id));
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting restaurant:", error);
-      res.status(500).json({ message: "Failed to delete restaurant" });
+      const message = error instanceof Error ? error.message : "Failed to delete restaurant";
+      res.status(500).json({ message });
     }
   });
 
@@ -1350,6 +1397,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/templates/use", isAuthenticated, async (req: any, res) => {
     try {
       const { templateId } = req.body;
+      if (!templateId) {
+        return res.status(400).json({ message: "templateId is required" });
+      }
       const template = await storage.getTemplate(templateId);
       
       if (!template) {
@@ -1357,30 +1407,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const userId = req.user.id;
+
+      // Create agent with safe null-fallbacks for all text fields
       let agent = await storage.createAgent({
         userId,
-        name: `${template.name} (Copy)`,
-        description: template.description,
-        industry: template.industry,
+        name: `${template.name || 'Agent'} (Copy)`,
+        description: template.description || '',
+        industry: template.industry || 'casual_dining',
         status: "draft",
-        greetingMessage: template.greetingMessage,
-        personality: template.personality,
-        systemPrompt: template.systemPrompt,
+        greetingMessage: template.greetingMessage || 'Hello, how can I help you today?',
+        personality: template.personality || 'Professional and friendly',
+        systemPrompt: template.systemPrompt || '',
       });
 
-      // Sync with Retell AI if configured (conversation-flow type)
+      // Sync with Retell AI if configured (conversation-flow type) — non-blocking
       if (await retell.isRetellConfigured()) {
         try {
           const flowId = await retell.createRetellConversationFlow({
             generalPrompt: template.systemPrompt || '',
-            beginMessage: template.greetingMessage || '',
+            beginMessage: template.greetingMessage || 'Hello, how can I help you today?',
             model: 'gpt-4o-mini',
             modelTemperature: 0.7,
           });
           
           if (flowId) {
             const retellAgentId = await retell.createRetellAgent({
-              agentName: `${template.name} (Copy)`,
+              agentName: `${template.name || 'Agent'} (Copy)`,
               voiceId: '11labs-Adrian',
               voiceModel: 'eleven_turbo_v2',
               voiceSpeed: 1.0,
@@ -1404,26 +1456,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
         } catch (retellError) {
-          console.error('[Retell] Error syncing template agent:', retellError);
+          console.error('[Retell] Error syncing template agent (non-fatal):', retellError);
+          // Don't fail the whole request — agent is still usable locally
         }
       }
 
-      // Add default knowledge if provided
+      // Add default knowledge if provided — each item in its own try/catch
       if (template.defaultKnowledge && Array.isArray(template.defaultKnowledge)) {
         for (const item of template.defaultKnowledge as any[]) {
-          await storage.createKnowledgeBase({
-            agentId: agent.id,
-            category: item.category || "faq",
-            question: item.question,
-            answer: item.answer,
-          }, userId);
+          try {
+            if (!item.question || !item.answer) continue;
+            await storage.createKnowledgeBase({
+              agentId: agent.id,
+              category: item.category || "faq",
+              question: String(item.question),
+              answer: String(item.answer),
+            }, userId);
+          } catch (kbError) {
+            console.error('[Template] Error creating knowledge base item (non-fatal):', kbError);
+          }
         }
       }
 
       res.json({ agentId: agent.id });
     } catch (error) {
       console.error("Error using template:", error);
-      res.status(500).json({ message: "Failed to create agent from template" });
+      const message = error instanceof Error ? error.message : "Failed to create agent from template";
+      res.status(500).json({ message });
     }
   });
 
@@ -4156,6 +4215,156 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   console.log('[Voice] WebSocket server initialized on /voice-stream');
   console.log('[TestCall] WebSocket server initialized on /test-call');
+
+  // PATCH /api/user/tour — mark guided tour as completed
+  app.patch("/api/user/tour", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      await db.update(users).set({ tourCompleted: true } as any).where(eq(users.id, userId));
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update tour status" });
+    }
+  });
+
+  // ---- Support Chat Routes ----
+
+  // POST /api/support/messages — user sends a message
+  app.post("/api/support/messages", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { content } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "Message content required" });
+
+      const [msg] = await db.insert(supportMessages).values({
+        userId,
+        content: content.trim(),
+        senderRole: 'user',
+        read: false,
+      }).returning();
+      res.json(msg);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
+  // GET /api/support/messages — user fetches their own thread
+  app.get("/api/support/messages", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const messages = await db.select().from(supportMessages)
+        .where(eq(supportMessages.userId, userId))
+        .orderBy(supportMessages.createdAt);
+
+      // Mark admin messages as read
+      await db.update(supportMessages)
+        .set({ read: true })
+        .where(and(eq(supportMessages.userId, userId), eq(supportMessages.senderRole, 'admin')));
+
+      res.json(messages);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  });
+
+  // GET /api/support/unread-count — user checks for unread admin replies
+  app.get("/api/support/unread-count", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const unread = await db.select().from(supportMessages)
+        .where(and(eq(supportMessages.userId, userId), eq(supportMessages.senderRole, 'admin'), eq(supportMessages.read, false)));
+      res.json({ count: unread.length });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch unread count" });
+    }
+  });
+
+  // GET /api/admin/support — admin lists all conversations with last message
+  app.get("/api/admin/support", isAdmin, async (req: any, res) => {
+    try {
+      // Get all users who have sent support messages
+      const allMessages = await db.select().from(supportMessages).orderBy(desc(supportMessages.createdAt));
+
+      // Group by userId
+      const threadMap = new Map<string, { userId: string; lastMessage: any; unreadCount: number }>();
+      for (const msg of allMessages) {
+        if (!threadMap.has(msg.userId)) {
+          threadMap.set(msg.userId, { userId: msg.userId, lastMessage: msg, unreadCount: 0 });
+        }
+        if (msg.senderRole === 'user' && !msg.read) {
+          threadMap.get(msg.userId)!.unreadCount++;
+        }
+      }
+
+      // Enrich with user info
+      const threads = [];
+      for (const thread of threadMap.values()) {
+        const [user] = await db.select({ id: users.id, email: users.email, firstName: users.firstName, lastName: users.lastName, restaurantName: users.restaurantName, profileImageUrl: users.profileImageUrl }).from(users).where(eq(users.id, thread.userId));
+        if (user) threads.push({ ...thread, user });
+      }
+
+      // Sort by last message date desc
+      threads.sort((a, b) => new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime());
+
+      res.json(threads);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch support threads" });
+    }
+  });
+
+  // GET /api/admin/support/:userId — admin reads full thread for a user
+  app.get("/api/admin/support/:userId", isAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const messages = await db.select().from(supportMessages)
+        .where(eq(supportMessages.userId, userId))
+        .orderBy(supportMessages.createdAt);
+
+      // Get account stats
+      const ledgerRows = await db.select().from(usageLedger).where(eq(usageLedger.userId, userId));
+      const totalCostCents = ledgerRows.reduce((acc, r) => acc + parseInt(r.costCents || '0'), 0);
+      const totalMinutes = ledgerRows.reduce((acc, r) => acc + parseFloat(r.minutesUsed || '0'), 0);
+
+      const userAgents = await db.select({ id: agents.id }).from(agents).where(eq(agents.userId, userId));
+      const callRows = await db.select({ id: callLogs.id }).from(callLogs).where(eq(callLogs.userId, userId));
+
+      res.json({
+        user,
+        messages,
+        stats: { totalCalls: callRows.length, totalMinutes: Math.round(totalMinutes * 100) / 100, totalCostCents, agentsCount: userAgents.length },
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch thread" });
+    }
+  });
+
+  // POST /api/admin/support/:userId/reply — admin replies to a user
+  app.post("/api/admin/support/:userId/reply", isAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const { content } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "Reply content required" });
+
+      const [msg] = await db.insert(supportMessages).values({
+        userId,
+        content: content.trim(),
+        senderRole: 'admin',
+        read: false,
+      }).returning();
+
+      // Mark user messages in this thread as read (admin has seen them)
+      await db.update(supportMessages)
+        .set({ read: true })
+        .where(and(eq(supportMessages.userId, userId), eq(supportMessages.senderRole, 'user')));
+
+      res.json(msg);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send reply" });
+    }
+  });
 
   return httpServer;
 }

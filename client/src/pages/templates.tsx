@@ -48,8 +48,8 @@ export default function Templates() {
         return;
       }
       toast({
-        title: "Error",
-        description: "Failed to create agent from template",
+        title: "Failed to create agent",
+        description: error?.message || "An error occurred. Please try again.",
         variant: "destructive",
       });
     },

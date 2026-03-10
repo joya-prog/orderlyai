@@ -4,6 +4,7 @@ import { useParams, useLocation } from "wouter";
 import {
   ArrowLeft, Edit2, Ban, CheckCircle, Trash2, LogIn, Save, X,
   Building2, Mail, Phone, Globe, Calendar, ShieldAlert,
+  PhoneCall, Clock, DollarSign, BarChart2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,21 @@ export default function AdminRestaurantDetail() {
     queryFn: async () => {
       const res = await fetch(`/api/admin/restaurants/${id}`);
       if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+    enabled: !!id,
+  });
+
+  const { data: usageStats } = useQuery<{
+    totalCalls: number;
+    totalMinutes: number;
+    totalCostCents: number;
+    avgCostPerMinuteCents: number;
+  }>({
+    queryKey: ["/api/admin/restaurants", id, "stats"],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/restaurants/${id}/stats`);
+      if (!res.ok) throw new Error("Failed to fetch stats");
       return res.json();
     },
     enabled: !!id,
@@ -266,6 +282,56 @@ export default function AdminRestaurantDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Usage & Billing Stats */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <BarChart2 className="h-4 w-4" />
+            Usage & Billing
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/40">
+                <PhoneCall className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Total Calls</p>
+                <p className="text-xl font-bold" data-testid="stat-total-calls">{usageStats?.totalCalls ?? "—"}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40">
+                <Clock className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Total Minutes</p>
+                <p className="text-xl font-bold" data-testid="stat-total-minutes">{usageStats ? usageStats.totalMinutes.toFixed(1) : "—"}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40">
+                <DollarSign className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Total Spent</p>
+                <p className="text-xl font-bold" data-testid="stat-total-cost">{usageStats ? `$${(usageStats.totalCostCents / 100).toFixed(2)}` : "—"}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-950/40">
+                <DollarSign className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Avg Cost/Min</p>
+                <p className="text-xl font-bold" data-testid="stat-avg-cost">{usageStats ? `$${(usageStats.avgCostPerMinuteCents / 100).toFixed(2)}` : "—"}</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Danger Zone */}
       <Card className="border-destructive/30">

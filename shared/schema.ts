@@ -43,6 +43,9 @@ export const users = pgTable("users", {
   restaurantWebsite: varchar("restaurant_website"),
   onboardingCompleted: boolean("onboarding_completed").default(false),
 
+  // Guided tour
+  tourCompleted: boolean("tour_completed").default(false),
+
   // Role-based access control
   role: varchar("role").default('user'), // 'user', 'admin', 'support', 'billing'
 
@@ -757,3 +760,21 @@ export const adminAuditLogs = pgTable("admin_audit_logs", {
 
 export type AdminAuditLog = typeof adminAuditLogs.$inferSelect;
 export type InsertAdminAuditLog = typeof adminAuditLogs.$inferInsert;
+
+// Support messages (help chat between users and admin)
+export const supportMessages = pgTable("support_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  content: text("content").notNull(),
+  senderRole: text("sender_role").notNull(), // 'user' | 'admin'
+  read: boolean("read").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSupportMessageSchema = createInsertSchema(supportMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertSupportMessage = z.infer<typeof insertSupportMessageSchema>;
+export type SupportMessage = typeof supportMessages.$inferSelect;

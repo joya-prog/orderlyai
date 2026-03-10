@@ -919,7 +919,7 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
   return (
     <div className="flex h-[calc(100vh-12rem)] gap-3" data-testid="flow-builder">
       {/* Left Panel - Node Library */}
-      <div className="w-64 flex-shrink-0 flex flex-col gap-3">
+      <div className="w-64 flex-shrink-0 flex flex-col gap-3" data-testid="node-library-panel">
         <Card className="flex-1 flex flex-col overflow-hidden">
           <CardHeader className="pb-2 flex-shrink-0">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">

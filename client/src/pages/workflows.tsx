@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -6,15 +6,27 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Agent } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Workflow } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Workflow, HelpCircle } from "lucide-react";
 import { FlowBuilder } from "@/components/flow-builder";
+import { useWorkflowTour } from "@/components/onboarding-tour";
 import type { Node, Edge } from '@xyflow/react';
 
 export default function WorkflowsPage() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
+  const { startWorkflowTour } = useWorkflowTour();
+
+  useEffect(() => {
+    if (!localStorage.getItem("workflowTourSeen")) {
+      const timer = setTimeout(() => {
+        startWorkflowTour();
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [startWorkflowTour]);
 
   const { data: agents = [], isLoading: agentsLoading } = useQuery<Agent[]>({
     queryKey: ["/api/agents"],
@@ -151,26 +163,37 @@ export default function WorkflowsPage() {
 
   return (
     <div className="p-8">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-semibold font-serif">Workflows</h1>
           <p className="text-muted-foreground mt-1">
             Design conversation flows for your agents
           </p>
         </div>
-        <div className="w-64">
-          <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
-            <SelectTrigger data-testid="select-agent">
-              <SelectValue placeholder="Select agent" />
-            </SelectTrigger>
-            <SelectContent>
-              {agents.map((agent) => (
-                <SelectItem key={agent.id} value={agent.id}>
-                  {agent.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={startWorkflowTour}
+            data-testid="button-workflow-tour"
+          >
+            <HelpCircle className="h-4 w-4 mr-2" />
+            How it works
+          </Button>
+          <div className="w-56">
+            <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
+              <SelectTrigger data-testid="select-agent">
+                <SelectValue placeholder="Select agent" />
+              </SelectTrigger>
+              <SelectContent>
+                {agents.map((agent) => (
+                  <SelectItem key={agent.id} value={agent.id}>
+                    {agent.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 

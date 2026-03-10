@@ -22,13 +22,15 @@ export function useOnboardingTour(onComplete?: () => void) {
     const driverObj = driver({
       showProgress: true,
       animate: true,
-      overlayColor: "rgba(0,0,0,0.55)",
+      overlayColor: "rgba(15, 23, 42, 0.65)",
+      overlayOpacity: 1,
       smoothScroll: true,
       allowClose: true,
       progressText: "{{current}} of {{total}}",
       nextBtnText: "Next →",
       prevBtnText: "← Back",
       doneBtnText: "Let's go!",
+      popoverClass: "orderly-tour-popover",
       onDestroyStarted: () => {
         driverObj.destroy();
         completeTourMutation.mutate();
@@ -37,7 +39,7 @@ export function useOnboardingTour(onComplete?: () => void) {
         {
           popover: {
             title: "Welcome to Orderly AI",
-            description: "Let's take a quick tour to get you set up. Your AI voice agent platform for restaurants is ready to use.",
+            description: "You're all set up! Let's take a quick tour to show you around your new voice agent platform.",
             side: "over" as any,
             align: "center",
           },
@@ -45,8 +47,8 @@ export function useOnboardingTour(onComplete?: () => void) {
         {
           element: "[data-testid='nav-analytics']",
           popover: {
-            title: "Analytics",
-            description: "Track your call performance, revenue impact, and customer satisfaction scores in real time.",
+            title: "Analytics Dashboard",
+            description: "Monitor your call performance in real time — total calls, minutes used, revenue impact, and customer satisfaction all in one place.",
             side: "right",
             align: "start",
           },
@@ -55,7 +57,7 @@ export function useOnboardingTour(onComplete?: () => void) {
           element: "[data-testid='nav-agents']",
           popover: {
             title: "Voice Agents",
-            description: "Create and configure your AI voice agents here. Each agent can have its own personality, voice, and knowledge base.",
+            description: "Create and manage AI voice agents here. Each agent has its own voice, personality, and conversation flow tailored to your restaurant.",
             side: "right",
             align: "start",
           },
@@ -64,7 +66,7 @@ export function useOnboardingTour(onComplete?: () => void) {
           element: "[data-testid='nav-knowledge base']",
           popover: {
             title: "Knowledge Base",
-            description: "Train your agents with your restaurant's FAQs, menus, hours, and policies so they can answer customer questions accurately.",
+            description: "Train your agents with menus, hours, FAQs, and policies — so they can answer customer questions accurately without involving staff.",
             side: "right",
             align: "start",
           },
@@ -73,7 +75,7 @@ export function useOnboardingTour(onComplete?: () => void) {
           element: "[data-testid='nav-phone numbers']",
           popover: {
             title: "Phone Numbers",
-            description: "Search for and purchase a phone number, then assign it to your agent so customers can call in.",
+            description: "Search for and purchase a phone number, then assign it to an agent so customers can call in and be handled by AI.",
             side: "right",
             align: "start",
           },
@@ -81,8 +83,8 @@ export function useOnboardingTour(onComplete?: () => void) {
         {
           element: "[data-testid='nav-templates']",
           popover: {
-            title: "Templates",
-            description: "Don't start from scratch — use one of our pre-built templates for fine dining, casual restaurants, catering, and hotels.",
+            title: "Ready-Made Templates",
+            description: "Don't start from scratch — pick a template for reservations, order-taking, general inquiries, or catering to get up and running in seconds.",
             side: "right",
             align: "start",
           },
@@ -90,8 +92,8 @@ export function useOnboardingTour(onComplete?: () => void) {
         {
           element: "[data-testid='credit-widget-trigger']",
           popover: {
-            title: "Trial Credit",
-            description: "You have $10 in trial credit to test your voice agent. Once it runs out, add a payment method to keep going — you only pay for what you use.",
+            title: "Your Trial Credit",
+            description: "You have $10 in free trial credit to test your agents. You only pay for what you use — no monthly fees.",
             side: "right",
             align: "start",
           },
@@ -103,6 +105,78 @@ export function useOnboardingTour(onComplete?: () => void) {
   }, [completeTourMutation]);
 
   return { startTour };
+}
+
+export function useWorkflowTour() {
+  const startWorkflowTour = useCallback(() => {
+    const driverObj = driver({
+      showProgress: true,
+      animate: true,
+      overlayColor: "rgba(15, 23, 42, 0.65)",
+      overlayOpacity: 1,
+      smoothScroll: true,
+      allowClose: true,
+      progressText: "{{current}} of {{total}}",
+      nextBtnText: "Next →",
+      prevBtnText: "← Back",
+      doneBtnText: "Start Building!",
+      popoverClass: "orderly-tour-popover",
+      onDestroyStarted: () => {
+        driverObj.destroy();
+        localStorage.setItem("workflowTourSeen", "true");
+      },
+      steps: [
+        {
+          popover: {
+            title: "Visual Workflow Builder",
+            description: "Design how your AI agent handles conversations — step by step, without writing any code. This is where the magic happens.",
+            side: "over" as any,
+            align: "center",
+          },
+        },
+        {
+          element: "[data-testid='node-library-panel']",
+          popover: {
+            title: "Node Library",
+            description: "Browse all available node types here — Greeting, Response, Condition, Transfer, and more. Each node represents a step in your conversation flow.",
+            side: "right",
+            align: "start",
+          },
+        },
+        {
+          element: "[data-testid='flow-canvas']",
+          popover: {
+            title: "Drag & Drop Canvas",
+            description: "Drag nodes from the library and drop them onto this canvas to build your flow. Then connect them together by drawing lines between the dots on each node.",
+            side: "left",
+            align: "start",
+          },
+        },
+        {
+          element: "[data-testid='flow-canvas']",
+          popover: {
+            title: "Edit Node Properties",
+            description: "Click any node on the canvas to open its settings panel on the right. You can edit the node's label, content, and add conditional transitions to control the conversation path.",
+            side: "left",
+            align: "start",
+          },
+        },
+        {
+          element: "[data-testid='button-save-flow']",
+          popover: {
+            title: "Save Your Flow",
+            description: "When you're happy with your conversation design, click Save to apply it to your agent. Your agent will use this flow in all future calls.",
+            side: "left",
+            align: "start",
+          },
+        },
+      ],
+    });
+
+    driverObj.drive();
+  }, []);
+
+  return { startWorkflowTour };
 }
 
 export function OnboardingTour({ autoStart = false, onComplete }: OnboardingTourProps) {

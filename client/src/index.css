@@ -286,3 +286,109 @@
     inset: -1px;
   }
 }
+
+/* ─── Orderly AI — Driver.js Tour Custom Theme ─── */
+.driver-overlay {
+  background: rgba(15, 23, 42, 0.65) !important;
+}
+
+.orderly-tour-popover.driver-popover {
+  background: #ffffff !important;
+  border: 1px solid hsl(220 13% 91%) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 60px -10px rgba(15, 23, 42, 0.25), 0 4px 16px -4px rgba(15, 23, 42, 0.12) !important;
+  padding: 28px !important;
+  max-width: 360px !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+.dark .orderly-tour-popover.driver-popover {
+  background: hsl(222 47% 11%) !important;
+  border-color: hsl(220 13% 22%) !important;
+}
+
+.orderly-tour-popover .driver-popover-title {
+  font-size: 1.0625rem !important;
+  font-weight: 700 !important;
+  color: hsl(222 47% 11%) !important;
+  margin-bottom: 8px !important;
+  line-height: 1.3 !important;
+  font-family: 'Space Grotesk', sans-serif !important;
+}
+
+.dark .orderly-tour-popover .driver-popover-title {
+  color: hsl(220 14% 97%) !important;
+}
+
+.orderly-tour-popover .driver-popover-description {
+  font-size: 0.875rem !important;
+  color: hsl(215 16% 47%) !important;
+  line-height: 1.6 !important;
+  margin-bottom: 0 !important;
+}
+
+.dark .orderly-tour-popover .driver-popover-description {
+  color: hsl(215 16% 65%) !important;
+}
+
+.orderly-tour-popover .driver-popover-progress-text {
+  font-size: 0.75rem !important;
+  color: hsl(215 16% 60%) !important;
+  font-weight: 500 !important;
+}
+
+.orderly-tour-popover .driver-popover-footer {
+  margin-top: 20px !important;
+  gap: 8px !important;
+}
+
+.orderly-tour-popover .driver-popover-prev-btn,
+.orderly-tour-popover .driver-popover-next-btn,
+.orderly-tour-popover .driver-popover-close-btn {
+  border-radius: 8px !important;
+  font-size: 0.8125rem !important;
+  font-weight: 600 !important;
+  padding: 7px 14px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  border: none !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+.orderly-tour-popover .driver-popover-next-btn {
+  background: hsl(217 91% 60%) !important;
+  color: #ffffff !important;
+}
+
+.orderly-tour-popover .driver-popover-next-btn:hover {
+  background: hsl(217 91% 53%) !important;
+}
+
+.orderly-tour-popover .driver-popover-prev-btn {
+  background: hsl(220 14% 96%) !important;
+  color: hsl(222 47% 11%) !important;
+}
+
+.orderly-tour-popover .driver-popover-prev-btn:hover {
+  background: hsl(220 14% 91%) !important;
+}
+
+.orderly-tour-popover .driver-popover-close-btn {
+  background: transparent !important;
+  color: hsl(215 16% 60%) !important;
+  padding: 4px 8px !important;
+  font-size: 1.1rem !important;
+}
+
+.orderly-tour-popover .driver-popover-close-btn:hover {
+  background: hsl(220 14% 96%) !important;
+  color: hsl(222 47% 11%) !important;
+}
+
+.driver-popover-arrow {
+  border-color: #ffffff !important;
+}
+
+.driver-active-element {
+  border-radius: 8px !important;
+}

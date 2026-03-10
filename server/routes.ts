@@ -316,6 +316,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Cannot delete your own admin account" });
       }
 
+      // Delete audit log entries referencing this user (no cascade on admin_audit_logs)
+      await db.delete(adminAuditLogs).where(eq(adminAuditLogs.targetUserId, id));
+
       await writeAuditLog(actualAdminId, 'delete_account', id, 'user', {}, req.ip || '');
       await db.delete(users).where(eq(users.id, id));
       res.json({ success: true });

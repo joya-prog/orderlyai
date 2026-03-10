@@ -92,7 +92,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
         systemPrompt: template.systemPrompt,
         status: "draft",
       });
-      return response.json();
+      return response;
     },
     onSuccess: (agent) => {
       queryClient.invalidateQueries({ queryKey: ["/api/agents"] });

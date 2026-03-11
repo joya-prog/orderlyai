@@ -27,6 +27,66 @@ import {
 
 type DialogStep = "choice" | "templates" | "detail";
 
+function makeId() {
+  return crypto.randomUUID();
+}
+
+interface FlowNode {
+  id: string;
+  agentId: string;
+  type: string;
+  label: string;
+  content: string;
+  position: { x: number; y: number };
+  config: Record<string, any>;
+}
+
+function buildStarterFlow(templateId: string, agentId: string): FlowNode[] {
+  const spacing = 420;
+  const y = 200;
+
+  if (templateId === "reservation-agent") {
+    const n0 = makeId(), n1 = makeId(), n2 = makeId(), n3 = makeId();
+    return [
+      { id: n0, agentId, type: 'greeting', label: 'Welcome', content: "Thank you for calling! I can help you with a reservation. What date and time were you thinking?", position: { x: 80, y }, config: { transitions: [{ id: 'next', label: 'Continue', color: 'emerald' }], contentMode: 'prompt' } },
+      { id: n1, agentId, type: 'collectInfo', label: 'Collect Details', content: "Could I get your name, party size, and preferred date and time for the reservation?", position: { x: 80 + spacing, y }, config: { transitions: [{ id: 'collected', label: 'Details Collected', color: 'emerald' }, { id: 'failed', label: 'Failed', color: 'rose' }], contentMode: 'prompt', variableName: 'reservation_details' } },
+      { id: n2, agentId, type: 'response', label: 'Confirm Booking', content: "I have your reservation confirmed. You're all set — we look forward to seeing you!", position: { x: 80 + spacing * 2, y }, config: { transitions: [{ id: 'next', label: 'Continue', color: 'emerald' }], contentMode: 'prompt' } },
+      { id: n3, agentId, type: 'end', label: 'Goodbye', content: "Thank you for calling. See you soon!", position: { x: 80 + spacing * 3, y }, config: { transitions: [], contentMode: 'prompt' } },
+    ];
+  }
+
+  if (templateId === "order-taking-agent") {
+    const n0 = makeId(), n1 = makeId(), n2 = makeId(), n3 = makeId();
+    return [
+      { id: n0, agentId, type: 'greeting', label: 'Welcome', content: "Hello! Thanks for calling. I'm ready to take your order. What would you like today?", position: { x: 80, y }, config: { transitions: [{ id: 'next', label: 'Continue', color: 'emerald' }], contentMode: 'prompt' } },
+      { id: n1, agentId, type: 'collectInfo', label: 'Take Order', content: "What items would you like to order? Please let me know if you have any modifications or special requests.", position: { x: 80 + spacing, y }, config: { transitions: [{ id: 'collected', label: 'Order Taken', color: 'emerald' }, { id: 'failed', label: 'Failed', color: 'rose' }], contentMode: 'prompt', variableName: 'order_details' } },
+      { id: n2, agentId, type: 'response', label: 'Confirm Order', content: "Your order is confirmed! It will be ready in about 20 minutes. Can I get your name and phone number for the order?", position: { x: 80 + spacing * 2, y }, config: { transitions: [{ id: 'next', label: 'Continue', color: 'emerald' }], contentMode: 'prompt' } },
+      { id: n3, agentId, type: 'end', label: 'Goodbye', content: "Thank you for your order! We'll have it ready for you soon.", position: { x: 80 + spacing * 3, y }, config: { transitions: [], contentMode: 'prompt' } },
+    ];
+  }
+
+  if (templateId === "general-inquiries-agent") {
+    const n0 = makeId(), n1 = makeId(), n2 = makeId();
+    return [
+      { id: n0, agentId, type: 'greeting', label: 'Welcome', content: "Hi there! Thanks for calling. How can I help you today?", position: { x: 80, y }, config: { transitions: [{ id: 'next', label: 'Continue', color: 'emerald' }], contentMode: 'prompt' } },
+      { id: n1, agentId, type: 'response', label: 'Answer Question', content: "Answer the caller's question helpfully and accurately. If you don't know, offer to transfer them to a staff member.", position: { x: 80 + spacing, y }, config: { transitions: [{ id: 'answered', label: 'Question Answered', color: 'emerald' }, { id: 'transfer', label: 'Needs Transfer', color: 'amber' }], contentMode: 'prompt' } },
+      { id: n2, agentId, type: 'end', label: 'Goodbye', content: "Is there anything else I can help with? Thank you for calling!", position: { x: 80 + spacing * 2, y }, config: { transitions: [], contentMode: 'prompt' } },
+    ];
+  }
+
+  if (templateId === "catering-agent") {
+    const n0 = makeId(), n1 = makeId(), n2 = makeId(), n3 = makeId();
+    return [
+      { id: n0, agentId, type: 'greeting', label: 'Welcome', content: "Thank you for calling about our catering services! I'd love to help you plan your event.", position: { x: 80, y }, config: { transitions: [{ id: 'next', label: 'Continue', color: 'emerald' }], contentMode: 'prompt' } },
+      { id: n1, agentId, type: 'collectInfo', label: 'Collect Event Details', content: "Could you tell me about your event? I'd love to know the date, expected guest count, venue, and any dietary requirements.", position: { x: 80 + spacing, y }, config: { transitions: [{ id: 'collected', label: 'Details Collected', color: 'emerald' }, { id: 'failed', label: 'Needs More Info', color: 'rose' }], contentMode: 'prompt', variableName: 'event_details' } },
+      { id: n2, agentId, type: 'transfer', label: 'Transfer to Team', content: "That sounds wonderful! Let me connect you with our catering team who can go over packages and pricing in detail.", position: { x: 80 + spacing * 2, y }, config: { transitions: [{ id: 'transferred', label: 'Transferred', color: 'emerald' }], contentMode: 'prompt', phoneNumber: '' } },
+      { id: n3, agentId, type: 'end', label: 'Goodbye', content: "Thank you for your interest in our catering services! We look forward to making your event special.", position: { x: 80 + spacing * 3, y }, config: { transitions: [], contentMode: 'prompt' } },
+    ];
+  }
+
+  return [];
+}
+
 interface CreateAgentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -83,7 +143,7 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
 
   const installMutation = useMutation({
     mutationFn: async (template: typeof RESTAURANT_TEMPLATES[0]) => {
-      const response = await apiRequest("POST", "/api/agents", {
+      const agent = await apiRequest("POST", "/api/agents", {
         name: template.name,
         description: template.description,
         industry: template.industry,
@@ -92,10 +152,17 @@ export function CreateAgentDialog({ open, onOpenChange }: CreateAgentDialogProps
         systemPrompt: template.systemPrompt,
         status: "draft",
       });
-      return response;
+
+      const starterNodes = buildStarterFlow(template.id, agent.id);
+      if (starterNodes.length > 0) {
+        await apiRequest("POST", `/api/agents/${agent.id}/flow-nodes/bulk`, { nodes: starterNodes });
+      }
+
+      return agent;
     },
     onSuccess: (agent) => {
       queryClient.invalidateQueries({ queryKey: ["/api/agents"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agents", agent.id, "flow-nodes"] });
       toast({
         title: "Template Installed",
         description: "Your new agent has been created from the template.",

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -18,15 +18,17 @@ export default function WorkflowsPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const { startWorkflowTour } = useWorkflowTour();
+  const tourStartedRef = useRef(false);
 
   useEffect(() => {
-    if (!localStorage.getItem("workflowTourSeen")) {
+    if (selectedAgentId && !tourStartedRef.current && !localStorage.getItem("workflowTourSeen")) {
+      tourStartedRef.current = true;
       const timer = setTimeout(() => {
         startWorkflowTour();
-      }, 1000);
+      }, 800);
       return () => clearTimeout(timer);
     }
-  }, [startWorkflowTour]);
+  }, [selectedAgentId, startWorkflowTour]);
 
   const { data: agents = [], isLoading: agentsLoading } = useQuery<Agent[]>({
     queryKey: ["/api/agents"],

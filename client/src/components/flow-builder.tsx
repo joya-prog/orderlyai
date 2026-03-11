@@ -512,7 +512,7 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
             onChange={(e) => handleFieldChange('content', e.target.value)}
             onClick={(e) => e.stopPropagation()}
             placeholder={contentMode === 'prompt' 
-              ? "Enter AI prompt instructions..." 
+              ? (nodeConfig?.configFields?.[0]?.placeholder || "Enter AI prompt instructions...") 
               : "Enter the exact sentence to say..."
             }
             className={`min-h-[80px] resize-none text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg nodrag ${

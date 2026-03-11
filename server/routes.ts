@@ -319,7 +319,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Delete audit log entries referencing this user (no cascade on admin_audit_logs)
       await db.delete(adminAuditLogs).where(eq(adminAuditLogs.targetUserId, id));
 
-      await writeAuditLog(actualAdminId, 'delete_account', id, 'user', {}, req.ip || '');
+      // Log the deletion AFTER wiping FK references — use null targetUserId to avoid re-creating an FK reference
+      await writeAuditLog(actualAdminId, 'delete_account', null, 'user', { deletedUserId: id }, req.ip || '');
       await db.delete(users).where(eq(users.id, id));
       res.json({ success: true });
     } catch (error) {
@@ -3261,7 +3262,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Delete all user data
+      // Delete admin_audit_logs rows referencing this user (no cascade on those FKs)
+      await db.delete(adminAuditLogs).where(eq(adminAuditLogs.targetUserId, userId));
+      await db.delete(adminAuditLogs).where(eq(adminAuditLogs.adminUserId, userId));
+
+      // Delete all user data (remaining tables cascade automatically)
       await storage.deleteUserAccount(userId);
 
       // Destroy the session

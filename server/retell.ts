@@ -26,61 +26,81 @@ interface BusinessHoursSchedule {
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
 
-export function getBusinessHoursPromptBlock(agent: Pick<Agent, 'businessHours' | 'afterHoursMode' | 'afterHoursMessage' | 'timezone'>): string {
+type HoursAgent = Pick<Agent, 'businessHours' | 'afterHoursMode' | 'afterHoursMessage' | 'timezone'>;
+
+export function isWithinBusinessHours(agent: HoursAgent): { isOpen: boolean; currentTimeLabel: string } {
+  const tz = agent.timezone || 'US/Pacific';
+  const bh = agent.businessHours as BusinessHoursSchedule | null;
+
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    weekday: 'long',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  const realNow = new Date();
+  const currentTimeLabel = `${formatter.format(realNow)} (${tz})`;
+
+  if (!bh || !bh.enabled || !bh.schedule) {
+    return { isOpen: true, currentTimeLabel };
+  }
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    weekday: 'long',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false,
+  }).formatToParts(realNow);
+
+  const weekday = parts.find(p => p.type === 'weekday')?.value?.toLowerCase() || '';
+  const hourStr = parts.find(p => p.type === 'hour')?.value || '0';
+  const minuteStr = parts.find(p => p.type === 'minute')?.value || '0';
+  const currentMinutes = parseInt(hourStr) * 60 + parseInt(minuteStr);
+
+  const daySchedule = bh.schedule[weekday];
+  if (!daySchedule || !daySchedule.open) {
+    return { isOpen: false, currentTimeLabel };
+  }
+
+  const [startH, startM] = daySchedule.start.split(':').map(Number);
+  const [endH, endM] = daySchedule.end.split(':').map(Number);
+  const openMin = startH * 60 + startM;
+  const closeMin = endH * 60 + endM;
+
+  const isInWindow = closeMin > openMin
+    ? (currentMinutes >= openMin && currentMinutes < closeMin)
+    : (currentMinutes >= openMin || currentMinutes < closeMin);
+
+  return { isOpen: isInWindow, currentTimeLabel };
+}
+
+export function getBusinessHoursPromptBlock(agent: HoursAgent): string {
   const mode = agent.afterHoursMode || '24_7';
   if (mode === '24_7') return '';
 
   const bh = agent.businessHours as BusinessHoursSchedule | null;
   if (!bh || !bh.enabled || !bh.schedule) return '';
 
-  const tz = agent.timezone || 'US/Pacific';
-  let now: Date;
-  try {
-    now = new Date(new Date().toLocaleString('en-US', { timeZone: tz }));
-  } catch {
-    now = new Date();
-  }
+  const { isOpen, currentTimeLabel } = isWithinBusinessHours(agent);
 
-  const dayName = DAY_NAMES[now.getDay()];
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  const daySchedule = bh.schedule[dayName];
-
-  let isOpen = false;
-  let statusLine = 'CLOSED';
-
-  if (daySchedule && daySchedule.open) {
-    const [startH, startM] = daySchedule.start.split(':').map(Number);
-    const [endH, endM] = daySchedule.end.split(':').map(Number);
-    const openMin = startH * 60 + startM;
-    const closeMin = endH * 60 + endM;
-
-    const isInWindow = closeMin > openMin
-      ? (currentMinutes >= openMin && currentMinutes < closeMin)
-      : (currentMinutes >= openMin || currentMinutes < closeMin);
-
-    if (isInWindow) {
-      isOpen = true;
-      const closeFormatted = formatTime12(endH, endM);
-      statusLine = `OPEN — closes at ${closeFormatted}`;
-    } else if (currentMinutes < openMin) {
-      const openFormatted = formatTime12(startH, startM);
-      statusLine = `CLOSED — opens today at ${openFormatted}`;
+  let statusLine: string;
+  if (isOpen) {
+    const tz = agent.timezone || 'US/Pacific';
+    const weekday = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long' }).format(new Date()).toLowerCase();
+    const daySchedule = bh.schedule[weekday];
+    if (daySchedule && daySchedule.open) {
+      const [eH, eM] = daySchedule.end.split(':').map(Number);
+      statusLine = `OPEN — closes at ${formatTime12(eH, eM)}`;
     } else {
-      statusLine = 'CLOSED for the day';
+      statusLine = 'OPEN';
     }
   } else {
-    statusLine = 'CLOSED today';
+    statusLine = 'CLOSED';
   }
 
-  const timeStr = now.toLocaleString('en-US', {
-    weekday: 'long',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-    timeZone: tz,
-  });
-
-  let block = `\n\n## Hours of Operation\nCurrent time: ${timeStr} (${tz})\nStatus: ${statusLine}\n`;
+  let block = `\n\n## Hours of Operation\nCurrent time: ${currentTimeLabel}\nStatus: ${statusLine}\n`;
 
   if (!isOpen) {
     if (mode === 'messages_only') {
@@ -99,6 +119,11 @@ function formatTime12(h: number, m: number): string {
   const ampm = h >= 12 ? 'PM' : 'AM';
   const h12 = h % 12 || 12;
   return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
+}
+
+function appendHoursBlock(prompt: string, agent: HoursAgent): string {
+  const block = getBusinessHoursPromptBlock(agent);
+  return block ? prompt + block : prompt;
 }
 
 export interface RetellAgentConfig {
@@ -233,13 +258,14 @@ export async function createRetellLLM(config: RetellLLMConfig): Promise<string |
   }
 }
 
-export async function createRetellConversationFlow(config: RetellConversationFlowConfig): Promise<string | null> {
+export async function createRetellConversationFlow(config: RetellConversationFlowConfig, agent?: HoursAgent): Promise<string | null> {
   if (!retellClient) {
     console.error('[Retell] Client not configured');
     return null;
   }
 
   try {
+    const prompt = agent ? appendHoursBlock(config.generalPrompt, agent) : config.generalPrompt;
     const flowResponse = await retellClient.conversationFlow.create({
       model_choice: {
         model: (config.model as any) || 'gpt-4o-mini',
@@ -252,7 +278,7 @@ export async function createRetellConversationFlow(config: RetellConversationFlo
           type: 'conversation',
           instruction: {
             type: 'prompt',
-            text: config.generalPrompt,
+            text: prompt,
           },
         },
       ],
@@ -268,22 +294,22 @@ export async function createRetellConversationFlow(config: RetellConversationFlo
   }
 }
 
-export async function updateRetellConversationFlow(flowId: string, config: Partial<RetellConversationFlowConfig>): Promise<boolean> {
+export async function updateRetellConversationFlow(flowId: string, config: Partial<RetellConversationFlowConfig>, agent?: HoursAgent): Promise<boolean> {
   if (!retellClient) {
     console.error('[Retell] Client not configured');
     return false;
   }
 
   try {
-    // Only update global settings (model, temperature, global prompt).
-    // Do NOT overwrite nodes here — nodes are managed by syncWorkflowToRetell.
+    const prompt = (config.generalPrompt || config.beginMessage || undefined);
+    const finalPrompt = prompt && agent ? appendHoursBlock(prompt, agent) : prompt;
     await retellClient.conversationFlow.update(flowId, {
       model_choice: config.model ? {
         model: config.model as any,
         type: 'cascading',
       } : undefined,
       model_temperature: config.modelTemperature,
-      global_prompt: config.generalPrompt || config.beginMessage || undefined,
+      global_prompt: finalPrompt,
     });
 
     console.log('[Retell] Updated Conversation Flow:', flowId);
@@ -300,7 +326,8 @@ export async function syncWorkflowToRetell(
   nodes: OrderlyFlowNode[],
   connections: OrderlyFlowConnection[],
   globalPrompt?: string,
-  model?: string
+  model?: string,
+  agent?: HoursAgent
 ): Promise<boolean> {
   if (!retellClient) {
     console.error('[Retell] Client not configured');
@@ -490,7 +517,7 @@ export async function syncWorkflowToRetell(
       } : undefined,
       model_temperature: 0.7,
       nodes: retellNodes,
-      global_prompt: globalPrompt || undefined,
+      global_prompt: (globalPrompt && agent) ? appendHoursBlock(globalPrompt, agent) : (globalPrompt || undefined),
       start_node_id: startNode.id,
       start_speaker: 'agent',
     } as any);

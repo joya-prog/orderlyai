@@ -766,6 +766,7 @@ function AgentEditorInner() {
   const [history, setHistory] = useState<HistoryEntry[]>([{ nodes: [], edges: [] }]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const skipHistoryRef = useRef(false);
+  const placeholderFlowSetRef = useRef(false);
   
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
@@ -857,6 +858,7 @@ function AgentEditorInner() {
   // Load flow nodes — show pre-built placeholder flow when canvas is empty
   useEffect(() => {
     if (flowNodesData.length > 0) {
+      placeholderFlowSetRef.current = true; // real data loaded, mark as done
       const loadedNodes = flowNodesData.map((node) => {
         const config = node.config || {};
         return {
@@ -878,7 +880,9 @@ function AgentEditorInner() {
       setHistory([cloneState(loadedNodes, [])]);
       setHistoryIndex(0);
     } else if (!isLoadingFlowNodes && !isNew && id) {
-      // Canvas is empty — show a default starter flow with placeholder prompts
+      // Canvas is empty — show a default starter flow, but only once
+      if (placeholderFlowSetRef.current) return;
+      placeholderFlowSetRef.current = true;
       const { nodes: defaultNodes, edges: defaultEdges } = buildDefaultPlaceholderFlow(id);
       setNodes(defaultNodes);
       setEdges(defaultEdges);
@@ -887,7 +891,8 @@ function AgentEditorInner() {
       // Fit the viewport to show all default nodes after render
       setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 150);
     }
-  }, [flowNodesData, isLoadingFlowNodes, isNew, id, setNodes, setEdges, fitView]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flowNodesData, isLoadingFlowNodes, isNew, id]);
 
   useEffect(() => {
     if (flowConnectionsData.length > 0) {

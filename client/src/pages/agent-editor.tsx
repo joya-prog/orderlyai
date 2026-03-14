@@ -1036,7 +1036,7 @@ function AgentEditorInner() {
         timezone: hoursTimezone,
         businessHours: { enabled: hoursEnabled, schedule: hoursSchedule },
         afterHoursMode,
-        afterHoursMessage: afterHoursMode === 'custom' ? afterHoursMessage : null,
+        afterHoursMessage: afterHoursMode !== '24_7' ? afterHoursMessage : null,
       });
       
       // Save flow nodes and connections (include transitions and contentMode in config)
@@ -1226,7 +1226,7 @@ function AgentEditorInner() {
         timezone: hoursTimezone,
         businessHours: { enabled: hoursEnabled, schedule: hoursSchedule },
         afterHoursMode,
-        afterHoursMessage: afterHoursMode === 'custom' ? afterHoursMessage : null,
+        afterHoursMessage: afterHoursMode !== '24_7' ? afterHoursMessage : null,
       };
       
       // Add required fields with defaults for new agents

@@ -113,6 +113,9 @@ export function getBusinessHoursPromptBlock(agent: HoursAgent): string {
     } else if (mode === 'custom' && agent.afterHoursMessage) {
       block += `\nYou are currently operating in after-hours mode. Follow these instructions:\n${agent.afterHoursMessage}`;
     }
+    if (agent.afterHoursMessage && mode !== 'custom') {
+      block += `\nAdditional instructions: ${agent.afterHoursMessage}`;
+    }
   }
 
   return block;

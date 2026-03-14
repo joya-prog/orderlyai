@@ -78,21 +78,24 @@ export function isWithinBusinessHours(agent: HoursAgent): { isOpen: boolean; cur
 
 export function getBusinessHoursPromptBlock(agent: HoursAgent): string {
   const bh = agent.businessHours as BusinessHoursSchedule | null;
-  if (!bh || !bh.enabled || !bh.schedule) return '';
-
   const mode = agent.afterHoursMode || '24_7';
   const { isOpen, currentTimeLabel } = isWithinBusinessHours(agent);
+  const scheduleEnabled = bh && bh.enabled && bh.schedule;
 
   let statusLine: string;
-  if (isOpen) {
-    const tz = agent.timezone || 'US/Pacific';
-    const weekday = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long' }).format(new Date()).toLowerCase();
-    const daySchedule = bh.schedule[weekday];
-    if (daySchedule && daySchedule.open) {
-      const [eH, eM] = daySchedule.end.split(':').map(Number);
-      statusLine = `OPEN — closes at ${formatTime12(eH, eM)}`;
+  if (!scheduleEnabled || isOpen) {
+    if (scheduleEnabled) {
+      const tz = agent.timezone || 'US/Pacific';
+      const weekday = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long' }).format(new Date()).toLowerCase();
+      const daySchedule = bh!.schedule[weekday];
+      if (daySchedule && daySchedule.open) {
+        const [eH, eM] = daySchedule.end.split(':').map(Number);
+        statusLine = `OPEN — closes at ${formatTime12(eH, eM)}`;
+      } else {
+        statusLine = 'OPEN';
+      }
     } else {
-      statusLine = 'OPEN';
+      statusLine = 'OPEN (always available)';
     }
   } else {
     statusLine = 'CLOSED';
@@ -100,7 +103,7 @@ export function getBusinessHoursPromptBlock(agent: HoursAgent): string {
 
   let block = `\n\n## Hours of Operation\nCurrent time: ${currentTimeLabel}\nStatus: ${statusLine}\n`;
 
-  if (mode === '24_7') {
+  if (!scheduleEnabled || mode === '24_7') {
     block += `\nThe restaurant is always available (24/7 mode). Operate normally regardless of the time.`;
   } else if (!isOpen) {
     if (mode === 'messages_only') {

@@ -41,6 +41,7 @@ PostgreSQL (Neon serverless) is the primary database, managed with Drizzle ORM. 
 - **Workflow Builder**: A visual, Retell AI-style conversation flow builder with a node library, ReactFlow canvas, and node inspector for defining agent behavior. It supports drag-and-drop node placement and visual transitions.
 - **Test Center**: Integrated testing for agents with text and real-time voice modes using the Retell Web SDK, displaying live transcripts and agent states.
 - **Workflow Executor**: A state machine-based system that uses GPT-4o-mini for evaluating conversation flow transitions during agent execution and testing.
+- **Hours of Operation**: Configurable business hours per agent with weekly schedule (per-day open/close toggles and time ranges), timezone selection, and after-hours mode (24/7, messages only, orders only, or custom instructions). Hours data is stored as JSONB (`business_hours`), with `after_hours_mode` and `after_hours_message` columns on the agents table. A `getBusinessHoursPromptBlock()` helper in `server/retell.ts` injects real-time open/closed status into the Retell AI prompt at sync time. Supports overnight schedules (e.g., 22:00–02:00).
 
 ### Admin Control Center
 

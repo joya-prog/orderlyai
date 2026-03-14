@@ -716,6 +716,21 @@ function AgentEditorInner() {
   const [warmTransferNumber, setWarmTransferNumber] = useState("");
   const [warmTransferMessage, setWarmTransferMessage] = useState("");
   
+  // Hours of operation state
+  const [hoursEnabled, setHoursEnabled] = useState(false);
+  const [hoursTimezone, setHoursTimezone] = useState("US/Pacific");
+  const [hoursSchedule, setHoursSchedule] = useState<Record<string, { open: boolean; start: string; end: string }>>({
+    monday: { open: true, start: '09:00', end: '22:00' },
+    tuesday: { open: true, start: '09:00', end: '22:00' },
+    wednesday: { open: true, start: '09:00', end: '22:00' },
+    thursday: { open: true, start: '09:00', end: '22:00' },
+    friday: { open: true, start: '09:00', end: '23:00' },
+    saturday: { open: true, start: '10:00', end: '23:00' },
+    sunday: { open: false, start: '10:00', end: '21:00' },
+  });
+  const [afterHoursMode, setAfterHoursMode] = useState("24_7");
+  const [afterHoursMessage, setAfterHoursMessage] = useState("");
+  
   // Track if greeting fetch is in progress to prevent duplicate requests
   const [isGreetingLoading, setIsGreetingLoading] = useState(false);
   const greetingFetchedRef = useRef(false); // Tracks if greeting was already fetched for current agent
@@ -829,6 +844,17 @@ function AgentEditorInner() {
       // Only populate warm transfer fields if enabled
       setWarmTransferNumber(warmEnabled ? (agent.warmTransferNumber || "") : "");
       setWarmTransferMessage(warmEnabled ? (agent.warmTransferMessage || "") : "");
+      // Hours of operation
+      const bh = agent.businessHours as any;
+      if (bh && bh.enabled) {
+        setHoursEnabled(true);
+        if (bh.schedule) setHoursSchedule(bh.schedule);
+      } else {
+        setHoursEnabled(false);
+      }
+      setHoursTimezone(agent.timezone || "US/Pacific");
+      setAfterHoursMode(agent.afterHoursMode || "24_7");
+      setAfterHoursMessage(agent.afterHoursMessage || "");
     }
   }, [agent]);
   
@@ -1007,6 +1033,10 @@ function AgentEditorInner() {
         warmTransferEnabled,
         warmTransferNumber: warmTransferEnabled ? warmTransferNumber : null,
         warmTransferMessage: warmTransferEnabled ? warmTransferMessage : null,
+        timezone: hoursTimezone,
+        businessHours: { enabled: hoursEnabled, schedule: hoursSchedule },
+        afterHoursMode,
+        afterHoursMessage: afterHoursMode === 'custom' ? afterHoursMessage : null,
       });
       
       // Save flow nodes and connections (include transitions and contentMode in config)
@@ -1060,7 +1090,7 @@ function AgentEditorInner() {
     } finally {
       isSavingRef.current = false;
     }
-  }, [id, isNew, agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, repeatCustomerRecognition, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, nodes, edges]);
+  }, [id, isNew, agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, repeatCustomerRecognition, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, hoursEnabled, hoursTimezone, hoursSchedule, afterHoursMode, afterHoursMessage, nodes, edges]);
   
   // Debounced auto-save trigger that handles concurrency properly
   const triggerAutoSave = useCallback(() => {
@@ -1106,7 +1136,7 @@ function AgentEditorInner() {
     // Use the debounced trigger which handles concurrency
     triggerAutoSave();
     
-  }, [agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, repeatCustomerRecognition, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, nodes, edges, triggerAutoSave, isNew]);
+  }, [agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, repeatCustomerRecognition, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, hoursEnabled, hoursTimezone, hoursSchedule, afterHoursMode, afterHoursMessage, nodes, edges, triggerAutoSave, isNew]);
 
   // Handlers
   const updateNodeData = useCallback((nodeId: string, newData: any) => {
@@ -1193,6 +1223,10 @@ function AgentEditorInner() {
         warmTransferEnabled,
         warmTransferNumber: warmTransferEnabled ? warmTransferNumber : null,
         warmTransferMessage: warmTransferEnabled ? warmTransferMessage : null,
+        timezone: hoursTimezone,
+        businessHours: { enabled: hoursEnabled, schedule: hoursSchedule },
+        afterHoursMode,
+        afterHoursMessage: afterHoursMode === 'custom' ? afterHoursMessage : null,
       };
       
       // Add required fields with defaults for new agents
@@ -1211,7 +1245,7 @@ function AgentEditorInner() {
     } finally {
       setIsSaving(false);
     }
-  }, [agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, repeatCustomerRecognition, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, nodes, edges, saveMutation, saveFlowMutation, isNew]);
+  }, [agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, repeatCustomerRecognition, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, hoursEnabled, hoursTimezone, hoursSchedule, afterHoursMode, afterHoursMessage, nodes, edges, saveMutation, saveFlowMutation, isNew]);
 
   // Initialize chat when switching to test tab - fetch greeting once
   useEffect(() => {
@@ -1943,6 +1977,133 @@ function AgentEditorInner() {
                     <Slider value={voiceVolume} onValueChange={setVoiceVolume} min={0} max={2} step={0.1} />
                     <p className="text-xs text-muted-foreground mt-1">Adjust the loudness of the agent's voice output.</p>
                   </div>
+                </div>
+              </SettingsSection>
+
+              <SettingsSection title="Hours of Operation" icon={Clock}>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-xs font-medium">Enable Business Hours</label>
+                      <p className="text-xs text-muted-foreground">Agent behavior changes outside set hours</p>
+                    </div>
+                    <Switch
+                      checked={hoursEnabled}
+                      onCheckedChange={setHoursEnabled}
+                      data-testid="switch-hours-enabled"
+                    />
+                  </div>
+
+                  {hoursEnabled && (
+                    <>
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 mb-1 block">Timezone</label>
+                        <Select value={hoursTimezone} onValueChange={setHoursTimezone}>
+                          <SelectTrigger data-testid="select-hours-timezone">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="US/Eastern">Eastern (ET)</SelectItem>
+                            <SelectItem value="US/Central">Central (CT)</SelectItem>
+                            <SelectItem value="US/Mountain">Mountain (MT)</SelectItem>
+                            <SelectItem value="US/Pacific">Pacific (PT)</SelectItem>
+                            <SelectItem value="US/Hawaii">Hawaii (HT)</SelectItem>
+                            <SelectItem value="US/Alaska">Alaska (AKT)</SelectItem>
+                            <SelectItem value="Europe/London">London (GMT)</SelectItem>
+                            <SelectItem value="Europe/Paris">Paris (CET)</SelectItem>
+                            <SelectItem value="Asia/Tokyo">Tokyo (JST)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-gray-500">Weekly Schedule</label>
+                        {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const).map((day) => {
+                          const dayData = hoursSchedule[day];
+                          return (
+                            <div key={day} className="flex items-center gap-2" data-testid={`hours-row-${day}`}>
+                              <Switch
+                                checked={dayData.open}
+                                onCheckedChange={(checked) => {
+                                  setHoursSchedule(prev => ({
+                                    ...prev,
+                                    [day]: { ...prev[day], open: checked }
+                                  }));
+                                }}
+                                data-testid={`switch-hours-${day}`}
+                              />
+                              <span className="text-xs w-12 capitalize">{day.slice(0, 3)}</span>
+                              {dayData.open ? (
+                                <div className="flex items-center gap-1 flex-1">
+                                  <input
+                                    type="time"
+                                    value={dayData.start}
+                                    onChange={(e) => {
+                                      setHoursSchedule(prev => ({
+                                        ...prev,
+                                        [day]: { ...prev[day], start: e.target.value }
+                                      }));
+                                    }}
+                                    className="text-xs border rounded-md px-2 py-1 w-[90px] bg-background"
+                                    data-testid={`input-hours-start-${day}`}
+                                  />
+                                  <span className="text-xs text-muted-foreground">to</span>
+                                  <input
+                                    type="time"
+                                    value={dayData.end}
+                                    onChange={(e) => {
+                                      setHoursSchedule(prev => ({
+                                        ...prev,
+                                        [day]: { ...prev[day], end: e.target.value }
+                                      }));
+                                    }}
+                                    className="text-xs border rounded-md px-2 py-1 w-[90px] bg-background"
+                                    data-testid={`input-hours-end-${day}`}
+                                  />
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground italic">Closed</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 mb-1 block">After-Hours Mode</label>
+                        <Select value={afterHoursMode} onValueChange={setAfterHoursMode}>
+                          <SelectTrigger data-testid="select-after-hours-mode">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="24_7">Always Available (24/7)</SelectItem>
+                            <SelectItem value="messages_only">Take Messages Only</SelectItem>
+                            <SelectItem value="orders_only">Accept Orders Only</SelectItem>
+                            <SelectItem value="custom">Custom Instructions</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {afterHoursMode === '24_7' && 'Agent operates normally at all times.'}
+                          {afterHoursMode === 'messages_only' && 'Agent takes messages when closed.'}
+                          {afterHoursMode === 'orders_only' && 'Agent accepts orders but not reservations when closed.'}
+                          {afterHoursMode === 'custom' && 'Provide custom after-hours instructions below.'}
+                        </p>
+                      </div>
+
+                      {afterHoursMode === 'custom' && (
+                        <div>
+                          <label className="text-xs font-medium text-gray-500 mb-1 block">Custom After-Hours Instructions</label>
+                          <Textarea
+                            value={afterHoursMessage}
+                            onChange={(e) => setAfterHoursMessage(e.target.value)}
+                            placeholder="Tell the agent what to do when the restaurant is closed..."
+                            className="text-xs min-h-[80px] resize-none"
+                            data-testid="textarea-after-hours-message"
+                          />
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </SettingsSection>
 

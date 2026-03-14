@@ -152,6 +152,11 @@ export const agents = pgTable("agents", {
   warmTransferNumber: text("warm_transfer_number"),
   warmTransferMessage: text("warm_transfer_message"),
   
+  // Hours of Operation
+  businessHours: jsonb("business_hours"),
+  afterHoursMode: text("after_hours_mode").notNull().default('24_7'),
+  afterHoursMessage: text("after_hours_message"),
+  
   // Legacy fields (kept for backward compatibility)
   voicePrompting: text("voice_prompting"),
   patienceLevel: text("patience_level").notNull().default('medium'), // 'low', 'medium', 'high'

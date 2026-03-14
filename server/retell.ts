@@ -1,4 +1,5 @@
 import Retell from 'retell-sdk';
+import type { Agent } from '@shared/schema';
 
 const RETELL_API_KEY = process.env.RETELL_API_KEY;
 
@@ -16,6 +17,88 @@ type ValidAmbientSound = typeof VALID_AMBIENT_SOUNDS[number];
 function getValidAmbientSound(value: string | undefined): ValidAmbientSound | undefined {
   if (!value || value.trim() === '') return undefined;
   return VALID_AMBIENT_SOUNDS.includes(value as ValidAmbientSound) ? (value as ValidAmbientSound) : undefined;
+}
+
+interface BusinessHoursSchedule {
+  enabled: boolean;
+  schedule: Record<string, { open: boolean; start: string; end: string }>;
+}
+
+const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
+
+export function getBusinessHoursPromptBlock(agent: Pick<Agent, 'businessHours' | 'afterHoursMode' | 'afterHoursMessage' | 'timezone'>): string {
+  const mode = agent.afterHoursMode || '24_7';
+  if (mode === '24_7') return '';
+
+  const bh = agent.businessHours as BusinessHoursSchedule | null;
+  if (!bh || !bh.enabled || !bh.schedule) return '';
+
+  const tz = agent.timezone || 'US/Pacific';
+  let now: Date;
+  try {
+    now = new Date(new Date().toLocaleString('en-US', { timeZone: tz }));
+  } catch {
+    now = new Date();
+  }
+
+  const dayName = DAY_NAMES[now.getDay()];
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const daySchedule = bh.schedule[dayName];
+
+  let isOpen = false;
+  let statusLine = 'CLOSED';
+
+  if (daySchedule && daySchedule.open) {
+    const [startH, startM] = daySchedule.start.split(':').map(Number);
+    const [endH, endM] = daySchedule.end.split(':').map(Number);
+    const openMin = startH * 60 + startM;
+    const closeMin = endH * 60 + endM;
+
+    const isInWindow = closeMin > openMin
+      ? (currentMinutes >= openMin && currentMinutes < closeMin)
+      : (currentMinutes >= openMin || currentMinutes < closeMin);
+
+    if (isInWindow) {
+      isOpen = true;
+      const closeFormatted = formatTime12(endH, endM);
+      statusLine = `OPEN — closes at ${closeFormatted}`;
+    } else if (currentMinutes < openMin) {
+      const openFormatted = formatTime12(startH, startM);
+      statusLine = `CLOSED — opens today at ${openFormatted}`;
+    } else {
+      statusLine = 'CLOSED for the day';
+    }
+  } else {
+    statusLine = 'CLOSED today';
+  }
+
+  const timeStr = now.toLocaleString('en-US', {
+    weekday: 'long',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: tz,
+  });
+
+  let block = `\n\n## Hours of Operation\nCurrent time: ${timeStr} (${tz})\nStatus: ${statusLine}\n`;
+
+  if (!isOpen) {
+    if (mode === 'messages_only') {
+      block += `\nYou are currently operating in after-hours mode. The restaurant is closed right now. Politely let callers know that the restaurant is closed, and offer to take their name, phone number, and the reason for their call so the team can follow up during business hours. Do NOT attempt to make reservations or place orders.`;
+    } else if (mode === 'orders_only') {
+      block += `\nYou are currently operating in after-hours mode. The restaurant is closed right now. You may still accept catering or next-day orders, but do NOT book reservations. Let callers know the team will confirm their order during business hours.`;
+    } else if (mode === 'custom' && agent.afterHoursMessage) {
+      block += `\nYou are currently operating in after-hours mode. Follow these instructions:\n${agent.afterHoursMessage}`;
+    }
+  }
+
+  return block;
+}
+
+function formatTime12(h: number, m: number): string {
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
 }
 
 export interface RetellAgentConfig {

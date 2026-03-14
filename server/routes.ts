@@ -432,8 +432,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (await retell.isRetellConfigured()) {
         try {
           // Create Conversation Flow in Retell (conversation-flow type agent)
+          const hoursBlock = retell.getBusinessHoursPromptBlock(agent);
           const flowId = await retell.createRetellConversationFlow({
-            generalPrompt: data.systemPrompt,
+            generalPrompt: (data.systemPrompt || '') + hoursBlock,
             beginMessage: data.greetingMessage,
             model: data.aiModel || 'gpt-4o-mini',
             modelTemperature: 0.7,
@@ -513,10 +514,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           const data = req.body;
           
-          // Update Conversation Flow if prompt/model changed
-          if (data.systemPrompt || data.greetingMessage || data.aiModel) {
+          // Update Conversation Flow if prompt/model/hours changed
+          if (data.systemPrompt || data.greetingMessage || data.aiModel || data.businessHours || data.afterHoursMode || data.afterHoursMessage !== undefined || data.timezone) {
+            const mergedAgent = { ...agent, ...data };
+            const hoursBlock = retell.getBusinessHoursPromptBlock(mergedAgent);
             await retell.updateRetellConversationFlow(agent.retellLlmId, {
-              generalPrompt: data.systemPrompt || agent.systemPrompt,
+              generalPrompt: (data.systemPrompt || agent.systemPrompt || '') + hoursBlock,
               beginMessage: data.greetingMessage || agent.greetingMessage,
               model: data.aiModel || agent.aiModel,
               modelTemperature: 0.7,
@@ -626,8 +629,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create Conversation Flow in Retell
+      const hoursBlock = retell.getBusinessHoursPromptBlock(agent);
       const flowId = await retell.createRetellConversationFlow({
-        generalPrompt: agent.systemPrompt || '',
+        generalPrompt: (agent.systemPrompt || '') + hoursBlock,
         beginMessage: agent.greetingMessage || '',
         model: agent.aiModel || 'gpt-4o-mini',
         modelTemperature: 0.7,
@@ -701,8 +705,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[Retell] Agent ${agent.id} not synced, syncing now for web call...`);
         
         // Create Conversation Flow in Retell
+        const webCallHoursBlock = retell.getBusinessHoursPromptBlock(agent);
         flowId = await retell.createRetellConversationFlow({
-          generalPrompt: agent.systemPrompt || "You are a helpful restaurant assistant.",
+          generalPrompt: (agent.systemPrompt || "You are a helpful restaurant assistant.") + webCallHoursBlock,
           beginMessage: agent.greetingMessage || "Hello! Thank you for calling. How can I help you today?",
           model: 'gpt-4o-mini',
           modelTemperature: 0.7,
@@ -773,11 +778,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             label: conn.label || undefined,
           }));
           
+          const syncHoursBlock = retell.getBusinessHoursPromptBlock(agent);
           await retell.syncWorkflowToRetell(
             flowId,
             nodes,
             connections,
-            agent.systemPrompt || "You are a helpful restaurant assistant.",
+            (agent.systemPrompt || "You are a helpful restaurant assistant.") + syncHoursBlock,
             'gpt-4o-mini'
           );
         }

@@ -561,6 +561,96 @@ function cloneState(nodes: Node[], edges: Edge[]): HistoryEntry {
   };
 }
 
+function buildDefaultPlaceholderFlow(agentId: string): { nodes: Node[]; edges: Edge[] } {
+  const mkId = () => crypto.randomUUID();
+  const y = 200;
+  const spacing = 400;
+
+  const ids = [mkId(), mkId(), mkId(), mkId(), mkId()];
+
+  const nodes: Node[] = [
+    {
+      id: ids[0],
+      type: 'custom',
+      position: { x: 60, y },
+      data: {
+        agentId,
+        type: 'greeting',
+        label: 'Welcome Caller',
+        content: "Thank you for calling! How can I help you today? I can assist with reservations, menu questions, hours, or anything else you need.",
+        config: { contentMode: 'prompt', transitions: [{ id: 'continue', label: 'Continue', color: 'emerald' }] },
+        transitions: [{ id: 'continue', label: 'Continue', color: 'emerald' }],
+        contentMode: 'prompt',
+      },
+    },
+    {
+      id: ids[1],
+      type: 'custom',
+      position: { x: 60 + spacing, y },
+      data: {
+        agentId,
+        type: 'response',
+        label: 'Handle Request',
+        content: "Listen carefully to the caller's request and respond helpfully. If they have a question about the menu, hours, or specials — answer it. If they need a reservation or want to place an order, guide them to the next step.",
+        config: { contentMode: 'prompt', transitions: [{ id: 'needs_info', label: 'Needs Info', color: 'amber' }, { id: 'done', label: 'Done', color: 'emerald' }] },
+        transitions: [{ id: 'needs_info', label: 'Needs Info', color: 'amber' }, { id: 'done', label: 'Done', color: 'emerald' }],
+        contentMode: 'prompt',
+      },
+    },
+    {
+      id: ids[2],
+      type: 'custom',
+      position: { x: 60 + spacing * 2, y },
+      data: {
+        agentId,
+        type: 'collectInfo',
+        label: 'Collect Details',
+        content: "Gather the caller's name, contact number, and any specific details required — such as party size, preferred date and time, or their order items.",
+        config: { contentMode: 'prompt', variableName: 'caller_details', transitions: [{ id: 'collected', label: 'Details Collected', color: 'emerald' }, { id: 'retry', label: 'Retry', color: 'rose' }] },
+        transitions: [{ id: 'collected', label: 'Details Collected', color: 'emerald' }, { id: 'retry', label: 'Retry', color: 'rose' }],
+        contentMode: 'prompt',
+      },
+    },
+    {
+      id: ids[3],
+      type: 'custom',
+      position: { x: 60 + spacing * 3, y },
+      data: {
+        agentId,
+        type: 'response',
+        label: 'Confirm & Wrap Up',
+        content: "Repeat the key details back to the caller to confirm everything is correct. Let them know what happens next — e.g. their reservation is booked, or their order is being prepared.",
+        config: { contentMode: 'prompt', transitions: [{ id: 'confirmed', label: 'Confirmed', color: 'emerald' }] },
+        transitions: [{ id: 'confirmed', label: 'Confirmed', color: 'emerald' }],
+        contentMode: 'prompt',
+      },
+    },
+    {
+      id: ids[4],
+      type: 'custom',
+      position: { x: 60 + spacing * 4, y },
+      data: {
+        agentId,
+        type: 'end',
+        label: 'End Call',
+        content: "Thank the caller warmly for getting in touch and wish them a great day. Let them know they can always call back if they need anything.",
+        config: { contentMode: 'prompt', transitions: [] },
+        transitions: [],
+        contentMode: 'prompt',
+      },
+    },
+  ];
+
+  const edges: Edge[] = [
+    { id: mkId(), source: ids[0], target: ids[1], sourceHandle: 'continue' },
+    { id: mkId(), source: ids[1], target: ids[2], sourceHandle: 'needs_info' },
+    { id: mkId(), source: ids[2], target: ids[3], sourceHandle: 'collected' },
+    { id: mkId(), source: ids[3], target: ids[4], sourceHandle: 'confirmed' },
+  ];
+
+  return { nodes, edges };
+}
+
 function AgentEditorInner() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
@@ -764,7 +854,7 @@ function AgentEditorInner() {
     };
   }, []);
 
-  // Load flow nodes
+  // Load flow nodes — show pre-built placeholder flow when canvas is empty
   useEffect(() => {
     if (flowNodesData.length > 0) {
       const loadedNodes = flowNodesData.map((node) => {
@@ -787,8 +877,17 @@ function AgentEditorInner() {
       setNodes(loadedNodes);
       setHistory([cloneState(loadedNodes, [])]);
       setHistoryIndex(0);
+    } else if (!isLoadingFlowNodes && !isNew && id) {
+      // Canvas is empty — show a default starter flow with placeholder prompts
+      const { nodes: defaultNodes, edges: defaultEdges } = buildDefaultPlaceholderFlow(id);
+      setNodes(defaultNodes);
+      setEdges(defaultEdges);
+      setHistory([cloneState(defaultNodes, defaultEdges)]);
+      setHistoryIndex(0);
+      // Fit the viewport to show all default nodes after render
+      setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 150);
     }
-  }, [flowNodesData, setNodes]);
+  }, [flowNodesData, isLoadingFlowNodes, isNew, id, setNodes, setEdges, fitView]);
 
   useEffect(() => {
     if (flowConnectionsData.length > 0) {

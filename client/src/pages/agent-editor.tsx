@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useAgentEditorTour } from "@/components/onboarding-tour";
 import type { Agent, KnowledgeBase } from "@shared/schema";
 import { RetellWebClient } from "retell-client-js-sdk";
 import type { Node, Edge, Connection, NodeTypes } from '@xyflow/react';
@@ -85,6 +86,7 @@ import {
   Check,
   AlertCircle,
   Info,
+  HelpCircle,
 } from "lucide-react";
 import { VoiceSelector } from "@/components/voice-selector";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -566,7 +568,20 @@ function AgentEditorInner() {
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const isNew = id === "new";
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  
+  const { startAgentEditorTour } = useAgentEditorTour();
+  const editorTourStartedRef = useRef(false);
+
+  // Auto-start the agent editor tour once per user, after panels are rendered
+  useEffect(() => {
+    if (editorTourStartedRef.current) return;
+    if (localStorage.getItem("agentEditorTourSeen")) return;
+    editorTourStartedRef.current = true;
+    const timer = setTimeout(() => {
+      startAgentEditorTour();
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [startAgentEditorTour]);
+
   // State
   const [activeTab, setActiveTab] = useState<"create" | "test">("create");
   const [agentName, setAgentName] = useState("New Agent");
@@ -1533,6 +1548,15 @@ function AgentEditorInner() {
               Auto saved at {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={startAgentEditorTour}
+            data-testid="button-agent-editor-tour"
+          >
+            <HelpCircle className="h-4 w-4 mr-2" />
+            How it works
+          </Button>
           <Button onClick={handleSave} disabled={isSaving} className="gap-2" data-testid="button-publish">
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
             Publish
@@ -1547,6 +1571,7 @@ function AgentEditorInner() {
         {activeTab === "create" && (
         <div 
           ref={settingsPanelRef}
+          data-testid="agent-settings-panel"
           className="absolute z-10 bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-xl shadow-lg border transition-all"
           style={{
             left: settingsPanelPos.x,
@@ -1910,6 +1935,7 @@ function AgentEditorInner() {
             {/* Right Sidebar - Node Library - Floating Panel */}
             <div 
               ref={nodesPanelRef}
+              data-testid="nodes-library-panel"
               className="absolute z-10 bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-xl shadow-lg border transition-all"
               style={{
                 right: nodesPanelPos.x === -1 ? 16 : 'auto',

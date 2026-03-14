@@ -179,6 +179,78 @@ export function useWorkflowTour() {
   return { startWorkflowTour };
 }
 
+export function useAgentEditorTour() {
+  const startAgentEditorTour = useCallback(() => {
+    const driverObj = driver({
+      showProgress: true,
+      animate: true,
+      overlayColor: "rgba(15, 23, 42, 0.65)",
+      overlayOpacity: 1,
+      smoothScroll: true,
+      allowClose: true,
+      progressText: "{{current}} of {{total}}",
+      nextBtnText: "Next →",
+      prevBtnText: "← Back",
+      doneBtnText: "Start Building!",
+      popoverClass: "orderly-tour-popover",
+      onDestroyStarted: () => {
+        driverObj.destroy();
+        localStorage.setItem("agentEditorTourSeen", "true");
+      },
+      steps: [
+        {
+          popover: {
+            title: "Your Agent's Flow Builder",
+            description: "This is where you design how your AI agent handles every call — visually, without any code. Let's take a quick look around.",
+            side: "over" as any,
+            align: "center",
+          },
+        },
+        {
+          element: "[data-testid='agent-settings-panel']",
+          popover: {
+            title: "Global Settings",
+            description: "Configure your agent's voice, language, AI model, and behavior here. You can also attach knowledge bases so your agent knows your menu, hours, and policies.",
+            side: "right",
+            align: "start",
+          },
+        },
+        {
+          element: "[data-testid='nodes-library-panel']",
+          popover: {
+            title: "Node Library",
+            description: "These are the building blocks of your conversation. Drag any node — like a Greeting, Collect Input, or Transfer — onto the canvas to add it to your flow.",
+            side: "left",
+            align: "start",
+          },
+        },
+        {
+          element: "[data-testid='flow-canvas']",
+          popover: {
+            title: "Flow Canvas",
+            description: "Drop nodes here to build your conversation. Connect them by dragging from one node's output dot to another's input. The flow determines exactly what your agent says and does on every call.",
+            side: "over" as any,
+            align: "center",
+          },
+        },
+        {
+          element: "[data-testid='button-publish']",
+          popover: {
+            title: "Save & Publish",
+            description: "When you're happy with your flow and settings, hit Save to apply the changes. Your agent will use this configuration on the next call it handles.",
+            side: "bottom",
+            align: "end",
+          },
+        },
+      ],
+    });
+
+    driverObj.drive();
+  }, []);
+
+  return { startAgentEditorTour };
+}
+
 export function OnboardingTour({ autoStart = false, onComplete }: OnboardingTourProps) {
   const { startTour } = useOnboardingTour(onComplete);
 

@@ -1622,11 +1622,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             label: conn.label || undefined,
           }));
 
+          const bulkHoursBlock = retell.getBusinessHoursPromptBlock(agent);
           await retell.syncWorkflowToRetell(
             agent.retellLlmId,
             orderlyNodes,
             orderlyConnections,
-            agent.systemPrompt || undefined,
+            (agent.systemPrompt || '') + bulkHoursBlock,
             agent.aiModel || 'gpt-4o-mini'
           );
           

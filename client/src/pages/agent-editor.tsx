@@ -1994,8 +1994,39 @@ function AgentEditorInner() {
                     />
                   </div>
 
-                  {hoursEnabled && (
+                  {hoursEnabled && (() => {
+                    const now = new Date();
+                    let localNow: Date;
+                    try {
+                      localNow = new Date(now.toLocaleString('en-US', { timeZone: hoursTimezone }));
+                    } catch {
+                      localNow = now;
+                    }
+                    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                    const todayKey = dayNames[localNow.getDay()];
+                    const todaySchedule = hoursSchedule[todayKey];
+                    const currentMin = localNow.getHours() * 60 + localNow.getMinutes();
+                    let liveOpen = false;
+                    if (todaySchedule && todaySchedule.open) {
+                      const [sH, sM] = todaySchedule.start.split(':').map(Number);
+                      const [eH, eM] = todaySchedule.end.split(':').map(Number);
+                      const openM = sH * 60 + sM;
+                      const closeM = eH * 60 + eM;
+                      liveOpen = closeM > openM
+                        ? (currentMin >= openM && currentMin < closeM)
+                        : (currentMin >= openM || currentMin < closeM);
+                    }
+
+                    return (
                     <>
+                      <div className="flex items-center gap-2" data-testid="badge-hours-status">
+                        <div className={`w-2 h-2 rounded-full ${liveOpen ? 'bg-green-500' : 'bg-red-500'}`} />
+                        <span className="text-xs font-medium">{liveOpen ? 'Currently: OPEN' : 'Currently: CLOSED'}</span>
+                        <span className="text-xs text-muted-foreground ml-auto">
+                          {localNow.toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit', hour12: true })}
+                        </span>
+                      </div>
+
                       <div>
                         <label className="text-xs font-medium text-gray-500 mb-1 block">Timezone</label>
                         <Select value={hoursTimezone} onValueChange={setHoursTimezone}>
@@ -2017,7 +2048,27 @@ function AgentEditorInner() {
                       </div>
 
                       <div className="space-y-2">
-                        <label className="text-xs font-medium text-gray-500">Weekly Schedule</label>
+                        <div className="flex items-center justify-between gap-2">
+                          <label className="text-xs font-medium text-gray-500">Weekly Schedule</label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs h-6 px-2"
+                            data-testid="button-copy-mon-fri"
+                            onClick={() => {
+                              const mon = hoursSchedule.monday;
+                              setHoursSchedule(prev => ({
+                                ...prev,
+                                tuesday: { ...mon },
+                                wednesday: { ...mon },
+                                thursday: { ...mon },
+                                friday: { ...mon },
+                              }));
+                            }}
+                          >
+                            Copy Mon to Tue–Fri
+                          </Button>
+                        </div>
                         {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const).map((day) => {
                           const dayData = hoursSchedule[day];
                           return (
@@ -2090,20 +2141,25 @@ function AgentEditorInner() {
                         </p>
                       </div>
 
-                      {afterHoursMode === 'custom' && (
+                      {afterHoursMode !== '24_7' && (
                         <div>
-                          <label className="text-xs font-medium text-gray-500 mb-1 block">Custom After-Hours Instructions</label>
+                          <label className="text-xs font-medium text-gray-500 mb-1 block">
+                            {afterHoursMode === 'custom' ? 'Custom After-Hours Instructions' : 'Additional After-Hours Message (Optional)'}
+                          </label>
                           <Textarea
                             value={afterHoursMessage}
                             onChange={(e) => setAfterHoursMessage(e.target.value)}
-                            placeholder="Tell the agent what to do when the restaurant is closed..."
+                            placeholder={afterHoursMode === 'custom'
+                              ? "Tell the agent what to do when the restaurant is closed..."
+                              : "Optional extra instructions for after-hours calls..."}
                             className="text-xs min-h-[80px] resize-none"
                             data-testid="textarea-after-hours-message"
                           />
                         </div>
                       )}
                     </>
-                  )}
+                    );
+                  })()}
                 </div>
               </SettingsSection>
 

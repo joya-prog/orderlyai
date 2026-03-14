@@ -77,12 +77,10 @@ export function isWithinBusinessHours(agent: HoursAgent): { isOpen: boolean; cur
 }
 
 export function getBusinessHoursPromptBlock(agent: HoursAgent): string {
-  const mode = agent.afterHoursMode || '24_7';
-  if (mode === '24_7') return '';
-
   const bh = agent.businessHours as BusinessHoursSchedule | null;
   if (!bh || !bh.enabled || !bh.schedule) return '';
 
+  const mode = agent.afterHoursMode || '24_7';
   const { isOpen, currentTimeLabel } = isWithinBusinessHours(agent);
 
   let statusLine: string;
@@ -102,7 +100,9 @@ export function getBusinessHoursPromptBlock(agent: HoursAgent): string {
 
   let block = `\n\n## Hours of Operation\nCurrent time: ${currentTimeLabel}\nStatus: ${statusLine}\n`;
 
-  if (!isOpen) {
+  if (mode === '24_7') {
+    block += `\nThe restaurant is always available (24/7 mode). Operate normally regardless of the time.`;
+  } else if (!isOpen) {
     if (mode === 'messages_only') {
       block += `\nYou are currently operating in after-hours mode. The restaurant is closed right now. Politely let callers know that the restaurant is closed, and offer to take their name, phone number, and the reason for their call so the team can follow up during business hours. Do NOT attempt to make reservations or place orders.`;
     } else if (mode === 'orders_only') {
@@ -234,15 +234,16 @@ export async function isRetellConfigured(): Promise<boolean> {
   return retellClient !== null;
 }
 
-export async function createRetellLLM(config: RetellLLMConfig): Promise<string | null> {
+export async function createRetellLLM(config: RetellLLMConfig, agent?: HoursAgent): Promise<string | null> {
   if (!retellClient) {
     console.error('[Retell] Client not configured');
     return null;
   }
 
   try {
+    const prompt = agent ? appendHoursBlock(config.generalPrompt, agent) : config.generalPrompt;
     const llmResponse = await retellClient.llm.create({
-      general_prompt: config.generalPrompt,
+      general_prompt: prompt,
       begin_message: config.beginMessage,
       general_tools: config.generalTools as any,
       inbound_dynamic_variables_webhook_url: config.inboundDynamicVariablesWebhookUrl,

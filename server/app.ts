@@ -106,7 +106,7 @@ app.use(express.json({
   }
 }));
 app.use(express.urlencoded({ extended: false }));
-app.use(applyRateLimits);
+applyRateLimits(app);
 
 app.use((req, res, next) => {
   const start = Date.now();

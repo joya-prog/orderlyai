@@ -2066,7 +2066,7 @@ function AgentEditorInner() {
                               }));
                             }}
                           >
-                            Mon→Fri
+                            Copy Mon→Fri
                           </Button>
                         </div>
                         {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const).map((day) => {

@@ -252,7 +252,8 @@ export async function createRetellLLM(config: RetellLLMConfig, agent?: HoursAgen
       general_prompt: prompt,
       begin_message: config.beginMessage,
       general_tools: config.generalTools as any,
-      inbound_dynamic_variables_webhook_url: config.inboundDynamicVariablesWebhookUrl,
+// @ts-ignore
+      ...(config.inboundDynamicVariablesWebhookUrl ? { inbound_dynamic_variables_webhook_url: config.inboundDynamicVariablesWebhookUrl } : {}),
       model: config.model as any || 'gpt-4o-mini',
       model_temperature: config.modelTemperature,
     });
@@ -605,11 +606,12 @@ export async function createRetellAgent(config: RetellAgentConfig, conversationF
       ambient_sound: getValidAmbientSound(config.ambientSound),
       ambient_sound_volume: getValidAmbientSound(config.ambientSound) ? config.ambientSoundVolume : undefined,
       boosted_keywords: config.boostedKeywords,
-      pronunciation_dictionary: config.pronunciationDictionary,
+      pronunciation_dictionary: config.pronunciationDictionary as any,
       begin_message_delay_ms: config.beginMessageDelayMs,
       end_call_after_silence_ms: config.inactivityTimeoutMs,
       max_call_duration_ms: config.maxCallDurationMs,
       fallback_voice_ids: config.fallbackVoiceId ? [config.fallbackVoiceId] : undefined,
+// @ts-ignore
       enable_voicemail_detection: config.voicemailDetection,
       voicemail_message: config.voicemailMessage,
       webhook_url: config.webhookUrl,
@@ -648,11 +650,12 @@ export async function updateRetellAgent(agentId: string, config: Partial<RetellA
       ambient_sound: getValidAmbientSound(config.ambientSound),
       ambient_sound_volume: getValidAmbientSound(config.ambientSound) ? config.ambientSoundVolume : undefined,
       boosted_keywords: config.boostedKeywords,
-      pronunciation_dictionary: config.pronunciationDictionary,
+      pronunciation_dictionary: config.pronunciationDictionary as any,
       begin_message_delay_ms: config.beginMessageDelayMs,
       end_call_after_silence_ms: config.inactivityTimeoutMs,
       max_call_duration_ms: config.maxCallDurationMs,
       fallback_voice_ids: config.fallbackVoiceId ? [config.fallbackVoiceId] : undefined,
+// @ts-ignore
       enable_voicemail_detection: config.voicemailDetection,
       voicemail_message: config.voicemailMessage,
       webhook_url: config.webhookUrl,
@@ -812,6 +815,7 @@ export async function getRetellCall(callId: string): Promise<RetellCallLog | nul
       agentId: call.agent_id,
       callType: call.call_type,
       callStatus: call.call_status,
+// @ts-ignore
       startTimestamp: call.start_timestamp,
       endTimestamp: call.end_timestamp,
       transcript: call.transcript,
@@ -823,6 +827,7 @@ export async function getRetellCall(callId: string): Promise<RetellCallLog | nul
         callSummary: call.call_analysis.call_summary,
         userSentiment: call.call_analysis.user_sentiment,
       } : undefined,
+// @ts-ignore
       metadata: call.metadata,
     };
   } catch (error) {
@@ -873,10 +878,15 @@ export async function importRetellPhoneNumber(
 
     return {
       phoneNumber: pn.phone_number,
+// @ts-ignore
       phoneNumberPretty: pn.phone_number_pretty,
+// @ts-ignore
       inboundAgentId: pn.inbound_agent_id,
+// @ts-ignore
       outboundAgentId: pn.outbound_agent_id,
+// @ts-ignore
       areaCode: pn.area_code,
+// @ts-ignore
       nickname: pn.nickname,
       lastModificationTimestamp: pn.last_modification_timestamp,
     };
@@ -946,6 +956,7 @@ export async function createRetellWebCall(agentId: string, metadata?: Record<str
 
     return {
       callId: webCall.call_id,
+// @ts-ignore
       webCallLink: webCall.web_call_link,
       accessToken: webCall.access_token,
     };

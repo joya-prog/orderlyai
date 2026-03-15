@@ -163,7 +163,7 @@ export default function LogsPage() {
   const analyzeMutation = useMutation({
     mutationFn: async (logId: string) => {
       setAnalyzingLogId(logId);
-      return apiRequest(`/api/call-logs/${logId}/analyze`, { method: "POST" });
+      return apiRequest("POST", `/api/call-logs/${logId}/analyze`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/call-logs"] });

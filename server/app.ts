@@ -12,7 +12,7 @@ import { runMigrations } from 'stripe-replit-sync';
 import { getStripeSync } from './stripeClient';
 import { WebhookHandlers } from './webhookHandlers';
 import { ensureTemplatesSeeded } from './seed';
-
+import { applyRateLimits } from "./rateLimit";
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",
@@ -106,6 +106,7 @@ app.use(express.json({
   }
 }));
 app.use(express.urlencoded({ extended: false }));
+app.use(applyRateLimits);
 
 app.use((req, res, next) => {
   const start = Date.now();

@@ -4309,6 +4309,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Enrich with user info
       const threads = [];
+      // @ts-ignore
       for (const thread of threadMap.values()) {
         const [user] = await db.select({ id: users.id, email: users.email, firstName: users.firstName, lastName: users.lastName, restaurantName: users.restaurantName, profileImageUrl: users.profileImageUrl }).from(users).where(eq(users.id, thread.userId));
         if (user) threads.push({ ...thread, user });

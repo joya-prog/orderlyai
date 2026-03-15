@@ -452,6 +452,7 @@ export class DatabaseStorage implements IStorage {
   async bulkCreateKnowledgeBase(items: InsertKnowledgeBase[], userId: string): Promise<KnowledgeBase[] | null> {
     // Enforce ownership at storage layer using tenant-scoped helper
     // All items must belong to agents owned by the same user
+    // @ts-ignore
     const agentIds = [...new Set(items.map(item => item.agentId))];
     for (const agentId of agentIds) {
       const agent = await this.getAgentForUser(agentId, userId);

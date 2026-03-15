@@ -344,7 +344,7 @@ export default function ContactsPage() {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input {...field} type="email" data-testid="input-contact-email" />
+                      <Input {...field} value={field.value || ''} type="email" data-testid="input-contact-email" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -357,7 +357,7 @@ export default function ContactsPage() {
                   <FormItem>
                     <FormLabel>Phone</FormLabel>
                     <FormControl>
-                      <Input {...field} type="tel" data-testid="input-contact-phone" />
+                      <Input {...field} value={field.value || ''} type="tel" data-testid="input-contact-phone" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -421,7 +421,7 @@ export default function ContactsPage() {
                   <FormItem>
                     <FormLabel>Notes</FormLabel>
                     <FormControl>
-                      <Textarea {...field} rows={4} data-testid="input-contact-notes" />
+                      <Textarea {...field} value={field.value || ''} rows={4} data-testid="input-contact-notes" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

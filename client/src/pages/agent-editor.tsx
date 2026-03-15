@@ -2048,7 +2048,7 @@ function AgentEditorInner() {
                       </div>
 
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
                           <label className="text-xs font-medium text-gray-500">Weekly Schedule</label>
                           <Button
                             variant="ghost"
@@ -2066,26 +2066,31 @@ function AgentEditorInner() {
                               }));
                             }}
                           >
-                            Copy Mon to Tue–Fri
+                            Mon→Fri
                           </Button>
                         </div>
                         {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const).map((day) => {
                           const dayData = hoursSchedule[day];
                           return (
-                            <div key={day} className="flex items-center gap-2" data-testid={`hours-row-${day}`}>
-                              <Switch
-                                checked={dayData.open}
-                                onCheckedChange={(checked) => {
-                                  setHoursSchedule(prev => ({
-                                    ...prev,
-                                    [day]: { ...prev[day], open: checked }
-                                  }));
-                                }}
-                                data-testid={`switch-hours-${day}`}
-                              />
-                              <span className="text-xs w-12 capitalize">{day.slice(0, 3)}</span>
-                              {dayData.open ? (
-                                <div className="flex items-center gap-1 flex-1">
+                            <div key={day} className="space-y-1" data-testid={`hours-row-${day}`}>
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  checked={dayData.open}
+                                  onCheckedChange={(checked) => {
+                                    setHoursSchedule(prev => ({
+                                      ...prev,
+                                      [day]: { ...prev[day], open: checked }
+                                    }));
+                                  }}
+                                  data-testid={`switch-hours-${day}`}
+                                />
+                                <span className="text-xs capitalize">{day.slice(0, 3)}</span>
+                                {!dayData.open && (
+                                  <span className="text-xs text-muted-foreground italic">Closed</span>
+                                )}
+                              </div>
+                              {dayData.open && (
+                                <div className="flex items-center gap-1 pl-12">
                                   <input
                                     type="time"
                                     value={dayData.start}
@@ -2095,10 +2100,10 @@ function AgentEditorInner() {
                                         [day]: { ...prev[day], start: e.target.value }
                                       }));
                                     }}
-                                    className="text-xs border rounded-md px-2 py-1 w-[90px] bg-background"
+                                    className="text-xs border rounded-md px-1.5 py-1 flex-1 min-w-0 bg-background"
                                     data-testid={`input-hours-start-${day}`}
                                   />
-                                  <span className="text-xs text-muted-foreground">to</span>
+                                  <span className="text-xs text-muted-foreground">–</span>
                                   <input
                                     type="time"
                                     value={dayData.end}
@@ -2108,12 +2113,10 @@ function AgentEditorInner() {
                                         [day]: { ...prev[day], end: e.target.value }
                                       }));
                                     }}
-                                    className="text-xs border rounded-md px-2 py-1 w-[90px] bg-background"
+                                    className="text-xs border rounded-md px-1.5 py-1 flex-1 min-w-0 bg-background"
                                     data-testid={`input-hours-end-${day}`}
                                   />
                                 </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground italic">Closed</span>
                               )}
                             </div>
                           );

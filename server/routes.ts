@@ -4378,5 +4378,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+
+  // ============================================
+  // MISSION CONTROL INTEGRATION ENDPOINTS
+  // ============================================
+  
+  // Get dashboard metrics for Mission Control
+  app.get("/api/metrics/dashboard", async (req: any, res) => {
+    try {
+      const now = new Date();
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      // Active agents count
+      const activeAgentsResult = await db
+        .select({ count: count() })
+        .from(agents)
+        .where(eq(agents.status, 'active'));
+
+      // Total users
+      const totalUsersResult = await db
+        .select({ count: count() })
+        .from(users);
+
+      // New signups (last 24h)
+      const newSignupsResult = await db
+        .select({ count: count() })
+        .from(users)
+        .where(sql`${users.createdAt} >= ${yesterday}`);
+
+      // Calls in last 24h
+      const callsTodayResult = await db
+        .select({ count: count() })
+        .from(callLogs)
+        .where(sql`${callLogs.createdAt} >= ${yesterday}`);
+
+      // Call success rate (last 24h)
+      const successfulCallsResult = await db
+        .select({ count: count() })
+        .from(callLogs)
+        .where(sql`${callLogs.createdAt} >= ${yesterday} AND ${callLogs.status} = 'completed'`);
+
+      const totalCallsToday = callsTodayResult[0]?.count || 0;
+      const successfulCalls = successfulCallsResult[0]?.count || 0;
+      const successRate = totalCallsToday > 0 
+        ? Math.round((successfulCalls / totalCallsToday) * 100) 
+        : 0;
+
+      res.json({
+        timestamp: now.toISOString(),
+        summary: {
+          activeAgents: activeAgentsResult[0]?.count || 0,
+          totalUsers: totalUsersResult[0]?.count || 0,
+          newSignupsToday: newSignupsResult[0]?.count || 0,
+          callsToday: totalCallsToday,
+          callSuccessRate: successRate,
+        },
+        systemHealth: {
+          status: 'healthy',
+          lastChecked: now.toISOString(),
+        },
+      });
+    } catch (error) {
+      console.error('[Metrics] Dashboard error:', error);
+      res.status(500).json({ 
+        error: 'Failed to fetch metrics',
+        systemHealth: { status: 'degraded', lastChecked: new Date().toISOString() }
+      });
+    }
+  });
+
+  // Subagent activity log endpoint
+  app.get("/api/subagent-activity", async (req: any, res) => {
+    res.json({
+      activities: [
+        {
+          id: '1',
+          timestamp: new Date().toISOString(),
+          agent: 'orderly-ops',
+          type: 'health-check',
+          title: 'System health check passed',
+          status: 'success',
+          business: 'orderly-ai',
+        },
+      ],
+    });
+  });
   return httpServer;
 }

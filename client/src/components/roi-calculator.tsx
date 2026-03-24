@@ -204,6 +204,28 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
               data-testid="roi-compact-slider-locations" />
             <div className="flex justify-between text-[10px] text-white/40 mt-1"><span>1</span><span>25</span></div>
           </div>
+
+          <div>
+            <div className="flex items-baseline justify-between mb-1.5">
+              <label className="text-xs font-medium text-white/80">Avg call (min)</label>
+              <span className="text-base font-bold text-white" data-testid="roi-compact-duration">{avgDuration}</span>
+            </div>
+            <Slider value={[avgDuration]} onValueChange={(v) => setAvgDuration(v[0])} min={1} max={15} step={1}
+              className="[&_[role=slider]]:bg-white [&_[role=slider]]:border-white [&_.bg-primary]:bg-white/70"
+              data-testid="roi-compact-slider-duration" />
+            <div className="flex justify-between text-[10px] text-white/40 mt-1"><span>1</span><span>15</span></div>
+          </div>
+
+          <div>
+            <div className="flex items-baseline justify-between mb-1.5">
+              <label className="text-xs font-medium text-white/80">Staff rate ($/hr)</label>
+              <span className="text-base font-bold text-white" data-testid="roi-compact-staff">${staffRate}</span>
+            </div>
+            <Slider value={[staffRate]} onValueChange={(v) => setStaffRate(v[0])} min={12} max={40} step={1}
+              className="[&_[role=slider]]:bg-white [&_[role=slider]]:border-white [&_.bg-primary]:bg-white/70"
+              data-testid="roi-compact-slider-staff" />
+            <div className="flex justify-between text-[10px] text-white/40 mt-1"><span>$12</span><span>$40</span></div>
+          </div>
         </div>
 
         {/* Results card */}

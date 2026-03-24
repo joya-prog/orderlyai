@@ -1022,9 +1022,9 @@ export default function Auth() {
       </div>
 
       {/* ── DESKTOP: Right side — ROI Calculator (lg+) ── */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 p-6 flex-col items-center justify-center overflow-y-auto">
-        <div className="w-full max-w-sm py-4">
-          <div className="mb-4">
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 flex-col overflow-y-auto">
+        <div className="flex flex-col flex-1 w-full max-w-md mx-auto px-8 py-10">
+          <div className="mb-5">
             <h2 className="text-xl font-bold text-white mb-1">
               Your ROI with Orderly AI
             </h2>
@@ -1036,6 +1036,20 @@ export default function Auth() {
           <p className="text-white/40 text-[10px] mt-3 text-center">
             Estimates based on your inputs and industry averages.
           </p>
+          <div className="mt-auto pt-6 border-t border-white/10">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              {[
+                { stat: "< 30 min", label: "Setup time" },
+                { stat: "$0", label: "Monthly fee" },
+                { stat: "24/7", label: "Availability" },
+              ].map(({ stat, label }) => (
+                <div key={label}>
+                  <div className="text-lg font-bold text-white">{stat}</div>
+                  <div className="text-[11px] text-white/50">{label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 

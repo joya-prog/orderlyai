@@ -32,6 +32,7 @@ import AdminSignups from "@/pages/admin-signups";
 import AdminRestaurants from "@/pages/admin/restaurants";
 import AdminRestaurantDetail from "@/pages/admin/restaurant-detail";
 import AdminSupport from "@/pages/admin/support";
+import ROIPage from "@/pages/roi";
 
 function ImpersonationBanner() {
   const { data: adminSession } = useQuery<{ isImpersonating: boolean; originalAdminId: string | null }>({
@@ -81,6 +82,7 @@ function Router() {
   if (!isAuthenticated) {
     return (
       <Switch>
+        <Route path="/roi" component={ROIPage} />
         <Route path="/" component={Auth} />
         <Route path="/auth" component={Auth} />
         <Route component={Auth} />
@@ -101,6 +103,7 @@ function Router() {
   // Main app for fully onboarded users
   return (
     <Switch>
+      <Route path="/roi" component={ROIPage} />
       <Route path="/" component={Agents} />
       <Route path="/agents" component={Agents} />
       <Route path="/agents/:id" component={AgentEditor} />

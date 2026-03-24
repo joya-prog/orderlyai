@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Eye, EyeOff, ArrowLeft, Mail, CheckCircle } from "lucide-react";
 import { SiGoogle } from "react-icons/si";
 import { queryClient } from "@/lib/queryClient";
-import { PricingCalculator } from "@/components/pricing-calculator";
+import { ROICalculator } from "@/components/roi-calculator";
 import orderlyLogo from "@assets/WXdQJT24YKxTTzIwCPlW3AJf4Y_1763761787840.avif";
 
 type AuthView = 'login' | 'signup' | 'forgot-password' | 'reset-password' | 'reset-success' | '2fa-verify';
@@ -917,17 +917,17 @@ export default function Auth() {
             </span>
           </div>
 
-          {/* Calculator section */}
+          {/* ROI Calculator section */}
           <div className="flex-1 px-5 pt-4 pb-2">
             <h2 className="text-2xl font-bold text-white mb-1">
-              Estimate your Cost
+              Your ROI with Orderly AI
             </h2>
             <p className="text-white/70 text-sm mb-5">
-              Adjust your usage and AI model to see real-time pricing for our AI voice agent solution.
+              See how much revenue you're losing to missed calls — and what you get back.
             </p>
-            <PricingCalculator variant="compact" />
+            <ROICalculator variant="compact" onSignupClick={() => { resetFormState(); setAuthView('signup'); setMobileView('form'); }} />
             <p className="text-white/40 text-[10px] mt-3 text-center">
-              Pricing is estimated. Actual costs may vary.
+              Estimates based on your inputs and industry averages.
             </p>
           </div>
 
@@ -1021,20 +1021,20 @@ export default function Auth() {
         </div>
       </div>
 
-      {/* ── DESKTOP: Right side — Pricing Calculator (lg+) ── */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 p-6 flex-col items-center justify-center">
-        <div className="w-full max-w-sm">
+      {/* ── DESKTOP: Right side — ROI Calculator (lg+) ── */}
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 p-6 flex-col items-center justify-center overflow-y-auto">
+        <div className="w-full max-w-sm py-4">
           <div className="mb-4">
             <h2 className="text-xl font-bold text-white mb-1">
-              Estimate your Cost
+              Your ROI with Orderly AI
             </h2>
             <p className="text-white/70 text-xs">
-              Adjust your usage, and AI model to see real time pricing for our AI voice agent solution.
+              See how much revenue you're losing to missed calls — and what you get back.
             </p>
           </div>
-          <PricingCalculator variant="compact" />
-          <p className="text-white/50 text-[10px] mt-3 text-center">
-            Pricing is estimated. Actual costs may vary.
+          <ROICalculator variant="compact" onSignupClick={() => { resetFormState(); setAuthView('signup'); }} />
+          <p className="text-white/40 text-[10px] mt-3 text-center">
+            Estimates based on your inputs and industry averages.
           </p>
         </div>
       </div>

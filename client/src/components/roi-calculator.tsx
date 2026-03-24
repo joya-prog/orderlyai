@@ -4,11 +4,40 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, PhoneOff, Clock, Users, DollarSign, Zap } from "lucide-react";
 import { useLocation } from "wouter";
+import {
+  MODEL_BASE_RATES_CENTS_PER_MIN,
+  VOICE_PROVIDER_SURCHARGES_CENTS_PER_MIN,
+  calculateCallCostCents,
+} from "@shared/pricing";
 
-// Orderly AI cost tiers (AI model + voice combined, cents/min)
+// Derive tiers from shared/pricing.ts so AI cost always matches actual billing
 const COST_TIERS = [
-  { id: "standard", label: "Standard", centsPerMin: 23, description: "GPT-5 nano + Deepgram" },
-  { id: "premium", label: "Premium", centsPerMin: 34, description: "GPT-4.1 mini + ElevenLabs" },
+  {
+    id: "standard",
+    label: "Standard",
+    aiModel: "gpt-5-nano",
+    voiceProvider: "deepgram",
+    get centsPerMin() {
+      return (
+        (MODEL_BASE_RATES_CENTS_PER_MIN[this.aiModel] ?? 22) +
+        (VOICE_PROVIDER_SURCHARGES_CENTS_PER_MIN[this.voiceProvider] ?? 1)
+      );
+    },
+    description: "GPT-5 nano + Deepgram",
+  },
+  {
+    id: "premium",
+    label: "Premium",
+    aiModel: "gpt-4.1-mini",
+    voiceProvider: "elevenlabs",
+    get centsPerMin() {
+      return (
+        (MODEL_BASE_RATES_CENTS_PER_MIN[this.aiModel] ?? 27) +
+        (VOICE_PROVIDER_SURCHARGES_CENTS_PER_MIN[this.voiceProvider] ?? 7)
+      );
+    },
+    description: "GPT-4.1 mini + ElevenLabs",
+  },
 ];
 
 function formatDollar(n: number, decimals = 0) {
@@ -38,19 +67,23 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
   const [staffRate, setStaffRate] = useState(18);
   const [tier, setTier] = useState("standard");
 
-  const costPerMin = (COST_TIERS.find((t) => t.id === tier)?.centsPerMin ?? 23) / 100;
+  const tierObj = COST_TIERS.find((t) => t.id === tier) ?? COST_TIERS[0];
+  const costPerMin = tierObj.centsPerMin / 100;
 
   const calc = useMemo(() => {
+    const t = COST_TIERS.find((x) => x.id === tier) ?? COST_TIERS[0];
     const totalCallsPerMonth = callsPerDay * 30 * locations;
     const missedCallsPerMonth = Math.round(totalCallsPerMonth * (missedPct / 100));
     const revenueRecovered = missedCallsPerMonth * avgOrderValue;
 
-    // Staff labor saved: all calls were previously handled by humans
-    const totalMinutesPerMonth = totalCallsPerMonth * avgDuration;
-    const totalHoursPerMonth = totalMinutesPerMonth / 60;
-    const laborSaved = totalHoursPerMonth * staffRate;
+    // Staff labor saved: 0.03 hrs overhead per call freed up (per spec)
+    const laborSaved = totalCallsPerMonth * 0.03 * staffRate;
 
-    const aiCost = totalMinutesPerMonth * costPerMin;
+    // AI cost: use calculateCallCostCents from shared/pricing for accuracy
+    // calculateCallCostCents takes durationSeconds per call; multiply by total calls for monthly cost
+    const totalMinutesPerMonth = totalCallsPerMonth * avgDuration;
+    const aiCostCents = calculateCallCostCents(avgDuration * 60, t.aiModel, t.voiceProvider) * totalCallsPerMonth;
+    const aiCost = aiCostCents / 100;
     const netMonthlyGain = revenueRecovered + laborSaved - aiCost;
     const roiPct = aiCost > 0 ? (netMonthlyGain / aiCost) * 100 : 0;
     const annualGain = netMonthlyGain * 12;
@@ -70,7 +103,7 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
       costPerCall,
       totalMinutesPerMonth,
     };
-  }, [callsPerDay, missedPct, avgOrderValue, avgDuration, locations, staffRate, costPerMin]);
+  }, [callsPerDay, missedPct, avgOrderValue, avgDuration, locations, staffRate, tier]);
 
   const handleCTA = () => {
     if (onSignupClick) {

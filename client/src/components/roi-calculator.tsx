@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,38 @@ const COST_TIERS = [
     description: "GPT-4.1 mini + ElevenLabs",
   },
 ];
+
+function useAnimatedNumber(target: number, duration = 350) {
+  const [display, setDisplay] = useState(target);
+  const rafRef = useRef<number | null>(null);
+  const startRef = useRef<{ from: number; start: number } | null>(null);
+
+  useEffect(() => {
+    const from = display;
+    const startTime = performance.now();
+    startRef.current = { from, start: startTime };
+
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+
+    function step(now: number) {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplay(from + (target - from) * eased);
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(step);
+      } else {
+        setDisplay(target);
+      }
+    }
+    rafRef.current = requestAnimationFrame(step);
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    };
+  }, [target, duration]);
+
+  return display;
+}
 
 function formatDollar(n: number, decimals = 0) {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
@@ -113,6 +145,14 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
     }
   };
 
+  // Animated numbers for key result values (must be before any early return)
+  const animNetMonthly = useAnimatedNumber(calc.netMonthlyGain);
+  const animRevenue = useAnimatedNumber(calc.revenueRecovered);
+  const animLabor = useAnimatedNumber(calc.laborSaved);
+  const animAiCost = useAnimatedNumber(calc.aiCost);
+  const animAnnual = useAnimatedNumber(calc.annualGain);
+  const animRoi = useAnimatedNumber(calc.roiPct);
+
   // ────────────────────────────────────────────────────────────
   // COMPACT variant — dark gradient background (auth page)
   // ────────────────────────────────────────────────────────────
@@ -172,13 +212,13 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
             <div>
               <div className="text-[10px] text-white/50 uppercase tracking-wide mb-0.5">Revenue Recovered</div>
               <div className="text-lg font-bold text-emerald-300" data-testid="roi-compact-recovered">
-                {formatDollar(calc.revenueRecovered)}/mo
+                {formatDollar(animRevenue)}/mo
               </div>
             </div>
             <div>
               <div className="text-[10px] text-white/50 uppercase tracking-wide mb-0.5">Orderly AI Cost</div>
               <div className="text-lg font-bold text-white/80" data-testid="roi-compact-cost">
-                {formatDollar(calc.aiCost)}/mo
+                {formatDollar(animAiCost)}/mo
               </div>
             </div>
           </div>
@@ -186,13 +226,13 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
             <div>
               <div className="text-[10px] text-white/50 uppercase tracking-wide mb-0.5">Net Monthly Gain</div>
               <div className="text-2xl font-bold text-white" data-testid="roi-compact-net">
-                {formatDollar(calc.netMonthlyGain)}/mo
+                {formatDollar(animNetMonthly)}/mo
               </div>
             </div>
             <div className="text-right">
               <div className="text-[10px] text-white/50 uppercase tracking-wide mb-0.5">ROI</div>
               <div className="text-xl font-bold text-emerald-300" data-testid="roi-compact-roi-pct">
-                {formatNumber(calc.roiPct)}%
+                {formatNumber(animRoi)}%
               </div>
             </div>
           </div>
@@ -346,14 +386,14 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
             <div>
               <div className="text-sm font-medium text-primary-foreground/70 uppercase tracking-wide mb-1">Net Monthly Gain</div>
               <div className="text-5xl font-bold" data-testid="roi-net-gain">
-                {formatDollar(calc.netMonthlyGain)}
+                {formatDollar(animNetMonthly)}
               </div>
               <div className="text-primary-foreground/70 text-sm mt-1">per month across {locations} location{locations > 1 ? "s" : ""}</div>
             </div>
             <div className="text-right">
               <div className="text-sm font-medium text-primary-foreground/70 uppercase tracking-wide mb-1">ROI</div>
               <div className="text-4xl font-bold text-yellow-300" data-testid="roi-pct">
-                {formatNumber(calc.roiPct)}%
+                {formatNumber(animRoi)}%
               </div>
             </div>
           </div>
@@ -361,7 +401,7 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
           <div className="grid grid-cols-2 gap-4">
             <div className="rounded-xl bg-white/10 p-3">
               <div className="text-xs text-primary-foreground/60 mb-1">Annual Gain</div>
-              <div className="text-xl font-bold" data-testid="roi-annual">{formatDollar(calc.annualGain)}</div>
+              <div className="text-xl font-bold" data-testid="roi-annual">{formatDollar(animAnnual)}</div>
             </div>
             <div className="rounded-xl bg-white/10 p-3">
               <div className="text-xs text-primary-foreground/60 mb-1">Payback Period</div>
@@ -383,7 +423,7 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
               <span className="text-xs font-medium text-muted-foreground">Revenue Recovered</span>
             </div>
             <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400" data-testid="roi-revenue-recovered">
-              {formatDollar(calc.revenueRecovered)}
+              {formatDollar(animRevenue)}
             </div>
             <div className="text-xs text-muted-foreground mt-1">
               {formatNumber(calc.missedCallsPerMonth)} missed calls × ${avgOrderValue} avg
@@ -399,10 +439,10 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
               <span className="text-xs font-medium text-muted-foreground">Labor Saved</span>
             </div>
             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400" data-testid="roi-labor-saved">
-              {formatDollar(calc.laborSaved)}
+              {formatDollar(animLabor)}
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              {formatNumber(calc.totalMinutesPerMonth / 60)} hrs freed @ ${staffRate}/hr
+              {formatNumber(calc.totalCallsPerMonth * 0.03)} hrs freed @ ${staffRate}/hr
             </div>
           </div>
 
@@ -415,7 +455,7 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
               <span className="text-xs font-medium text-muted-foreground">Orderly AI Cost</span>
             </div>
             <div className="text-2xl font-bold text-amber-600 dark:text-amber-400" data-testid="roi-ai-cost">
-              {formatDollar(calc.aiCost)}
+              {formatDollar(animAiCost)}
             </div>
             <div className="text-xs text-muted-foreground mt-1">
               {formatNumber(calc.totalMinutesPerMonth).toLocaleString()} min × ${costPerMin.toFixed(2)}/min

@@ -163,7 +163,7 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
         <div className="grid grid-cols-2 gap-4">
           <div>
             <div className="flex items-baseline justify-between mb-1.5">
-              <label className="text-xs font-medium text-white/80">Calls / day</label>
+              <label className="text-xs font-medium text-white/80">Calls/day/location</label>
               <span className="text-base font-bold text-white" data-testid="roi-compact-calls">{callsPerDay}</span>
             </div>
             <Slider value={[callsPerDay]} onValueChange={(v) => setCallsPerDay(v[0])} min={10} max={200} step={5}
@@ -174,13 +174,15 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
 
           <div>
             <div className="flex items-baseline justify-between mb-1.5">
-              <label className="text-xs font-medium text-white/80">% Missed</label>
-              <span className="text-base font-bold text-white" data-testid="roi-compact-missed">{missedPct}%</span>
+              <label className="text-xs font-medium text-white/80">Missed calls/day</label>
+              <span className="text-base font-bold text-white" data-testid="roi-compact-missed">
+                {Math.round(callsPerDay * missedPct / 100)}<span className="text-[11px] font-normal text-white/50 ml-1">({missedPct}%)</span>
+              </span>
             </div>
             <Slider value={[missedPct]} onValueChange={(v) => setMissedPct(v[0])} min={5} max={80} step={5}
               className="[&_[role=slider]]:bg-white [&_[role=slider]]:border-white [&_.bg-primary]:bg-white/70"
               data-testid="roi-compact-slider-missed" />
-            <div className="flex justify-between text-[10px] text-white/40 mt-1"><span>5%</span><span>80%</span></div>
+            <div className="flex justify-between text-[10px] text-white/40 mt-1"><span>0</span><span>{callsPerDay}</span></div>
           </div>
 
           <div>
@@ -236,6 +238,7 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
               <div className="text-lg font-bold text-emerald-300" data-testid="roi-compact-recovered">
                 {formatDollar(animRevenue)}/mo
               </div>
+              <div className="text-[10px] text-white/40 mt-0.5">Missed calls answered × avg order</div>
             </div>
             <div>
               <div className="text-[10px] text-white/50 uppercase tracking-wide mb-0.5">Orderly AI Cost</div>
@@ -250,6 +253,7 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
               <div className="text-2xl font-bold text-white" data-testid="roi-compact-net">
                 {formatDollar(animNetMonthly)}/mo
               </div>
+              <div className="text-[10px] text-white/40 mt-0.5">Revenue recovered + labor − AI cost</div>
             </div>
             <div className="text-right">
               <div className="text-[10px] text-white/50 uppercase tracking-wide mb-0.5">ROI</div>
@@ -261,7 +265,7 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
         </div>
 
         <p className="text-white/35 text-[10px] text-center">
-          Based on {formatNumber(calc.missedCallsPerMonth)} missed calls/mo recovered at ${avgOrderValue} avg order value.
+          {callsPerDay} calls/day × {locations} location{locations > 1 ? "s" : ""} × 30 days = {formatNumber(calc.totalCallsPerMonth)} total calls/mo
         </p>
       </div>
     );
@@ -296,15 +300,17 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
             {/* Missed % */}
             <div>
               <div className="flex items-baseline justify-between mb-3">
-                <label className="text-sm font-medium">Calls missed / unanswered</label>
-                <span className="text-2xl font-bold text-foreground" data-testid="roi-missed-value">{missedPct}%</span>
+                <label className="text-sm font-medium">Missed calls / day</label>
+                <span className="text-2xl font-bold text-foreground" data-testid="roi-missed-value">
+                  {Math.round(callsPerDay * missedPct / 100)}<span className="text-sm font-normal text-muted-foreground ml-1.5">({missedPct}%)</span>
+                </span>
               </div>
               <Slider value={[missedPct]} onValueChange={(v) => setMissedPct(v[0])} min={5} max={80} step={5}
                 data-testid="roi-slider-missed" />
               <div className="flex justify-between text-xs text-muted-foreground mt-1.5">
-                <span>5%</span>
+                <span>0 calls</span>
                 <span className="text-muted-foreground/60">Industry avg: 30% during peaks</span>
-                <span>80%</span>
+                <span>{callsPerDay} calls</span>
               </div>
             </div>
 
@@ -411,6 +417,7 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
                 {formatDollar(animNetMonthly)}
               </div>
               <div className="text-primary-foreground/70 text-sm mt-1">per month across {locations} location{locations > 1 ? "s" : ""}</div>
+              <div className="text-primary-foreground/50 text-xs mt-1">= Revenue recovered + Labor saved − Orderly AI cost</div>
             </div>
             <div className="text-right">
               <div className="text-sm font-medium text-primary-foreground/70 uppercase tracking-wide mb-1">ROI</div>
@@ -448,7 +455,7 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
               {formatDollar(animRevenue)}
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              {formatNumber(calc.missedCallsPerMonth)} missed calls × ${avgOrderValue} avg
+              From {formatNumber(calc.missedCallsPerMonth)} newly answered calls at ${avgOrderValue} avg order
             </div>
           </div>
 

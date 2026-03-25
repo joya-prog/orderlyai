@@ -1022,8 +1022,8 @@ export default function Auth() {
       </div>
 
       {/* ── DESKTOP: Right side — ROI Calculator (lg+) ── */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 flex-col overflow-y-auto">
-        <div className="flex flex-col flex-1 w-full max-w-md mx-auto px-8 py-10">
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 overflow-y-auto">
+        <div className="flex flex-col min-h-full w-full px-8 py-10">
           <div className="mb-5">
             <h2 className="text-xl font-bold text-white mb-1">
               Your ROI with Orderly AI

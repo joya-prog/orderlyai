@@ -3,8 +3,7 @@ import { Button } from "@/components/ui/button";
 import orderlyLogo from "@assets/WXdQJT24YKxTTzIwCPlW3AJf4Y_1763761787840.avif";
 import type { User } from "@shared/schema";
 
-// TODO: Replace this with your actual Calendly URL
-const CALENDLY_URL = "https://calendly.com/orderly-ai/setup";
+const CALENDLY_URL = "https://calendly.com/hello-getorderly/30min";
 
 interface OnboardingCallLockProps {
   user: User;

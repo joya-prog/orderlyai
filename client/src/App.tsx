@@ -205,22 +205,19 @@ function AppContent() {
     );
   }
 
-  // Hard-lock for non-admin users who haven't had their onboarding call yet
-  if (!user.onboardingCallUnlocked && user.role !== "admin") {
-    return (
-      <>
-        <OnboardingCallLock user={user} />
-        <Toaster />
-      </>
-    );
-  }
+  const isLocked = !user.onboardingCallUnlocked && user.role !== "admin";
 
-  // Show full app with sidebar for authenticated, onboarded, unlocked users
+  // Render the full dashboard always (blurred when locked), with lock overlay on top
   return (
-    <SidebarProvider style={sidebarStyle} defaultOpen={isDesktop}>
-      <SidebarResponsiveWrapper />
+    <>
+      <div className={isLocked ? "blur-md pointer-events-none select-none" : ""}>
+        <SidebarProvider style={sidebarStyle} defaultOpen={isDesktop}>
+          <SidebarResponsiveWrapper />
+        </SidebarProvider>
+      </div>
+      {isLocked && <OnboardingCallLock user={user} />}
       <Toaster />
-    </SidebarProvider>
+    </>
   );
 }
 

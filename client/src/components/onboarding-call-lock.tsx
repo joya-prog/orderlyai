@@ -1,5 +1,4 @@
-import { CalendarDays, ExternalLink } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { CalendarDays } from "lucide-react";
 import orderlyLogo from "@assets/WXdQJT24YKxTTzIwCPlW3AJf4Y_1763761787840.avif";
 import type { User } from "@shared/schema";
 
@@ -10,93 +9,67 @@ interface OnboardingCallLockProps {
 }
 
 export function OnboardingCallLock({ user }: OnboardingCallLockProps) {
-  function openCalendly() {
-    window.open(CALENDLY_URL, "_blank", "noopener,noreferrer");
-  }
-
   return (
     <div
-      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/30"
       data-testid="onboarding-call-lock"
     >
-      <div className="relative w-full max-w-lg mx-4">
+      <div className="relative w-full max-w-2xl mx-4">
         {/* Card */}
         <div className="rounded-2xl bg-background border border-border/40 shadow-2xl overflow-hidden">
           {/* Top accent bar */}
           <div className="h-1.5 bg-gradient-to-r from-primary via-primary/80 to-primary/60" />
 
-          <div className="p-8">
-            {/* Logo + restaurant name row */}
-            <div className="flex items-center justify-between mb-8">
+          {/* Header */}
+          <div className="flex items-center justify-between gap-4 px-6 pt-5 pb-4 border-b border-border/50">
+            <div className="flex items-center gap-3">
               <img
                 src={orderlyLogo}
                 alt="Orderly AI"
-                className="w-10 h-10 rounded-lg object-contain"
+                className="w-8 h-8 rounded-lg object-contain flex-shrink-0"
                 data-testid="img-lock-logo"
               />
-              {user.restaurantName && (
-                <span
-                  className="text-xs text-muted-foreground font-medium"
-                  data-testid="text-lock-restaurant-name"
-                >
-                  {user.restaurantName}
-                </span>
-              )}
-            </div>
-
-            {/* Calendar icon with pulse */}
-            <div className="flex justify-center mb-6">
-              <div className="relative">
-                <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
-                <div className="relative w-16 h-16 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  <CalendarDays className="h-8 w-8 text-primary" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-primary" />
+                  <h1 className="text-base font-semibold text-foreground" data-testid="heading-lock">
+                    Book your setup call to get started
+                  </h1>
                 </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Every new account is onboarded 1:1 to ensure your AI agent works perfectly from day one.
+                </p>
               </div>
             </div>
+            {user.restaurantName && (
+              <span
+                className="text-xs text-muted-foreground font-medium flex-shrink-0"
+                data-testid="text-lock-restaurant-name"
+              >
+                {user.restaurantName}
+              </span>
+            )}
+          </div>
 
-            {/* Heading */}
-            <h1
-              className="text-2xl font-bold text-center text-foreground mb-3"
-              data-testid="heading-lock"
-            >
-              Welcome to Orderly AI
-            </h1>
-            <p className="text-center text-foreground font-medium mb-4">
-              Let's get you set up properly.
-            </p>
+          {/* Calendly embed */}
+          <iframe
+            src={CALENDLY_URL}
+            width="100%"
+            height="650"
+            frameBorder="0"
+            title="Book your Orderly AI setup call"
+            data-testid="iframe-calendly"
+            className="block"
+          />
 
-            {/* Body */}
-            <p className="text-sm text-muted-foreground text-center leading-relaxed mb-8">
-              Setting up your AI phone agent involves configuring phone numbers, AI voice and
-              behavior, POS integrations, and live call testing. To make sure everything works
-              perfectly for your restaurant, every new account is onboarded 1:1 with an Orderly
-              team member. Book your free setup call below — it takes about 30 minutes.
-            </p>
-
-            {/* CTA */}
-            <Button
-              size="lg"
-              className="w-full gap-2 text-base"
-              onClick={openCalendly}
-              data-testid="button-book-call"
-            >
-              <CalendarDays className="h-5 w-5" />
-              Book your setup call
-              <ExternalLink className="h-4 w-4 opacity-70" />
-            </Button>
-
-            {/* Footer note */}
+          {/* Footer */}
+          <div className="px-6 py-3 border-t border-border/50 bg-muted/30">
             <p
-              className="text-xs text-muted-foreground text-center mt-5 leading-relaxed"
+              className="text-xs text-muted-foreground text-center"
               data-testid="text-lock-footer"
             >
-              After your call, your account manager will unlock your dashboard.
-              <br />
-              Questions?{" "}
-              <a
-                href="mailto:hello@getorderly.io"
-                className="text-primary hover:underline"
-              >
+              After your call, your account manager will unlock your dashboard. Questions?{" "}
+              <a href="mailto:hello@getorderly.io" className="text-primary hover:underline">
                 hello@getorderly.io
               </a>
             </p>

@@ -4,7 +4,7 @@ import { useParams, useLocation } from "wouter";
 import {
   ArrowLeft, Edit2, Ban, CheckCircle, Trash2, LogIn, Save, X,
   Building2, Mail, Phone, Globe, Calendar, ShieldAlert,
-  PhoneCall, Clock, DollarSign, BarChart2,
+  PhoneCall, Clock, DollarSign, BarChart2, LockOpen, Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,6 +101,16 @@ export default function AdminRestaurantDetail() {
       navigate("/");
     },
     onError: () => toast({ title: "Failed to impersonate", variant: "destructive" }),
+  });
+
+  const unlockMutation = useMutation({
+    mutationFn: () => apiRequest("PATCH", `/api/admin/restaurants/${id}/unlock`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/restaurants", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/restaurants"] });
+      toast({ title: "Dashboard unlocked", description: "The user can now access their dashboard." });
+    },
+    onError: () => toast({ title: "Failed to unlock dashboard", variant: "destructive" }),
   });
 
   function startEdit() {
@@ -282,6 +292,52 @@ export default function AdminRestaurantDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Onboarding Call Status */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Onboarding Call
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">Dashboard Access</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {restaurant.onboardingCallUnlocked
+                  ? "Dashboard is unlocked — user has full access."
+                  : "Dashboard is locked until the setup call is completed."}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              {restaurant.onboardingCallUnlocked ? (
+                <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 no-default-active-elevate gap-1.5" data-testid="badge-call-status">
+                  <LockOpen className="h-3 w-3" />
+                  Unlocked
+                </Badge>
+              ) : (
+                <>
+                  <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 no-default-active-elevate gap-1.5" data-testid="badge-call-status">
+                    <Lock className="h-3 w-3" />
+                    Awaiting Setup Call
+                  </Badge>
+                  <Button
+                    size="default"
+                    onClick={() => unlockMutation.mutate()}
+                    disabled={unlockMutation.isPending}
+                    data-testid="button-unlock-dashboard"
+                  >
+                    <LockOpen className="h-4 w-4 mr-2" />
+                    {unlockMutation.isPending ? "Unlocking…" : "Unlock Dashboard"}
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Usage & Billing Stats */}
       <Card>

@@ -46,6 +46,9 @@ export const users = pgTable("users", {
   // Guided tour
   tourCompleted: boolean("tour_completed").default(false),
 
+  // Onboarding call gate — admin unlocks after the 1:1 setup call
+  onboardingCallUnlocked: boolean("onboarding_call_unlocked").notNull().default(false),
+
   // Role-based access control
   role: varchar("role").default('user'), // 'user', 'admin', 'support', 'billing'
 

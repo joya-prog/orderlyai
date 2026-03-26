@@ -299,6 +299,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // PATCH /api/admin/restaurants/:id/unlock — unlock dashboard after onboarding call
+  app.patch("/api/admin/restaurants/:id/unlock", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const [updated] = await db.update(users)
+        .set({ onboardingCallUnlocked: true, updatedAt: new Date() })
+        .where(eq(users.id, id))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      await writeAuditLog(req.user.id, 'unlock_dashboard', id, 'user', {}, req.ip || '');
+      res.json(updated);
+    } catch (error) {
+      console.error("Error unlocking dashboard:", error);
+      res.status(500).json({ message: "Failed to unlock dashboard" });
+    }
+  });
+
   // DELETE /api/admin/restaurants/:id — delete account
   app.delete("/api/admin/restaurants/:id", isAuthenticated, async (req: any, res) => {
     try {

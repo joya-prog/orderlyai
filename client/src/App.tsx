@@ -11,6 +11,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/useAuth";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { OnboardingTour } from "@/components/onboarding-tour";
+import { OnboardingCallLock } from "@/components/onboarding-call-lock";
 import { Button } from "@/components/ui/button";
 import { ShieldCheck } from "lucide-react";
 import NotFound from "@/pages/not-found";
@@ -204,7 +205,17 @@ function AppContent() {
     );
   }
 
-  // Show full app with sidebar for authenticated, onboarded users
+  // Hard-lock for non-admin users who haven't had their onboarding call yet
+  if (!user.onboardingCallUnlocked && user.role !== "admin") {
+    return (
+      <>
+        <OnboardingCallLock user={user} />
+        <Toaster />
+      </>
+    );
+  }
+
+  // Show full app with sidebar for authenticated, onboarded, unlocked users
   return (
     <SidebarProvider style={sidebarStyle} defaultOpen={isDesktop}>
       <SidebarResponsiveWrapper />

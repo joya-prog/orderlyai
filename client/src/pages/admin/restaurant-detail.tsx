@@ -402,21 +402,21 @@ export default function AdminRestaurantDetail() {
                           Price range: {intake.priceRange.replace(/_/g, " ")}
                         </p>
                       )}
-                      {intake.menuCategories.length > 0 && (
+                      {(intake.menuCategories ?? []).length > 0 && (
                         <div>
                           <p className="text-xs font-medium text-foreground/70 mb-1">Categories</p>
                           <div className="flex flex-wrap gap-1.5">
-                            {intake.menuCategories.map((c) => (
+                            {(intake.menuCategories ?? []).map((c) => (
                               <Badge key={c} variant="secondary" className="text-xs no-default-active-elevate">{c}</Badge>
                             ))}
                           </div>
                         </div>
                       )}
-                      {intake.popularItems.length > 0 && (
+                      {(intake.popularItems ?? []).length > 0 && (
                         <div>
                           <p className="text-xs font-medium text-foreground/70 mb-1">Popular items</p>
                           <div className="flex flex-wrap gap-1.5">
-                            {intake.popularItems.map((item) => (
+                            {(intake.popularItems ?? []).map((item) => (
                               <Badge key={item} variant="outline" className="text-xs no-default-active-elevate">{item}</Badge>
                             ))}
                           </div>
@@ -427,14 +427,14 @@ export default function AdminRestaurantDetail() {
                 )}
 
                 {/* FAQs */}
-                {intake.faqs.length > 0 && (
+                {(intake.faqs ?? []).length > 0 && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
                       <HelpCircle className="h-3.5 w-3.5 text-primary" />
                       Common Questions
                     </div>
                     <div className="pl-5 space-y-2">
-                      {intake.faqs.filter((faq) => faq.question).map((faq, i) => (
+                      {(intake.faqs ?? []).filter((faq) => faq.question).map((faq, i) => (
                         <div key={i} className="rounded-lg border border-border/50 p-2.5 space-y-0.5">
                           <p className="text-xs font-medium text-foreground">{faq.question}</p>
                           {faq.answer && (

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer } from "ws";
@@ -4245,14 +4246,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   console.log('[TestCall] WebSocket server initialized on /test-call');
 
   // PATCH /api/user/pre-call-intake — save pre-call intake form data
+  const preCallIntakeSchema = z.object({
+    businessHours: z.string().max(500),
+    timezone: z.string().max(100),
+    cuisineDescription: z.string().max(300),
+    menuCategories: z.array(z.string().max(80)).max(8),
+    popularItems: z.array(z.string().max(100)).max(10),
+    priceRange: z.string().max(20),
+    faqs: z.array(z.object({
+      question: z.string().max(200),
+      answer: z.string().max(500),
+    })).max(5),
+    policies: z.string().max(1000),
+  });
+
   app.patch("/api/user/pre-call-intake", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const intake = req.body?.preCallIntake;
-      if (!intake || typeof intake !== 'object' || Array.isArray(intake)) {
-        return res.status(400).json({ message: "preCallIntake object required" });
+      const parsed = preCallIntakeSchema.safeParse(req.body?.preCallIntake);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid intake data", errors: parsed.error.flatten() });
       }
-      const preCallIntake = intake as import("@shared/schema").PreCallIntake;
+      const preCallIntake = parsed.data;
       const [updated] = await db.update(users)
         .set({ preCallIntake })
         .where(eq(users.id, userId))

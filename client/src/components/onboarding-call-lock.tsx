@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { User } from "@shared/schema";
 import type { PreCallIntake } from "@shared/schema";
 
@@ -528,7 +529,10 @@ const DEFAULT_INTAKE: PreCallIntake = {
 };
 
 export function OnboardingCallLock({ user }: OnboardingCallLockProps) {
-  const hasIntake = !!user.preCallIntake;
+  const { toast } = useToast();
+  // Show done screen when intake data exists AND dashboard is still locked (explicit guard,
+  // though parent already ensures this component only renders when !onboardingCallUnlocked).
+  const hasIntake = !!user.preCallIntake && !user.onboardingCallUnlocked;
   const [step, setStep] = useState<Step>(hasIntake ? "done" : "calendly");
   const [formData, setFormData] = useState<PreCallIntake>(DEFAULT_INTAKE);
 
@@ -549,6 +553,13 @@ export function OnboardingCallLock({ user }: OnboardingCallLockProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       setStep("done");
+    },
+    onError: () => {
+      toast({
+        title: "Couldn't save your details",
+        description: "Something went wrong. Please check your connection and try again.",
+        variant: "destructive",
+      });
     },
   });
 

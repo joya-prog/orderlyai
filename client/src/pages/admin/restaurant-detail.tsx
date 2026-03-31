@@ -5,6 +5,7 @@ import {
   ArrowLeft, Edit2, Ban, CheckCircle, Trash2, LogIn, Save, X,
   Building2, Mail, Phone, Globe, Calendar, ShieldAlert,
   PhoneCall, Clock, DollarSign, BarChart2, LockOpen, Lock,
+  UtensilsCrossed, HelpCircle, ChevronDown, ChevronUp, ClipboardList,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,6 +103,8 @@ export default function AdminRestaurantDetail() {
     },
     onError: () => toast({ title: "Failed to impersonate", variant: "destructive" }),
   });
+
+  const [intakeExpanded, setIntakeExpanded] = useState(false);
 
   const unlockMutation = useMutation({
     mutationFn: () => apiRequest("PATCH", `/api/admin/restaurants/${id}/unlock`),
@@ -338,6 +341,128 @@ export default function AdminRestaurantDetail() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Pre-Call Intake */}
+      {(restaurant as any).preCallIntake && (
+        <Card data-testid="card-pre-call-intake">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-4">
+              <CardTitle className="text-base flex items-center gap-2">
+                <ClipboardList className="h-4 w-4" />
+                Pre-Call Intake
+              </CardTitle>
+              <button
+                type="button"
+                onClick={() => setIntakeExpanded((v) => !v)}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                data-testid="button-toggle-intake"
+              >
+                {intakeExpanded ? (
+                  <><ChevronUp className="h-4 w-4" /> Collapse</>
+                ) : (
+                  <><ChevronDown className="h-4 w-4" /> View details</>
+                )}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Submitted by the user after booking their setup call.
+            </p>
+          </CardHeader>
+          {intakeExpanded && (
+            <CardContent className="space-y-5 pt-0">
+              {/* Hours */}
+              {((restaurant as any).preCallIntake as any).businessHours && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                    <Clock className="h-3.5 w-3.5 text-primary" />
+                    Business Hours
+                  </div>
+                  <p className="text-sm text-muted-foreground pl-5">
+                    {((restaurant as any).preCallIntake as any).businessHours}
+                  </p>
+                  {((restaurant as any).preCallIntake as any).timezone && (
+                    <p className="text-xs text-muted-foreground pl-5">
+                      Timezone: {((restaurant as any).preCallIntake as any).timezone}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Menu */}
+              {((restaurant as any).preCallIntake as any).cuisineDescription && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                    <UtensilsCrossed className="h-3.5 w-3.5 text-primary" />
+                    Menu
+                  </div>
+                  <div className="pl-5 space-y-1.5">
+                    <p className="text-sm text-muted-foreground">
+                      {((restaurant as any).preCallIntake as any).cuisineDescription}
+                    </p>
+                    {((restaurant as any).preCallIntake as any).priceRange && (
+                      <p className="text-xs text-muted-foreground">
+                        Price range: {((restaurant as any).preCallIntake as any).priceRange.replace(/_/g, " ")}
+                      </p>
+                    )}
+                    {((restaurant as any).preCallIntake as any).menuCategories?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-foreground/70 mb-1">Categories</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(((restaurant as any).preCallIntake as any).menuCategories as string[]).map((c: string) => (
+                            <Badge key={c} variant="secondary" className="text-xs no-default-active-elevate">{c}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {((restaurant as any).preCallIntake as any).popularItems?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-foreground/70 mb-1">Popular items</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(((restaurant as any).preCallIntake as any).popularItems as string[]).map((item: string) => (
+                            <Badge key={item} variant="outline" className="text-xs no-default-active-elevate">{item}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* FAQs */}
+              {((restaurant as any).preCallIntake as any).faqs?.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                    <HelpCircle className="h-3.5 w-3.5 text-primary" />
+                    Common Questions
+                  </div>
+                  <div className="pl-5 space-y-2">
+                    {(((restaurant as any).preCallIntake as any).faqs as { question: string; answer: string }[]).map((faq, i) => (
+                      faq.question ? (
+                        <div key={i} className="rounded-lg border border-border/50 p-2.5 space-y-0.5">
+                          <p className="text-xs font-medium text-foreground">{faq.question}</p>
+                          {faq.answer && (
+                            <p className="text-xs text-muted-foreground">{faq.answer}</p>
+                          )}
+                        </div>
+                      ) : null
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Policies */}
+              {((restaurant as any).preCallIntake as any).policies && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-foreground">Special Policies</p>
+                  <p className="text-xs text-muted-foreground pl-0">
+                    {((restaurant as any).preCallIntake as any).policies}
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       {/* Usage & Billing Stats */}
       <Card>

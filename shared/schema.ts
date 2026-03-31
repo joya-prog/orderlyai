@@ -49,6 +49,9 @@ export const users = pgTable("users", {
   // Onboarding call gate — admin unlocks after the 1:1 setup call
   onboardingCallUnlocked: boolean("onboarding_call_unlocked").notNull().default(false),
 
+  // Pre-call intake form data (collected after Calendly booking, before setup call)
+  preCallIntake: jsonb("pre_call_intake"),
+
   // Role-based access control
   role: varchar("role").default('user'), // 'user', 'admin', 'support', 'billing'
 

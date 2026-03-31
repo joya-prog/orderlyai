@@ -4244,6 +4244,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   console.log('[Voice] WebSocket server initialized on /voice-stream');
   console.log('[TestCall] WebSocket server initialized on /test-call');
 
+  // PATCH /api/user/pre-call-intake — save pre-call intake form data
+  app.patch("/api/user/pre-call-intake", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { preCallIntake } = req.body;
+      if (!preCallIntake || typeof preCallIntake !== 'object') {
+        return res.status(400).json({ message: "preCallIntake object required" });
+      }
+      const [updated] = await db.update(users)
+        .set({ preCallIntake, updatedAt: new Date() } as any)
+        .where(eq(users.id, userId))
+        .returning();
+      res.json(updated);
+    } catch (error) {
+      console.error("Error saving pre-call intake:", error);
+      res.status(500).json({ message: "Failed to save intake data" });
+    }
+  });
+
   // PATCH /api/user/tour — mark guided tour as completed
   app.patch("/api/user/tour", isAuthenticated, async (req: any, res) => {
     try {

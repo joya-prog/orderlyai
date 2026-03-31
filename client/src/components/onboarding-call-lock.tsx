@@ -116,7 +116,11 @@ function ProgressBar({ step }: { step: Step }) {
   const activeIdx = steps.findIndex((s) => s.key === step);
 
   return (
-    <div className="flex items-center px-6 py-3 border-b border-border/50 bg-muted/20">
+    <div className="border-b border-border/50 bg-muted/20">
+      <div className="px-6 pt-2.5 pb-0 text-xs text-muted-foreground font-medium" data-testid="text-step-progress">
+        Step {activeIdx + 1} of {steps.length} — {steps[activeIdx]?.label}
+      </div>
+      <div className="flex items-center px-6 py-3">
       {steps.map((s, i) => {
         const done = i < activeIdx;
         const active = i === activeIdx;
@@ -141,6 +145,7 @@ function ProgressBar({ step }: { step: Step }) {
           </div>
         );
       })}
+      </div>
     </div>
   );
 }

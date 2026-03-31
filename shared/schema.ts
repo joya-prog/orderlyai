@@ -11,6 +11,24 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// ---- Shared intake types ----
+
+export interface PreCallIntakeFaq {
+  question: string;
+  answer: string;
+}
+
+export interface PreCallIntake {
+  businessHours: string;
+  timezone: string;
+  cuisineDescription: string;
+  menuCategories: string[];
+  popularItems: string[];
+  priceRange: string;
+  faqs: PreCallIntakeFaq[];
+  policies: string;
+}
+
 // Session storage table - required for Replit Auth
 export const sessions = pgTable(
   "sessions",
@@ -50,7 +68,7 @@ export const users = pgTable("users", {
   onboardingCallUnlocked: boolean("onboarding_call_unlocked").notNull().default(false),
 
   // Pre-call intake form data (collected after Calendly booking, before setup call)
-  preCallIntake: jsonb("pre_call_intake"),
+  preCallIntake: jsonb("pre_call_intake").$type<PreCallIntake>(),
 
   // Role-based access control
   role: varchar("role").default('user'), // 'user', 'admin', 'support', 'billing'

@@ -4248,12 +4248,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/user/pre-call-intake", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const { preCallIntake } = req.body;
-      if (!preCallIntake || typeof preCallIntake !== 'object') {
+      const intake = req.body?.preCallIntake;
+      if (!intake || typeof intake !== 'object' || Array.isArray(intake)) {
         return res.status(400).json({ message: "preCallIntake object required" });
       }
+      const preCallIntake = intake as import("@shared/schema").PreCallIntake;
       const [updated] = await db.update(users)
-        .set({ preCallIntake, updatedAt: new Date() } as any)
+        .set({ preCallIntake })
         .where(eq(users.id, userId))
         .returning();
       res.json(updated);

@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, KeyboardEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { CalendarDays, Clock, UtensilsCrossed, HelpCircle, CheckCircle2, Plus, X, ChevronRight, ChevronLeft } from "lucide-react";
+import {
+  CalendarDays, Clock, UtensilsCrossed, HelpCircle,
+  CheckCircle2, Plus, X, ChevronRight, ChevronLeft,
+} from "lucide-react";
 import orderlyLogo from "@assets/WXdQJT24YKxTTzIwCPlW3AJf4Y_1763761787840.avif";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { User } from "@shared/schema";
+import type { PreCallIntake } from "@shared/schema";
 
 const CALENDLY_URL = "https://calendly.com/hello-getorderly/30min";
+const CALENDLY_ORIGIN = "https://calendly.com";
 
 const TIMEZONES = [
   { value: "America/New_York", label: "Eastern Time (ET)" },
@@ -21,6 +26,7 @@ const TIMEZONES = [
   { value: "Pacific/Honolulu", label: "Hawaii Time (HST)" },
   { value: "America/Phoenix", label: "Arizona (no DST)" },
   { value: "America/Puerto_Rico", label: "Atlantic Time (AST)" },
+  { value: "other", label: "Other / Not listed…" },
 ];
 
 const PRICE_RANGES = [
@@ -29,17 +35,6 @@ const PRICE_RANGES = [
   { value: "30_50", label: "$30 – $50 per person" },
   { value: "50_plus", label: "$50+ per person" },
 ];
-
-interface PreCallIntake {
-  businessHours: string;
-  timezone: string;
-  cuisineDescription: string;
-  menuCategories: string[];
-  popularItems: string[];
-  priceRange: string;
-  faqs: { question: string; answer: string }[];
-  policies: string;
-}
 
 type Step = "calendly" | "hours" | "menu" | "faqs" | "done";
 
@@ -67,25 +62,14 @@ function TagInput({
     const tag = raw.trim();
     if (!tag) return;
     if (max && value.length >= max) return;
-    if (value.includes(tag)) {
-      setInput("");
-      return;
-    }
+    if (value.includes(tag)) { setInput(""); return; }
     onChange([...value, tag]);
     setInput("");
   }
 
   function handleKey(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault();
-      addTag(input);
-    } else if (e.key === "Backspace" && !input && value.length > 0) {
-      onChange(value.slice(0, -1));
-    }
-  }
-
-  function removeTag(tag: string) {
-    onChange(value.filter((t) => t !== tag));
+    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(input); }
+    else if (e.key === "Backspace" && !input && value.length > 0) onChange(value.slice(0, -1));
   }
 
   return (
@@ -95,15 +79,11 @@ function TagInput({
       data-testid={testId}
     >
       {value.map((tag) => (
-        <Badge
-          key={tag}
-          variant="secondary"
-          className="flex items-center gap-1 text-xs py-0.5"
-        >
+        <Badge key={tag} variant="secondary" className="flex items-center gap-1 text-xs py-0.5">
           {tag}
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); removeTag(tag); }}
+            onClick={(e) => { e.stopPropagation(); onChange(value.filter((t) => t !== tag)); }}
             className="ml-0.5 hover:text-destructive"
             data-testid={`remove-tag-${tag}`}
           >
@@ -128,31 +108,27 @@ function TagInput({
 }
 
 function ProgressBar({ step }: { step: Step }) {
-  const steps: { key: Step; label: string; icon: typeof Clock }[] = [
-    { key: "hours", label: "Hours", icon: Clock },
-    { key: "menu", label: "Menu", icon: UtensilsCrossed },
-    { key: "faqs", label: "Questions", icon: HelpCircle },
+  const steps: { key: Step; label: string; Icon: typeof Clock }[] = [
+    { key: "hours", label: "Hours", Icon: Clock },
+    { key: "menu", label: "Menu", Icon: UtensilsCrossed },
+    { key: "faqs", label: "Questions", Icon: HelpCircle },
   ];
   const activeIdx = steps.findIndex((s) => s.key === step);
 
   return (
-    <div className="flex items-center gap-0 px-6 py-3 border-b border-border/50 bg-muted/20">
+    <div className="flex items-center px-6 py-3 border-b border-border/50 bg-muted/20">
       {steps.map((s, i) => {
         const done = i < activeIdx;
         const active = i === activeIdx;
-        const Icon = s.icon;
+        const { Icon } = s;
         return (
           <div key={s.key} className="flex items-center flex-1">
             <div className="flex flex-col items-center gap-1 flex-shrink-0">
-              <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
-                  done
-                    ? "bg-primary text-primary-foreground"
-                    : active
-                    ? "bg-primary/10 border-2 border-primary text-primary"
-                    : "bg-muted border border-border text-muted-foreground"
-                }`}
-              >
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
+                done ? "bg-primary text-primary-foreground"
+                  : active ? "bg-primary/10 border-2 border-primary text-primary"
+                  : "bg-muted border border-border text-muted-foreground"
+              }`}>
                 {done ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-3.5 w-3.5" />}
               </div>
               <span className={`text-[10px] font-medium ${active ? "text-primary" : done ? "text-foreground" : "text-muted-foreground"}`}>
@@ -178,7 +154,17 @@ function StepHours({
   onChange: (patch: Partial<PreCallIntake>) => void;
   onNext: () => void;
 }) {
-  const canContinue = data.businessHours.trim().length > 0 && data.timezone.length > 0;
+  const [customTimezone, setCustomTimezone] = useState("");
+  const isOther = data.timezone === "other";
+  const canContinue = data.businessHours.trim().length > 0
+    && (isOther ? customTimezone.trim().length > 0 : data.timezone.length > 0);
+
+  function handleContinue() {
+    if (isOther && customTimezone.trim()) {
+      onChange({ timezone: customTimezone.trim() });
+    }
+    onNext();
+  }
 
   return (
     <div className="px-6 py-5 space-y-5">
@@ -215,22 +201,24 @@ function StepHours({
             </SelectTrigger>
             <SelectContent>
               {TIMEZONES.map((tz) => (
-                <SelectItem key={tz.value} value={tz.value}>
-                  {tz.label}
-                </SelectItem>
+                <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {isOther && (
+            <Input
+              data-testid="input-custom-timezone"
+              placeholder="e.g. Europe/London, Asia/Tokyo, Australia/Sydney"
+              value={customTimezone}
+              onChange={(e) => setCustomTimezone(e.target.value)}
+              className="text-sm mt-1.5"
+            />
+          )}
         </div>
       </div>
 
       <div className="flex justify-end pt-1">
-        <Button
-          onClick={onNext}
-          disabled={!canContinue}
-          data-testid="button-hours-continue"
-          size="default"
-        >
+        <Button onClick={handleContinue} disabled={!canContinue} data-testid="button-hours-continue">
           Continue
           <ChevronRight className="h-4 w-4 ml-1" />
         </Button>
@@ -265,9 +253,7 @@ function StepMenu({
 
       <div className="space-y-4">
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-foreground">
-            Describe your food in one sentence
-          </label>
+          <label className="text-xs font-medium text-foreground">Describe your food in one sentence</label>
           <Input
             data-testid="input-cuisine-description"
             placeholder="e.g. Upscale American burgers and craft cocktails"
@@ -280,7 +266,7 @@ function StepMenu({
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-foreground">
             Menu categories
-            <span className="text-muted-foreground font-normal ml-1">(press Enter or comma to add, max 8)</span>
+            <span className="text-muted-foreground font-normal ml-1">(Enter or comma to add, max 8)</span>
           </label>
           <TagInput
             value={data.menuCategories}
@@ -307,18 +293,13 @@ function StepMenu({
 
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-foreground">Price range</label>
-          <Select
-            value={data.priceRange}
-            onValueChange={(v) => onChange({ priceRange: v })}
-          >
+          <Select value={data.priceRange} onValueChange={(v) => onChange({ priceRange: v })}>
             <SelectTrigger data-testid="select-price-range">
               <SelectValue placeholder="Select price range" />
             </SelectTrigger>
             <SelectContent>
               {PRICE_RANGES.map((p) => (
-                <SelectItem key={p.value} value={p.value}>
-                  {p.label}
-                </SelectItem>
+                <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -335,12 +316,7 @@ function StepMenu({
           <ChevronLeft className="h-3.5 w-3.5" />
           Back
         </button>
-        <Button
-          onClick={onNext}
-          disabled={!canContinue}
-          data-testid="button-menu-continue"
-          size="default"
-        >
+        <Button onClick={onNext} disabled={!canContinue} data-testid="button-menu-continue">
           Continue
           <ChevronRight className="h-4 w-4 ml-1" />
         </Button>
@@ -362,10 +338,8 @@ function StepFaqs({
   onBack: () => void;
   isPending: boolean;
 }) {
-  function updateFaq(idx: number, field: "question" | "answer", value: string) {
-    const updated = data.faqs.map((faq, i) =>
-      i === idx ? { ...faq, [field]: value } : faq
-    );
+  function updateFaq(idx: number, field: keyof PreCallIntake["faqs"][number], value: string) {
+    const updated = data.faqs.map((faq, i) => i === idx ? { ...faq, [field]: value } : faq);
     onChange({ faqs: updated });
   }
 
@@ -458,12 +432,7 @@ function StepFaqs({
           <ChevronLeft className="h-3.5 w-3.5" />
           Back
         </button>
-        <Button
-          onClick={onSubmit}
-          disabled={isPending}
-          data-testid="button-save-finish"
-          size="default"
-        >
+        <Button onClick={onSubmit} disabled={isPending} data-testid="button-save-finish">
           {isPending ? "Saving…" : "Save & Finish"}
           {!isPending && <CheckCircle2 className="h-4 w-4 ml-1" />}
         </Button>
@@ -540,12 +509,13 @@ const DEFAULT_INTAKE: PreCallIntake = {
 };
 
 export function OnboardingCallLock({ user }: OnboardingCallLockProps) {
-  const hasIntake = !!(user as any).preCallIntake;
+  const hasIntake = !!user.preCallIntake;
   const [step, setStep] = useState<Step>(hasIntake ? "done" : "calendly");
   const [formData, setFormData] = useState<PreCallIntake>(DEFAULT_INTAKE);
 
   useEffect(() => {
     function handler(e: MessageEvent) {
+      if (e.origin !== CALENDLY_ORIGIN) return;
       if (e.data?.event === "calendly.event_scheduled") {
         setStep("hours");
       }
@@ -555,9 +525,8 @@ export function OnboardingCallLock({ user }: OnboardingCallLockProps) {
   }, []);
 
   const saveMutation = useMutation({
-    mutationFn: async (intake: PreCallIntake) => {
-      return apiRequest("PATCH", "/api/user/pre-call-intake", { preCallIntake: intake });
-    },
+    mutationFn: (intake: PreCallIntake) =>
+      apiRequest("PATCH", "/api/user/pre-call-intake", { preCallIntake: intake }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       setStep("done");
@@ -569,10 +538,7 @@ export function OnboardingCallLock({ user }: OnboardingCallLockProps) {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/30"
-      data-testid="onboarding-call-lock"
-    >
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/30" data-testid="onboarding-call-lock">
       <div className="relative w-full max-w-2xl mx-4">
         <div className="rounded-2xl bg-background border border-border/40 shadow-2xl overflow-hidden">
           {/* Top accent bar */}
@@ -608,10 +574,7 @@ export function OnboardingCallLock({ user }: OnboardingCallLockProps) {
               </div>
             </div>
             {user.restaurantName && (
-              <span
-                className="text-xs text-muted-foreground font-medium flex-shrink-0"
-                data-testid="text-lock-restaurant-name"
-              >
+              <span className="text-xs text-muted-foreground font-medium flex-shrink-0" data-testid="text-lock-restaurant-name">
                 {user.restaurantName}
               </span>
             )}
@@ -622,7 +585,7 @@ export function OnboardingCallLock({ user }: OnboardingCallLockProps) {
             <ProgressBar step={step} />
           )}
 
-          {/* Content */}
+          {/* Step content */}
           {step === "calendly" && (
             <>
               <iframe
@@ -646,20 +609,11 @@ export function OnboardingCallLock({ user }: OnboardingCallLockProps) {
           )}
 
           {step === "hours" && (
-            <StepHours
-              data={formData}
-              onChange={patch}
-              onNext={() => setStep("menu")}
-            />
+            <StepHours data={formData} onChange={patch} onNext={() => setStep("menu")} />
           )}
 
           {step === "menu" && (
-            <StepMenu
-              data={formData}
-              onChange={patch}
-              onNext={() => setStep("faqs")}
-              onBack={() => setStep("hours")}
-            />
+            <StepMenu data={formData} onChange={patch} onNext={() => setStep("faqs")} onBack={() => setStep("hours")} />
           )}
 
           {step === "faqs" && (
@@ -672,9 +626,7 @@ export function OnboardingCallLock({ user }: OnboardingCallLockProps) {
             />
           )}
 
-          {step === "done" && (
-            <DoneScreen restaurantName={user.restaurantName ?? undefined} />
-          )}
+          {step === "done" && <DoneScreen restaurantName={user.restaurantName ?? undefined} />}
         </div>
       </div>
     </div>

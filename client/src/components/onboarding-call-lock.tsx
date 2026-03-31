@@ -538,7 +538,10 @@ export function OnboardingCallLock({ user }: OnboardingCallLockProps) {
 
   useEffect(() => {
     function handler(e: MessageEvent) {
-      if (e.origin !== CALENDLY_ORIGIN) return;
+      // Accept messages from calendly.com and any *.calendly.com subdomain
+      const isCalendlyOrigin =
+        e.origin === CALENDLY_ORIGIN || e.origin.endsWith(".calendly.com");
+      if (!isCalendlyOrigin) return;
       if (e.data?.event === "calendly.event_scheduled") {
         setStep("hours");
       }
@@ -627,12 +630,22 @@ export function OnboardingCallLock({ user }: OnboardingCallLockProps) {
                 data-testid="iframe-calendly"
                 className="block"
               />
-              <div className="px-6 py-3 border-t border-border/50 bg-muted/30">
+              <div className="px-6 py-3 border-t border-border/50 bg-muted/30 space-y-1.5">
                 <p className="text-xs text-muted-foreground text-center" data-testid="text-lock-footer">
                   After your call, your account manager will unlock your dashboard. Questions?{" "}
                   <a href="mailto:hello@getorderly.io" className="text-primary hover:underline">
                     hello@getorderly.io
                   </a>
+                </p>
+                <p className="text-xs text-center">
+                  <button
+                    type="button"
+                    onClick={() => setStep("hours")}
+                    className="text-primary hover:underline font-medium"
+                    data-testid="button-already-booked"
+                  >
+                    Already booked your call? Continue →
+                  </button>
                 </p>
               </div>
             </>

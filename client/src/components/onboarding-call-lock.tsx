@@ -154,13 +154,27 @@ function StepHours({
   onChange: (patch: Partial<PreCallIntake>) => void;
   onNext: () => void;
 }) {
-  const [customTimezone, setCustomTimezone] = useState("");
-  const isOther = data.timezone === "other";
+  // If data.timezone is a value not in the predefined list, it's a custom zone from a previous
+  // "Other" selection. Restore it so the user can see and edit it when navigating back.
+  const isPredefined = TIMEZONES.some((tz) => tz.value === data.timezone);
+  const selectValue = isPredefined ? data.timezone : "other";
+  const [customTimezone, setCustomTimezone] = useState(
+    !isPredefined && data.timezone !== "other" ? data.timezone : "",
+  );
+  const showCustomInput = selectValue === "other";
   const canContinue = data.businessHours.trim().length > 0
-    && (isOther ? customTimezone.trim().length > 0 : data.timezone.length > 0);
+    && (showCustomInput ? customTimezone.trim().length > 0 : data.timezone.length > 0);
+
+  function handleSelectChange(v: string) {
+    if (v !== "other") {
+      onChange({ timezone: v });
+    } else {
+      onChange({ timezone: "other" });
+    }
+  }
 
   function handleContinue() {
-    if (isOther && customTimezone.trim()) {
+    if (showCustomInput && customTimezone.trim()) {
       onChange({ timezone: customTimezone.trim() });
     }
     onNext();
@@ -193,8 +207,8 @@ function StepHours({
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-foreground">Timezone</label>
           <Select
-            value={data.timezone}
-            onValueChange={(v) => onChange({ timezone: v })}
+            value={selectValue}
+            onValueChange={handleSelectChange}
           >
             <SelectTrigger data-testid="select-timezone">
               <SelectValue placeholder="Select timezone" />
@@ -205,7 +219,7 @@ function StepHours({
               ))}
             </SelectContent>
           </Select>
-          {isOther && (
+          {showCustomInput && (
             <Input
               data-testid="input-custom-timezone"
               placeholder="e.g. Europe/London, Asia/Tokyo, Australia/Sydney"

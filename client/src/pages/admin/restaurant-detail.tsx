@@ -25,6 +25,13 @@ import type { User, PreCallIntake } from "@shared/schema";
 
 type Restaurant = User & { accountStatus: string };
 
+const PRICE_RANGE_LABELS: Record<string, string> = {
+  under_15: "Under $15 per person",
+  "15_30": "$15 – $30 per person",
+  "30_50": "$30 – $50 per person",
+  "50_plus": "$50+ per person",
+};
+
 function StatusBadge({ status }: { status: string | null }) {
   if (status === "active") return <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 no-default-active-elevate">Active</Badge>;
   if (status === "suspended") return <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 no-default-active-elevate">Suspended</Badge>;
@@ -399,7 +406,7 @@ export default function AdminRestaurantDetail() {
                       <p className="text-sm text-muted-foreground">{intake.cuisineDescription}</p>
                       {intake.priceRange && (
                         <p className="text-xs text-muted-foreground">
-                          Price range: {intake.priceRange.replace(/_/g, " ")}
+                          Price range: {PRICE_RANGE_LABELS[intake.priceRange] ?? intake.priceRange}
                         </p>
                       )}
                       {(intake.menuCategories ?? []).length > 0 && (

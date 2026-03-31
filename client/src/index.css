@@ -43,8 +43,8 @@
   --chart-3: 84 85% 43%;
   --chart-4: 43 96% 56%;
   --chart-5: 0 72% 51%;
-  --font-sans: 'Inter', sans-serif;
-  --font-serif: 'Inter', sans-serif;
+  --font-sans: 'General Sans', sans-serif;
+  --font-serif: 'General Sans', sans-serif;
   --font-mono: 'Fira Code', monospace;
   --radius: 1rem;
   --shadow-2xs: 0px 1px 2px 0px rgba(0,0,0,0.03);
@@ -299,7 +299,7 @@
   box-shadow: 0 20px 60px -10px rgba(15, 23, 42, 0.25), 0 4px 16px -4px rgba(15, 23, 42, 0.12) !important;
   padding: 28px !important;
   max-width: 360px !important;
-  font-family: 'Inter', sans-serif !important;
+  font-family: 'General Sans', sans-serif !important;
 }
 
 .dark .orderly-tour-popover.driver-popover {
@@ -313,7 +313,7 @@
   color: hsl(222 47% 11%) !important;
   margin-bottom: 8px !important;
   line-height: 1.3 !important;
-  font-family: 'Inter', sans-serif !important;
+  font-family: 'General Sans', sans-serif !important;
 }
 
 .dark .orderly-tour-popover .driver-popover-title {
@@ -351,7 +351,7 @@
   cursor: pointer !important;
   transition: all 0.15s ease !important;
   border: 1px solid transparent !important;
-  font-family: 'Inter', sans-serif !important;
+  font-family: 'General Sans', sans-serif !important;
   text-shadow: none !important;
   line-height: 1.4 !important;
 }

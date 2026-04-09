@@ -11,7 +11,7 @@ import * as retell from "./retell";
 import multer from "multer";
 
 const upload = multer({ storage: multer.memoryStorage() });
-import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema, insertIntegrationConfigSchema, insertAnalyticsEventSchema, onboardingSchema, users, adminAuditLogs, agents, usageLedger, callLogs, supportMessages } from "@shared/schema";
+import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema, insertIntegrationConfigSchema, insertAnalyticsEventSchema, onboardingSchema, users, adminAuditLogs, agents, usageLedger, callLogs, supportMessages, kbCollections, kbSources } from "@shared/schema";
 import twilio from "twilio";
 import crypto from "crypto";
 import { getTwilioClient, getTwilioAccountSid, getTwilioAuthToken, sendSms2FACode, verifySms2FACode, sendSignupNotification } from "./twilioClient";
@@ -4515,5 +4515,274 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ],
     });
   });
+  // ── KB Collections ──────────────────────────────────────────────────────────
+
+  // GET /api/kb — list user's collections with source count
+  app.get("/api/kb", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const collections = await db
+        .select({
+          id: kbCollections.id,
+          userId: kbCollections.userId,
+          name: kbCollections.name,
+          createdAt: kbCollections.createdAt,
+        })
+        .from(kbCollections)
+        .where(eq(kbCollections.userId, userId))
+        .orderBy(kbCollections.createdAt);
+
+      const collectionsWithCount = await Promise.all(
+        collections.map(async (col) => {
+          const [{ cnt }] = await db
+            .select({ cnt: count() })
+            .from(kbSources)
+            .where(eq(kbSources.collectionId, col.id));
+          return { ...col, sourceCount: Number(cnt) };
+        })
+      );
+
+      res.json(collectionsWithCount);
+    } catch (error: any) {
+      console.error("Error fetching KB collections:", error);
+      res.status(500).json({ message: "Failed to fetch KB collections" });
+    }
+  });
+
+  // POST /api/kb — create a new collection
+  app.post("/api/kb", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { name } = req.body;
+      if (!name || typeof name !== "string" || !name.trim()) {
+        return res.status(400).json({ message: "name is required" });
+      }
+      const [col] = await db
+        .insert(kbCollections)
+        .values({ userId, name: name.trim() })
+        .returning();
+      res.json(col);
+    } catch (error: any) {
+      console.error("Error creating KB collection:", error);
+      res.status(500).json({ message: "Failed to create KB collection" });
+    }
+  });
+
+  // PATCH /api/kb/:id — rename a collection
+  app.patch("/api/kb/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+      const { name } = req.body;
+      if (!name || typeof name !== "string" || !name.trim()) {
+        return res.status(400).json({ message: "name is required" });
+      }
+      const [existing] = await db
+        .select()
+        .from(kbCollections)
+        .where(and(eq(kbCollections.id, id), eq(kbCollections.userId, userId)));
+      if (!existing) return res.status(404).json({ message: "Not found" });
+
+      const [col] = await db
+        .update(kbCollections)
+        .set({ name: name.trim() })
+        .where(eq(kbCollections.id, id))
+        .returning();
+      res.json(col);
+    } catch (error: any) {
+      console.error("Error renaming KB collection:", error);
+      res.status(500).json({ message: "Failed to rename KB collection" });
+    }
+  });
+
+  // DELETE /api/kb/:id — delete collection (cascades sources)
+  app.delete("/api/kb/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+      const [existing] = await db
+        .select()
+        .from(kbCollections)
+        .where(and(eq(kbCollections.id, id), eq(kbCollections.userId, userId)));
+      if (!existing) return res.status(404).json({ message: "Not found" });
+
+      await db.delete(kbCollections).where(eq(kbCollections.id, id));
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting KB collection:", error);
+      res.status(500).json({ message: "Failed to delete KB collection" });
+    }
+  });
+
+  // ── KB Sources ───────────────────────────────────────────────────────────────
+
+  // GET /api/kb/:id/sources — list sources in a collection
+  app.get("/api/kb/:id/sources", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+      const [col] = await db
+        .select()
+        .from(kbCollections)
+        .where(and(eq(kbCollections.id, id), eq(kbCollections.userId, userId)));
+      if (!col) return res.status(404).json({ message: "Not found" });
+
+      const sources = await db
+        .select()
+        .from(kbSources)
+        .where(eq(kbSources.collectionId, id))
+        .orderBy(kbSources.createdAt);
+      res.json(sources);
+    } catch (error: any) {
+      console.error("Error fetching KB sources:", error);
+      res.status(500).json({ message: "Failed to fetch KB sources" });
+    }
+  });
+
+  // POST /api/kb/:id/sources — add a source (url / pdf / text)
+  const kbUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
+  app.post(
+    "/api/kb/:id/sources",
+    isAuthenticated,
+    kbUpload.single("file"),
+    async (req: any, res) => {
+      try {
+        const userId = req.user.id;
+        const { id } = req.params;
+        const [col] = await db
+          .select()
+          .from(kbCollections)
+          .where(and(eq(kbCollections.id, id), eq(kbCollections.userId, userId)));
+        if (!col) return res.status(404).json({ message: "Not found" });
+
+        const type = req.body.type;
+
+        if (type === "url") {
+          const { url } = req.body;
+          if (!url) return res.status(400).json({ message: "url is required" });
+
+          // SSRF protection: only allow http/https to public hosts
+          let parsedUrl: URL;
+          try {
+            parsedUrl = new URL(url);
+          } catch {
+            return res.status(400).json({ message: "Invalid URL" });
+          }
+          if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+            return res.status(400).json({ message: "Only http and https URLs are allowed" });
+          }
+          // Block localhost and private/internal IP ranges
+          const hostname = parsedUrl.hostname.toLowerCase();
+          const blockedPatterns = [
+            /^localhost$/,
+            /^127\./,
+            /^10\./,
+            /^172\.(1[6-9]|2\d|3[01])\./,
+            /^192\.168\./,
+            /^169\.254\./,
+            /^::1$/,
+            /^0\.0\.0\.0$/,
+            /^fc00:/,
+            /^fe80:/,
+            /metadata\.google\.internal/,
+            /169\.254\.169\.254/,
+          ];
+          if (blockedPatterns.some((p) => p.test(hostname))) {
+            return res.status(400).json({ message: "URLs pointing to internal or private addresses are not allowed" });
+          }
+
+          let name = url;
+          let content: string | null = null;
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 8000);
+            const resp = await fetch(url, {
+              signal: controller.signal,
+              headers: { "User-Agent": "Mozilla/5.0" },
+              redirect: "follow",
+            });
+            clearTimeout(timeout);
+            // Limit response size to 5MB
+            const MAX_BYTES = 5 * 1024 * 1024;
+            const contentLength = Number(resp.headers.get("content-length") || 0);
+            if (contentLength > MAX_BYTES) throw new Error("Response too large");
+            const html = await resp.text();
+            const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+            if (titleMatch) {
+              name = titleMatch[1].trim();
+            } else {
+              const h1Match = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+              if (h1Match) name = h1Match[1].trim();
+            }
+            const stripped = html
+              .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+              .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+              .replace(/<[^>]+>/g, " ")
+              .replace(/\s+/g, " ")
+              .trim();
+            content = stripped.slice(0, 10000);
+          } catch {
+            // fallback: name = url, content = null
+          }
+
+          const [src] = await db
+            .insert(kbSources)
+            .values({ collectionId: id, type: "url", name, url, content })
+            .returning();
+          return res.json(src);
+        }
+
+        if (type === "pdf") {
+          const file = req.file;
+          if (!file) return res.status(400).json({ message: "file is required" });
+          const fileName = file.originalname;
+          const fileSizeBytes = file.size;
+          const content = file.buffer.slice(0, 100000).toString("utf-8");
+
+          const [src] = await db
+            .insert(kbSources)
+            .values({ collectionId: id, type: "pdf", name: fileName, fileName, fileSizeBytes, content })
+            .returning();
+          return res.json(src);
+        }
+
+        if (type === "text") {
+          const { name, content } = req.body;
+          if (!name || !content) return res.status(400).json({ message: "name and content are required" });
+
+          const [src] = await db
+            .insert(kbSources)
+            .values({ collectionId: id, type: "text", name, content })
+            .returning();
+          return res.json(src);
+        }
+
+        return res.status(400).json({ message: "Invalid type. Must be url, pdf, or text." });
+      } catch (error: any) {
+        console.error("Error adding KB source:", error);
+        res.status(500).json({ message: "Failed to add KB source" });
+      }
+    }
+  );
+
+  // DELETE /api/kb/:id/sources/:sourceId — delete a source
+  app.delete("/api/kb/:id/sources/:sourceId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { id, sourceId } = req.params;
+      const [col] = await db
+        .select()
+        .from(kbCollections)
+        .where(and(eq(kbCollections.id, id), eq(kbCollections.userId, userId)));
+      if (!col) return res.status(404).json({ message: "Not found" });
+
+      await db.delete(kbSources).where(and(eq(kbSources.id, sourceId), eq(kbSources.collectionId, id)));
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting KB source:", error);
+      res.status(500).json({ message: "Failed to delete KB source" });
+    }
+  });
+
   return httpServer;
 }

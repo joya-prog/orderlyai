@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -807,3 +808,40 @@ export const insertSupportMessageSchema = createInsertSchema(supportMessages).om
 
 export type InsertSupportMessage = z.infer<typeof insertSupportMessageSchema>;
 export type SupportMessage = typeof supportMessages.$inferSelect;
+
+// KB Collections table
+export const kbCollections = pgTable("kb_collections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertKbCollectionSchema = createInsertSchema(kbCollections).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertKbCollection = z.infer<typeof insertKbCollectionSchema>;
+export type KbCollection = typeof kbCollections.$inferSelect;
+
+// KB Sources table
+export const kbSources = pgTable("kb_sources", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  collectionId: varchar("collection_id").notNull().references(() => kbCollections.id, { onDelete: 'cascade' }),
+  type: text("type").notNull(), // 'url' | 'pdf' | 'text'
+  name: text("name").notNull(),
+  content: text("content"),
+  url: text("url"),
+  fileName: text("file_name"),
+  fileSizeBytes: integer("file_size_bytes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertKbSourceSchema = createInsertSchema(kbSources).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertKbSource = z.infer<typeof insertKbSourceSchema>;
+export type KbSource = typeof kbSources.$inferSelect;

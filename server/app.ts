@@ -13,6 +13,9 @@ import { getStripeSync } from './stripeClient';
 import { WebhookHandlers } from './webhookHandlers';
 import { ensureTemplatesSeeded } from './seed';
 import { applyRateLimits } from "./rateLimit";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
+
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",
@@ -65,6 +68,36 @@ async function initStripe() {
 }
 
 initStripe();
+
+async function initKbSchema() {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS kb_collections (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id varchar NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name text NOT NULL,
+        created_at timestamp DEFAULT now()
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS kb_sources (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        collection_id varchar NOT NULL REFERENCES kb_collections(id) ON DELETE CASCADE,
+        type text NOT NULL,
+        name text NOT NULL,
+        content text,
+        url text,
+        file_name text,
+        file_size_bytes integer,
+        created_at timestamp DEFAULT now()
+      )
+    `);
+  } catch (error: any) {
+    log(`KB schema init error: ${error.message}`, 'kb');
+  }
+}
+
+initKbSchema();
 
 app.post(
   '/api/stripe/webhook/:uuid',

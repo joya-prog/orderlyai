@@ -5,9 +5,7 @@ import {
   Settings, 
   LogOut,
   BarChart3,
-  Users,
   Phone,
-  Plug2,
   FileText,
   MessageSquare,
   X,
@@ -62,19 +60,9 @@ const mainItems = [
     icon: BookOpen,
   },
   {
-    title: "Contacts",
-    url: "/contacts",
-    icon: Users,
-  },
-  {
     title: "Phone Numbers",
     url: "/phone-numbers",
     icon: Phone,
-  },
-  {
-    title: "Integrations",
-    url: "/integrations",
-    icon: Plug2,
   },
   {
     title: "Logs",

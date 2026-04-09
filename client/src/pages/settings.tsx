@@ -38,7 +38,9 @@ import {
   Monitor,
   Wrench,
   Building2,
+  Plug2,
 } from "lucide-react";
+import IntegrationsPage from "@/pages/integrations";
 import { useTheme } from "@/components/theme-provider";
 import type { Subscription, UsageMetric, Invoice, CallLog, User as UserType, UserPreferences, ApiKey } from "@shared/schema";
 import {
@@ -89,7 +91,7 @@ interface TwoFactorSetup {
   backupCodes: string[];
 }
 
-type SettingsTab = "preferences" | "billing" | "security" | "api-keys";
+type SettingsTab = "preferences" | "billing" | "security" | "api-keys" | "integrations";
 
 
 
@@ -212,6 +214,7 @@ export default function SettingsPage() {
     { id: "billing" as SettingsTab, label: "Plan & Billing", icon: CreditCard },
     { id: "security" as SettingsTab, label: "Security", icon: Shield },
     { id: "api-keys" as SettingsTab, label: "API Keys", icon: Key },
+    { id: "integrations" as SettingsTab, label: "Integrations", icon: Plug2 },
   ];
 
   return (
@@ -277,6 +280,7 @@ export default function SettingsPage() {
         )}
         {activeTab === "security" && <SecurityTab />}
         {activeTab === "api-keys" && <ApiKeysTab />}
+        {activeTab === "integrations" && <IntegrationsPage />}
       </div>
     </div>
   );

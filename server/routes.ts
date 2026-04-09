@@ -16,6 +16,7 @@ import twilio from "twilio";
 import crypto from "crypto";
 import { getTwilioClient, getTwilioAccountSid, getTwilioAuthToken, sendSms2FACode, verifySms2FACode, sendSignupNotification } from "./twilioClient";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
+import { calculateCallCostCents } from '../shared/pricing';
 import { db } from "./db";
 import { sql, eq, and, sum, count, desc } from "drizzle-orm";
 
@@ -2944,7 +2945,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   async function getOrCreateMeteredPrice(stripe: any) {
     const ORDERLY_PRODUCT_NAME = 'Orderly AI Usage';
-    const ORDERLY_METERED_PRICE_LOOKUP = 'orderly_usage_per_minute';
+    const ORDERLY_METERED_PRICE_LOOKUP = 'orderly_usage_per_cent_v2';
 
     const existingPrices = await stripe.prices.list({
       lookup_keys: [ORDERLY_METERED_PRICE_LOOKUP],
@@ -2971,14 +2972,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const price = await stripe.prices.create({
       product: product.id,
       currency: 'usd',
-      unit_amount: 29,
+      unit_amount: 1,
       recurring: {
         interval: 'month',
         usage_type: 'metered',
         meter: meter.id,
       },
       lookup_key: ORDERLY_METERED_PRICE_LOOKUP,
-      metadata: { description: 'Per minute usage charge' },
+      metadata: { description: 'Per cent usage charge (1 unit = 1 cent)' },
     });
 
     return price;
@@ -4042,8 +4043,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const phoneNumber = phoneNumbers.rows[0] as any;
       const userId = phoneNumber.user_id;
 
-      // Create call log entry
-      await storage.createCallLog({
+      // Fetch agent to get aiModel + voiceProvider for accurate cost calculation
+      let aiModel = 'gpt-4o-mini';
+      let voiceProvider = 'cartesia';
+
+      if (phoneNumber.agent_id) {
+        try {
+          const agent = await storage.getAgent(phoneNumber.agent_id);
+          if (agent) {
+            aiModel = agent.aiModel || aiModel;
+            voiceProvider = agent.voiceProvider || voiceProvider;
+          }
+        } catch (agentErr) {
+          console.warn('[Billing] Could not fetch agent for cost calc, using defaults');
+        }
+      }
+
+      // Calculate exact cost in cents using pricing function
+      const costCents = calculateCallCostCents(durationSeconds, aiModel, voiceProvider);
+
+      // Create call log entry and capture DB primary key
+      const callLog = await storage.createCallLog({
         userId,
         callSid: CallSid,
         phoneNumberId: phoneNumber.id,
@@ -4058,38 +4078,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
         billingStatus: 'pending',
       });
 
-      // Create usage ledger entry for this call
+      // Create usage ledger entry for this call with full cost details
       const now = new Date();
       const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
       const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
       await storage.createUsageLedgerEntry({
         userId,
+        agentId: phoneNumber.agent_id || null,
+        callLogId: callLog.id,
         periodStart,
         periodEnd,
         minutesUsed: durationMinutes.toString(),
-        callLogId: CallSid,
+        aiModel,
+        voiceProvider,
+        costCents: costCents.toString(),
       });
 
-      // Report usage to Stripe via Billing Meter Events API
+      // Unified billing: trial credit OR metered subscription
       const subscription = await storage.getSubscription(userId);
-      if (subscription?.stripeSubscriptionId && subscription?.stripeCustomerId) {
-        const stripe = await getUncachableStripeClient();
-        if (stripe) {
+      const stripe = await getUncachableStripeClient();
+
+      if (stripe && subscription?.stripeCustomerId && costCents > 0) {
+        const hasSubscription = !!subscription.stripeSubscriptionId;
+
+        if (hasSubscription) {
+          // Subscription users: report exact cost in cents to Stripe meter
           try {
             const eventTimestamp = Math.floor(Date.now() / 1000);
             await stripe.billing.meterEvents.create({
               event_name: ORDERLY_METER_EVENT_NAME,
               payload: {
                 stripe_customer_id: subscription.stripeCustomerId,
-                value: String(durationMinutes),
+                value: String(costCents),
               },
               timestamp: eventTimestamp,
               identifier: `call_${CallSid}_${eventTimestamp}`,
             });
-            console.log(`Reported ${durationMinutes} minutes to Stripe meter for user ${userId}`);
+            console.log(`[Billing] Reported ${costCents}¢ to Stripe meter for user ${userId}`);
           } catch (stripeError: any) {
-            console.error("Error reporting usage to Stripe:", stripeError.message);
+            console.error('[Billing] Error reporting to Stripe meter:', stripeError.message);
+          }
+        } else {
+          // Trial users: deduct from Stripe customer balance (positive = debit)
+          try {
+            await stripe.customers.createBalanceTransaction(
+              subscription.stripeCustomerId,
+              {
+                amount: costCents,
+                currency: 'usd',
+                description: `Call: ${durationMinutes}min (${aiModel} + ${voiceProvider})`,
+              }
+            );
+            console.log(`[Billing] Deducted ${costCents}¢ from trial credit for user ${userId}`);
+          } catch (stripeError: any) {
+            console.error('[Billing] Error deducting trial credit:', stripeError.message);
           }
         }
       }

@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef, DragEvent, memo } from "react";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -792,15 +793,17 @@ function AgentEditorInner() {
     enabled: isAuthenticated && !isNew,
   });
 
-  const { data: flowNodesData = [], isLoading: isLoadingFlowNodes } = useQuery<any[]>({
+  const { data: rawFlowNodesData, isLoading: isLoadingFlowNodes } = useQuery<any[]>({
     queryKey: ["/api/agents", id, "flow-nodes"],
     enabled: isAuthenticated && !isNew,
   });
+  const flowNodesData = rawFlowNodesData ?? [];
 
-  const { data: flowConnectionsData = [], isLoading: isLoadingFlowConnections } = useQuery<any[]>({
+  const { data: rawFlowConnectionsData, isLoading: isLoadingFlowConnections } = useQuery<any[]>({
     queryKey: ["/api/agents", id, "flow-connections"],
     enabled: isAuthenticated && !isNew,
   });
+  const flowConnectionsData = rawFlowConnectionsData ?? [];
 
   const { data: knowledgeBases = [] } = useQuery<KnowledgeBase[]>({
     queryKey: ["/api/agents", id, "knowledge"],
@@ -848,7 +851,16 @@ function AgentEditorInner() {
       const bh = agent.businessHours as any;
       if (bh && bh.enabled) {
         setHoursEnabled(true);
-        if (bh.schedule) setHoursSchedule(bh.schedule);
+        if (bh.schedule && typeof bh.schedule === 'object') {
+          const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+          const isValidSchedule = days.every(day => {
+            const d = bh.schedule[day];
+            return d && typeof d.open === 'boolean' && typeof d.start === 'string' && typeof d.end === 'string';
+          });
+          if (isValidSchedule) {
+            setHoursSchedule(bh.schedule);
+          }
+        }
       } else {
         setHoursEnabled(false);
       }
@@ -2638,8 +2650,10 @@ function AgentEditorInner() {
 
 export default function AgentEditor() {
   return (
-    <ReactFlowProvider>
-      <AgentEditorInner />
-    </ReactFlowProvider>
+    <ErrorBoundary>
+      <ReactFlowProvider>
+        <AgentEditorInner />
+      </ReactFlowProvider>
+    </ErrorBoundary>
   );
 }

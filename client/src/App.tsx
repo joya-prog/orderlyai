@@ -14,6 +14,7 @@ import { OnboardingTour } from "@/components/onboarding-tour";
 import { OnboardingCallLock } from "@/components/onboarding-call-lock";
 import { Button } from "@/components/ui/button";
 import { ShieldCheck } from "lucide-react";
+import { ErrorBoundary } from "@/components/error-boundary";
 import NotFound from "@/pages/not-found";
 import Auth from "@/pages/auth";
 import Onboarding from "@/pages/onboarding";
@@ -226,7 +227,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <TooltipProvider>
-          <AppContent />
+          <ErrorBoundary>
+            <AppContent />
+          </ErrorBoundary>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>

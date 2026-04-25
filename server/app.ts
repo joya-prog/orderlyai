@@ -9,12 +9,15 @@ import express, {
 
 import { registerRoutes } from "./routes";
 import { runMigrations } from 'stripe-replit-sync';
-import { getStripeSync } from './stripeClient';
+import { getStripeSync, getUncachableStripeClient } from './stripeClient';
 import { WebhookHandlers } from './webhookHandlers';
 import { ensureTemplatesSeeded } from './seed';
 import { applyRateLimits } from "./rateLimit";
 import { db } from "./db";
-import { sql } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
+import { storage } from "./storage";
+import { usageLedger, users } from "@shared/schema";
+import crypto from "crypto";
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -128,6 +131,109 @@ app.post(
   }
 );
 
+// Stripe business-logic webhook — must be before express.json() for raw body
+app.post(
+  '/api/webhooks/stripe',
+  express.raw({ type: 'application/json' }),
+  async (req, res) => {
+    res.status(200).json({ received: true });
+
+    (async () => {
+      try {
+        const signature = req.headers['stripe-signature'];
+        if (!signature || !Buffer.isBuffer(req.body)) {
+          log('[Stripe webhook] Missing signature or non-buffer body — ignoring', 'stripe');
+          return;
+        }
+
+        const sig = Array.isArray(signature) ? signature[0] : signature;
+        const rawBody = req.body as Buffer;
+        const correlationId = crypto.randomUUID();
+
+        // Primary verification: route through WebhookHandlers (stripe-replit-sync)
+        try {
+          await WebhookHandlers.processWebhook(rawBody, sig, correlationId);
+        } catch (syncErr: any) {
+          // processWebhook may fail if correlationId doesn't match a managed config;
+          // fall back to STRIPE_WEBHOOK_SECRET for standalone verification
+          const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+          const isProduction = process.env.NODE_ENV === 'production';
+
+          if (webhookSecret) {
+            try {
+              const stripe = await getUncachableStripeClient();
+              stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+            } catch (verifyErr: any) {
+              log(`[Stripe webhook] Signature verification failed: ${verifyErr.message}`, 'stripe');
+              return;
+            }
+          } else if (isProduction) {
+            log('[Stripe webhook] STRIPE_WEBHOOK_SECRET not set in production — rejecting unsigned payload', 'stripe');
+            return;
+          } else {
+            log('[Stripe webhook] STRIPE_WEBHOOK_SECRET not set in dev — proceeding without verification', 'stripe');
+          }
+        }
+
+        let event: any;
+        try {
+          event = JSON.parse(rawBody.toString());
+        } catch (parseErr: any) {
+          log(`[Stripe webhook] Failed to parse event JSON: ${parseErr.message}`, 'stripe');
+          return;
+        }
+
+        const eventType: string = event.type;
+        log(`[Stripe webhook] Processing event: ${eventType} (correlationId: ${correlationId})`, 'stripe');
+
+        if (eventType === 'invoice.payment_failed') {
+          const invoice = event.data.object;
+          const customerId: string | undefined = invoice.customer;
+          if (customerId) {
+            const subscription = await storage.getSubscriptionByStripeCustomerId(customerId);
+            if (subscription) {
+              await storage.updateSubscription(subscription.userId, { status: 'past_due' });
+              // Also mark user account status so the app can gate access
+              await db.update(users)
+                .set({ accountStatus: 'suspended', updatedAt: new Date() })
+                .where(eq(users.id, subscription.userId));
+              log(`[Stripe webhook] Marked past_due + suspended account for customer ${customerId}`, 'stripe');
+            }
+          }
+        } else if (eventType === 'customer.subscription.deleted') {
+          const sub = event.data.object;
+          const stripeSubId: string = sub.id;
+          const existing = await storage.getSubscriptionByStripeId(stripeSubId);
+          if (existing) {
+            await storage.updateSubscription(existing.userId, {
+              status: 'canceled',
+              stripeSubscriptionId: null,
+              cancelAtPeriodEnd: false,
+            });
+            log(`[Stripe webhook] Marked subscription canceled for sub ${stripeSubId}`, 'stripe');
+          }
+        } else if (eventType === 'setup_intent.succeeded') {
+          const setupIntent = event.data.object;
+          const customerId: string | undefined = setupIntent.customer;
+          if (customerId) {
+            const subscription = await storage.getSubscriptionByStripeCustomerId(customerId);
+            // Activate if subscription is pending, trialing, or on the trial plan (setup_intent completion signals payment method attached)
+            if (subscription && (subscription.status === 'pending' || subscription.status === 'trialing' || subscription.planType === 'trial')) {
+              await storage.updateSubscription(subscription.userId, { status: 'active' });
+              await db.update(users)
+                .set({ accountStatus: 'active', updatedAt: new Date() })
+                .where(eq(users.id, subscription.userId));
+              log(`[Stripe webhook] Activated subscription for customer ${customerId}`, 'stripe');
+            }
+          }
+        }
+      } catch (err: any) {
+        log(`[Stripe webhook] Processing error: ${err.message}`, 'stripe');
+      }
+    })();
+  }
+);
+
 declare module 'http' {
   interface IncomingMessage {
     rawBody: unknown
@@ -214,5 +320,7 @@ export default async function runApp(
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    const domain = process.env.REPLIT_DOMAINS?.split(',')[0] || `localhost:${port}`;
+    log(`[Retell webhook URL] https://${domain}/api/webhooks/retell`, 'retell');
   });
 }

@@ -4168,6 +4168,181 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   }
 
+  // Retell post-call webhook — receives call_analyzed events with transcript and analytics
+  app.post("/api/webhooks/retell", async (req: any, res) => {
+    // Respond 200 immediately to avoid Retell retries
+    res.status(200).send('OK');
+
+    (async () => {
+      try {
+        const retellApiKey = process.env.RETELL_API_KEY;
+        const isProduction = process.env.NODE_ENV === 'production';
+
+        // Retell signature verification — fail-closed in all environments when API key is configured
+        if (!retellApiKey) {
+          if (isProduction) {
+            console.error('[Retell webhook] RETELL_API_KEY not set in production — rejecting all requests');
+            return;
+          }
+          console.warn('[Retell webhook] RETELL_API_KEY not set — skipping signature verification (dev only)');
+        } else {
+          const retellSig = req.headers['x-retell-signature'] as string | undefined;
+          if (!retellSig) {
+            console.warn('[Retell webhook] Missing X-Retell-Signature header — rejecting');
+            return;
+          }
+          const rawBody: Buffer = (req as any).rawBody || Buffer.from(JSON.stringify(req.body));
+          const expectedSigBuf = Buffer.from(
+            crypto.createHmac('sha256', retellApiKey).update(rawBody).digest('base64')
+          );
+          const receivedSigBuf = Buffer.from(retellSig);
+          // Use constant-time comparison to prevent timing attacks
+          const isValid = expectedSigBuf.length === receivedSigBuf.length &&
+            crypto.timingSafeEqual(expectedSigBuf, receivedSigBuf);
+          if (!isValid) {
+            console.warn('[Retell webhook] Invalid X-Retell-Signature — rejecting');
+            return;
+          }
+        }
+
+        const body = req.body;
+        const eventType: string = body.event || body.event_type || '';
+
+        // Only process call_analyzed events
+        if (eventType !== 'call_analyzed') {
+          console.log(`[Retell webhook] Ignoring event type: ${eventType}`);
+          return;
+        }
+
+        const callData = body.data || body.call || body;
+        const retellCallId: string | undefined = callData.call_id;
+        const durationSeconds: number = parseInt(callData.call_duration_seconds ?? callData.duration_ms / 1000 ?? '0', 10) || 0;
+        const transcript: string | undefined = callData.transcript;
+        const callAnalysis = callData.call_analysis || {};
+        const sentiment: string | undefined = callAnalysis.user_sentiment?.toLowerCase();
+        const summary: string | undefined = callAnalysis.call_summary;
+
+        console.log(`[Retell webhook] Processing call_analyzed for call ${retellCallId}`);
+
+        // Find matching call log by retell call_id (stored as callSid) or the call_sid field in payload
+        const payloadCallSid: string | undefined = callData.call_sid || callData.twilio_call_sid;
+        let callLog = retellCallId ? await storage.getCallLogByCallSid(retellCallId) : null;
+        if (!callLog && payloadCallSid && payloadCallSid !== retellCallId) {
+          callLog = await storage.getCallLogByCallSid(payloadCallSid);
+        }
+
+        if (callLog) {
+          // Update call log with transcript and analytics
+          const durationMinutes = Math.ceil(durationSeconds / 60);
+          const updatePayload: any = {
+            billingStatus: 'reported',
+          };
+          if (transcript) updatePayload.transcript = transcript;
+          if (durationSeconds > 0) {
+            updatePayload.durationSeconds = durationSeconds.toString();
+            updatePayload.durationMinutes = durationMinutes.toString();
+            updatePayload.duration = durationSeconds.toString();
+          }
+          if (sentiment) updatePayload.sentiment = sentiment;
+          if (summary) updatePayload.callOutcome = summary;
+
+          await storage.updateCallLog(callLog.id, updatePayload);
+          console.log(`[Retell webhook] Updated call log ${callLog.id} with transcript and analytics`);
+
+          // Check if a usage_ledger entry already exists for this call
+          const existingLedger = await db
+            .select()
+            .from(usageLedger)
+            .where(eq(usageLedger.callLogId, callLog.id))
+            .limit(1);
+
+          if (existingLedger.length === 0 && durationSeconds > 0) {
+            // No ledger entry — this is a Retell-only call (not routed through Twilio billing)
+            const userId = callLog.userId;
+
+            // Get agent info for accurate cost calculation
+            let aiModel = 'gpt-4o-mini';
+            let voiceProvider = 'elevenlabs';
+            if (callLog.agentId) {
+              try {
+                const agent = await storage.getAgent(callLog.agentId);
+                if (agent) {
+                  aiModel = agent.aiModel || aiModel;
+                  voiceProvider = agent.voiceProvider || voiceProvider;
+                }
+              } catch {
+                console.warn('[Retell billing] Could not fetch agent, using defaults');
+              }
+            }
+
+            const costCents = calculateCallCostCents(durationSeconds, aiModel, voiceProvider);
+            const durationMinutesCeil = Math.ceil(durationSeconds / 60);
+            const now = new Date();
+            const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+            await storage.createUsageLedgerEntry({
+              userId,
+              agentId: callLog.agentId || null,
+              callLogId: callLog.id,
+              periodStart,
+              periodEnd,
+              minutesUsed: durationMinutesCeil.toString(),
+              aiModel,
+              voiceProvider,
+              costCents: costCents.toString(),
+            });
+
+            // Bill via Stripe (trial deduction or metered subscription)
+            const subscription = await storage.getSubscription(userId);
+            const stripe = await getUncachableStripeClient();
+
+            if (stripe && subscription?.stripeCustomerId && costCents > 0) {
+              const hasSubscription = !!subscription.stripeSubscriptionId;
+              if (hasSubscription) {
+                try {
+                  const eventTimestamp = Math.floor(Date.now() / 1000);
+                  await stripe.billing.meterEvents.create({
+                    event_name: 'orderly_call_minutes',
+                    payload: {
+                      stripe_customer_id: subscription.stripeCustomerId,
+                      value: String(costCents),
+                    },
+                    timestamp: eventTimestamp,
+                    identifier: `retell_${retellCallId}_${eventTimestamp}`,
+                  });
+                  console.log(`[Retell billing] Reported ${costCents}¢ to Stripe meter for user ${userId}`);
+                } catch (stripeErr: any) {
+                  console.error('[Retell billing] Error reporting to Stripe meter:', stripeErr.message);
+                }
+              } else {
+                try {
+                  await stripe.customers.createBalanceTransaction(
+                    subscription.stripeCustomerId,
+                    {
+                      amount: costCents,
+                      currency: 'usd',
+                      description: `Retell call: ${durationMinutesCeil}min (${aiModel} + ${voiceProvider})`,
+                    }
+                  );
+                  console.log(`[Retell billing] Deducted ${costCents}¢ from trial credit for user ${userId}`);
+                } catch (stripeErr: any) {
+                  console.error('[Retell billing] Error deducting trial credit:', stripeErr.message);
+                }
+              }
+            }
+          } else if (existingLedger.length > 0) {
+            console.log(`[Retell webhook] Usage ledger entry already exists for call ${callLog.id} — skipping billing`);
+          }
+        } else {
+          console.warn(`[Retell webhook] No call log found for retell call_id: ${retellCallId}`);
+        }
+      } catch (err: any) {
+        console.error('[Retell webhook] Processing error:', err.message);
+      }
+    })();
+  });
+
   // Twilio Voice Webhook - handles incoming calls and routes to AI agent
   app.post("/api/voice/incoming", async (req, res) => {
     try {

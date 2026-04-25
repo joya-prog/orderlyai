@@ -27,6 +27,52 @@ const twilioClient = twilioAccountSid && twilioAuthToken
   ? twilio(twilioAccountSid, twilioAuthToken) 
   : null;
 
+async function getKbContentForUser(userId: string): Promise<string> {
+  try {
+    const sources = await db
+      .select({
+        collectionName: kbCollections.name,
+        sourceName: kbSources.name,
+        content: kbSources.content,
+      })
+      .from(kbSources)
+      .innerJoin(kbCollections, eq(kbSources.collectionId, kbCollections.id))
+      .where(eq(kbCollections.userId, userId));
+
+    if (sources.length === 0) return '';
+
+    const grouped: Record<string, Array<{ name: string; content: string }>> = {};
+    for (const s of sources) {
+      if (!s.content) continue;
+      if (!grouped[s.collectionName]) grouped[s.collectionName] = [];
+      grouped[s.collectionName].push({ name: s.sourceName, content: s.content });
+    }
+
+    if (Object.keys(grouped).length === 0) return '';
+
+    let text = '';
+    for (const [collName, items] of Object.entries(grouped)) {
+      text += `### ${collName}\n\n`;
+      for (const item of items) {
+        text += `**${item.name}**\n${item.content}\n\n`;
+      }
+    }
+    return text.trim();
+  } catch (err) {
+    console.error('[KB] Error fetching KB content for user:', err);
+    return '';
+  }
+}
+
+function appendKbBlock(prompt: string, kbContent: string): string {
+  if (!kbContent) return prompt;
+  const kbSection = `\n\n## Knowledge Base\n\n${kbContent}`;
+  if (prompt.includes('## Knowledge Base')) {
+    return prompt.replace(/\n\n## Knowledge Base[\s\S]*$/, kbSection);
+  }
+  return prompt + kbSection;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
@@ -450,9 +496,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Sync with Retell AI if configured
       if (await retell.isRetellConfigured()) {
         try {
+          const kbContent = await getKbContentForUser(userId);
+          const enrichedPrompt = appendKbBlock(data.systemPrompt || '', kbContent);
           // Create Conversation Flow in Retell (conversation-flow type agent)
           const flowId = await retell.createRetellConversationFlow({
-            generalPrompt: data.systemPrompt || '',
+            generalPrompt: enrichedPrompt,
             beginMessage: data.greetingMessage,
             model: data.aiModel || 'gpt-4o-mini',
             modelTemperature: 0.7,
@@ -535,8 +583,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Update Conversation Flow if prompt/model/hours changed
           if (data.systemPrompt || data.greetingMessage || data.aiModel || data.businessHours || data.afterHoursMode || data.afterHoursMessage !== undefined || data.timezone) {
             const mergedAgent = { ...agent, ...data };
+            const kbContent = await getKbContentForUser(agent.userId);
+            const basePrompt = data.systemPrompt || agent.systemPrompt || '';
+            const enrichedPrompt = appendKbBlock(basePrompt, kbContent);
             await retell.updateRetellConversationFlow(agent.retellLlmId, {
-              generalPrompt: data.systemPrompt || agent.systemPrompt || '',
+              generalPrompt: enrichedPrompt,
               beginMessage: data.greetingMessage || agent.greetingMessage,
               model: data.aiModel || agent.aiModel,
               modelTemperature: 0.7,
@@ -640,14 +691,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Retell AI is not configured" });
       }
 
-      // If already synced, skip
+      const kbContent = await getKbContentForUser(agent.userId);
+      const enrichedPrompt = appendKbBlock(agent.systemPrompt || '', kbContent);
+
+      // If already synced, push current config as an update instead of creating new resources
       if (agent.retellAgentId && agent.retellLlmId) {
-        return res.json({ message: "Agent already synced to Retell", retellAgentId: agent.retellAgentId });
+        await retell.updateRetellConversationFlow(agent.retellLlmId, {
+          generalPrompt: enrichedPrompt,
+          beginMessage: agent.greetingMessage || '',
+          model: agent.aiModel || 'gpt-4o-mini',
+          modelTemperature: 0.7,
+        }, agent);
+
+        await retell.updateRetellAgent(agent.retellAgentId, {
+          agentName: agent.name,
+          voiceId: agent.voiceId || '11labs-Adrian',
+          voiceModel: agent.voiceModel || 'eleven_turbo_v2',
+          voiceSpeed: parseFloat(agent.voiceSpeed || '1.0'),
+          voiceTemperature: agent.voiceTemperature ? parseFloat(String(agent.voiceTemperature)) : 1.0,
+          volume: agent.voiceVolume ? parseFloat(String(agent.voiceVolume)) : 1.0,
+          responsiveness: agent.responsiveness ? parseFloat(String(agent.responsiveness)) : 1.0,
+          interruptionSensitivity: parseFloat(agent.interruptionSensitivity || '1.0'),
+          language: agent.language || 'en-US',
+          enableBackchannel: agent.enableBackchannel ?? true,
+          backchannelFrequency: typeof agent.backchannelFrequency === 'number' ? agent.backchannelFrequency : 0.9,
+          backchannelWords: agent.backchannelWords || ['yeah', 'uh-huh', 'I see'],
+          ambientSound: agent.ambientSound || undefined,
+          ambientSoundVolume: typeof agent.ambientSoundVolume === 'number' ? agent.ambientSoundVolume : 1.0,
+          beginMessageDelayMs: typeof agent.beginMessageDelayMs === 'number' ? agent.beginMessageDelayMs : 1000,
+        });
+
+        console.log(`[Retell] Force-synced existing agent ${agent.id} -> Retell ${agent.retellAgentId}`);
+        return res.json({ message: "Agent force-synced to Retell successfully", retellAgentId: agent.retellAgentId, agent });
       }
 
       // Create Conversation Flow in Retell
       const flowId = await retell.createRetellConversationFlow({
-        generalPrompt: agent.systemPrompt || '',
+        generalPrompt: enrichedPrompt,
         beginMessage: agent.greetingMessage || '',
         model: agent.aiModel || 'gpt-4o-mini',
         modelTemperature: 0.7,
@@ -716,13 +796,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If agent is not synced to Retell, sync it first
       let retellAgentId = agent.retellAgentId;
       let flowId = agent.retellLlmId;
+
+      // Build enriched prompt: base + business hours block + KB content
+      const webCallKbContent = await getKbContentForUser(agent.userId);
+      const webCallBasePrompt = agent.systemPrompt || "You are a helpful restaurant assistant.";
+      const webCallEnrichedPrompt = appendKbBlock(webCallBasePrompt, webCallKbContent);
       
       if (!retellAgentId) {
         console.log(`[Retell] Agent ${agent.id} not synced, syncing now for web call...`);
         
         // Create Conversation Flow in Retell
         flowId = await retell.createRetellConversationFlow({
-          generalPrompt: agent.systemPrompt || "You are a helpful restaurant assistant.",
+          generalPrompt: webCallEnrichedPrompt,
           beginMessage: agent.greetingMessage || "Hello! Thank you for calling. How can I help you today?",
           model: 'gpt-4o-mini',
           modelTemperature: 0.7,
@@ -797,7 +882,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             flowId,
             nodes,
             connections,
-            agent.systemPrompt || "You are a helpful restaurant assistant.",
+            webCallEnrichedPrompt,
             'gpt-4o-mini',
             agent
           );
@@ -1976,10 +2061,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "At least one field must be provided for update" });
       }
 
+      // Capture old agentId before update to detect changes
+      const existingPhoneNumber = await storage.getPhoneNumber(req.params.id);
+
       const phoneNumber = await storage.updatePhoneNumber(req.params.id, userId, cleanedData);
       if (!phoneNumber) {
         return res.status(404).json({ message: "Phone number not found or access denied" });
       }
+
+      // If agentId changed and the phone number has a Retell number ID, sync with Retell
+      if ('agentId' in cleanedData && existingPhoneNumber && cleanedData.agentId !== existingPhoneNumber.agentId) {
+        try {
+          if (await retell.isRetellConfigured()) {
+            const retellNumberId = phoneNumber.retellPhoneNumberId || phoneNumber.number;
+            if (cleanedData.agentId) {
+              const targetAgent = await storage.getAgent(cleanedData.agentId);
+              if (targetAgent?.retellAgentId) {
+                await retell.updateRetellPhoneNumber(retellNumberId, targetAgent.retellAgentId);
+                console.log(`[Retell] Linked phone ${retellNumberId} -> agent ${targetAgent.retellAgentId}`);
+              }
+            } else {
+              // agentId cleared — remove inbound agent from Retell
+              await retell.updateRetellPhoneNumber(retellNumberId, undefined);
+              console.log(`[Retell] Cleared inbound agent for phone ${retellNumberId}`);
+            }
+          }
+        } catch (retellErr) {
+          console.error('[Retell] Error syncing phone number assignment:', retellErr);
+          // Don't block the response — DB update already succeeded
+        }
+      }
+
       res.json(phoneNumber);
     } catch (error: any) {
       console.error("Error updating phone number:", error);

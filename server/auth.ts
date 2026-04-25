@@ -18,6 +18,11 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "Orderly AI <noreply@getorderly.io>";
 
 async function provisionTrialCredit(userId: string, email: string, name: string): Promise<void> {
+  const MAX_ATTEMPTS = 3;
+  const RETRY_DELAY_MS = 1000;
+
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
   try {
     const stripe = await getUncachableStripeClient();
     if (!stripe) {
@@ -48,14 +53,27 @@ async function provisionTrialCredit(userId: string, email: string, name: string)
       }
     }
 
-    // Apply $10 trial credit as negative balance (credit)
-    await stripe.customers.createBalanceTransaction(customerId, {
-      amount: -DEFAULT_TRIAL_CREDIT_CENTS,
-      currency: 'usd',
-      description: 'Orderly AI $10 Trial Credit',
-    });
+    // Apply $10 trial credit as negative balance (credit) — retry up to 3 times
+    let lastError: any;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        await stripe.customers.createBalanceTransaction(customerId, {
+          amount: -DEFAULT_TRIAL_CREDIT_CENTS,
+          currency: 'usd',
+          description: 'Orderly AI $10 Trial Credit',
+        });
+        console.log(`[Trial] Provisioned $${DEFAULT_TRIAL_CREDIT_CENTS / 100} trial credit for user ${userId} (attempt ${attempt})`);
+        return;
+      } catch (err) {
+        lastError = err;
+        console.warn(`[Trial] Attempt ${attempt}/${MAX_ATTEMPTS} failed to create balance transaction for user ${userId}:`, err);
+        if (attempt < MAX_ATTEMPTS) {
+          await sleep(RETRY_DELAY_MS);
+        }
+      }
+    }
 
-    console.log(`[Trial] Provisioned $${DEFAULT_TRIAL_CREDIT_CENTS / 100} trial credit for user ${userId}`);
+    console.error(`[Trial] All ${MAX_ATTEMPTS} attempts failed to provision trial credit for user ${userId}:`, lastError);
   } catch (err) {
     console.error('[Trial] Failed to provision trial credit:', err);
   }

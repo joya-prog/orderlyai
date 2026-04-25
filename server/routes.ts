@@ -16,9 +16,75 @@ import twilio from "twilio";
 import crypto from "crypto";
 import { getTwilioClient, getTwilioAccountSid, getTwilioAuthToken, sendSms2FACode, verifySms2FACode, sendSignupNotification } from "./twilioClient";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
-import { calculateCallCostCents } from '../shared/pricing';
+import { calculateCallCostCents, DEFAULT_TRIAL_CREDIT_CENTS } from '../shared/pricing';
 import { db } from "./db";
 import { sql, eq, and, sum, count, desc } from "drizzle-orm";
+
+// ==================== CREDIT STATUS HELPER ====================
+
+interface CreditStatus {
+  balanceCents: number;
+  hasPaymentMethod: boolean;
+  isTrial: boolean;
+}
+
+// In-memory cache: 30s TTL for fresh entries, stale entries returned as fallback on Stripe errors
+const creditStatusCache = new Map<string, { status: CreditStatus; expiresAt: number }>();
+
+async function getUserCreditStatus(userId: string): Promise<CreditStatus | null> {
+  const now = Date.now();
+  const cached = creditStatusCache.get(userId);
+  if (cached && cached.expiresAt > now) {
+    return cached.status;
+  }
+
+  try {
+    const stripe = await getUncachableStripeClient();
+    if (!stripe) {
+      // Stripe not configured — fall back to stale cache or allow through
+      if (cached) {
+        console.warn(`[CreditStatus] Stripe unavailable, using stale cache for user ${userId}`);
+        return cached.status;
+      }
+      return null;
+    }
+
+    const subscription = await storage.getSubscription(userId);
+    if (!subscription?.stripeCustomerId) {
+      return { balanceCents: 0, hasPaymentMethod: false, isTrial: true };
+    }
+
+    const isTrial = !subscription.stripeSubscriptionId || subscription.planType === 'trial';
+
+    const customer = await stripe.customers.retrieve(subscription.stripeCustomerId);
+    if (customer.deleted) {
+      return { balanceCents: 0, hasPaymentMethod: false, isTrial };
+    }
+
+    const balanceCents = Math.max(0, -(customer.balance ?? 0));
+
+    const paymentMethods = await stripe.paymentMethods.list({
+      customer: subscription.stripeCustomerId,
+      type: 'card',
+      limit: 1,
+    });
+    const hasPaymentMethod = paymentMethods.data.length > 0;
+
+    const status: CreditStatus = { balanceCents, hasPaymentMethod, isTrial };
+    creditStatusCache.set(userId, { status, expiresAt: now + 30_000 });
+    return status;
+  } catch (err) {
+    console.error('[CreditStatus] Failed to fetch credit status for user', userId, err);
+    // On transient Stripe errors, return stale cache if available (fail-safe for known users)
+    // rather than always failing open
+    if (cached) {
+      console.warn(`[CreditStatus] Returning stale cached status for user ${userId} after Stripe error`);
+      return cached.status;
+    }
+    // No stale data available — fail open (unknown user or first-time check during outage)
+    return null;
+  }
+}
 
 // Initialize Twilio client - but prefer the Replit connection integration
 const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -783,6 +849,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       if (agent.userId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Credit gate: block web calls for trial users with no credit and no payment method
+      const webCallCreditStatus = await getUserCreditStatus(req.user.id);
+      if (webCallCreditStatus && webCallCreditStatus.isTrial && webCallCreditStatus.balanceCents <= 0 && !webCallCreditStatus.hasPaymentMethod) {
+        return res.status(402).json({
+          message: "Your trial credit has been used. Please add a payment method to continue making calls.",
+          addPaymentUrl: "/billing",
+        });
       }
 
       // Check if Retell is configured - return 501 if voice service is not available
@@ -3506,7 +3581,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!subscription?.stripeCustomerId) {
         return res.json({
-          creditGrantedCents: 1000,
+          creditGrantedCents: DEFAULT_TRIAL_CREDIT_CENTS,
           balanceCents: 0,
           hasCredit: false,
         });
@@ -3514,24 +3589,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const stripe = await getUncachableStripeClient();
       if (!stripe) {
-        return res.json({ creditGrantedCents: 1000, balanceCents: 0, hasCredit: false });
+        return res.json({ creditGrantedCents: DEFAULT_TRIAL_CREDIT_CENTS, balanceCents: 0, hasCredit: false });
       }
+
+      const isTrial = !subscription.stripeSubscriptionId || subscription.planType === 'trial';
 
       const customer = await stripe.customers.retrieve(subscription.stripeCustomerId);
       if (customer.deleted) {
-        return res.json({ creditGrantedCents: 1000, balanceCents: 0, hasCredit: false });
+        return res.json({ creditGrantedCents: DEFAULT_TRIAL_CREDIT_CENTS, balanceCents: 0, hasCredit: false });
+      }
+
+      // Self-healing: only for trial accounts — if there are zero balance transactions,
+      // the signup credit was never applied (e.g. Stripe was unavailable at signup)
+      if (isTrial) {
+        const balanceTransactions = await stripe.customers.listBalanceTransactions(
+          subscription.stripeCustomerId,
+          { limit: 1 }
+        );
+        if (balanceTransactions.data.length === 0) {
+          console.log(`[BillingCredit] Auto-healing missing trial credit for user ${userId} (no balance transactions found)`);
+          try {
+            await stripe.customers.createBalanceTransaction(subscription.stripeCustomerId, {
+              amount: -DEFAULT_TRIAL_CREDIT_CENTS,
+              currency: 'usd',
+              description: 'Orderly AI $10 Trial Credit (auto-healed)',
+            });
+            // Invalidate credit status cache so next call reflects new balance
+            creditStatusCache.delete(userId);
+            console.log(`[BillingCredit] Auto-healed $${DEFAULT_TRIAL_CREDIT_CENTS / 100} trial credit for user ${userId}`);
+          } catch (healErr) {
+            console.error(`[BillingCredit] Auto-heal failed for user ${userId}:`, healErr);
+          }
+          // Re-fetch the customer to get updated balance
+          const refreshedCustomer = await stripe.customers.retrieve(subscription.stripeCustomerId);
+          if (!refreshedCustomer.deleted) {
+            const healedBalance = Math.max(0, -(refreshedCustomer.balance ?? 0));
+            return res.json({
+              creditGrantedCents: DEFAULT_TRIAL_CREDIT_CENTS,
+              balanceCents: healedBalance,
+              hasCredit: healedBalance > 0,
+            });
+          }
+        }
       }
 
       // Stripe balance: negative = credit remaining, positive = amount owed
       const balanceCents = Math.max(0, -(customer.balance ?? 0));
       res.json({
-        creditGrantedCents: 1000,
+        creditGrantedCents: DEFAULT_TRIAL_CREDIT_CENTS,
         balanceCents,
         hasCredit: balanceCents > 0,
       });
     } catch (error: any) {
       console.error("Error fetching credit balance:", error);
       res.status(500).json({ message: "Failed to fetch credit balance" });
+    }
+  });
+
+  // Get payment method status for the current user
+  app.get("/api/billing/payment-methods", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const subscription = await storage.getSubscription(userId);
+
+      if (!subscription?.stripeCustomerId) {
+        return res.json({ hasPaymentMethod: false, count: 0 });
+      }
+
+      const stripe = await getUncachableStripeClient();
+      if (!stripe) {
+        return res.json({ hasPaymentMethod: false, count: 0 });
+      }
+
+      const paymentMethods = await stripe.paymentMethods.list({
+        customer: subscription.stripeCustomerId,
+        type: 'card',
+      });
+
+      res.json({
+        hasPaymentMethod: paymentMethods.data.length > 0,
+        count: paymentMethods.data.length,
+      });
+    } catch (error: any) {
+      console.error("Error fetching payment methods:", error);
+      res.status(500).json({ message: "Failed to fetch payment methods" });
     }
   });
 
@@ -4469,6 +4610,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say>Sorry, this number is not configured to receive calls. Please try again later.</Say>
+  <Hangup />
+</Response>`);
+        return;
+      }
+
+      // Credit gate: check if the account owner has sufficient balance before routing
+      const creditStatus = await getUserCreditStatus(phoneNumber.userId);
+      if (creditStatus && creditStatus.isTrial && creditStatus.balanceCents <= 0 && !creditStatus.hasPaymentMethod) {
+        console.warn(`[Voice] Blocking call to ${To} — trial user ${phoneNumber.userId} has no credit and no payment method`);
+        res.type('text/xml');
+        res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>We're sorry, this service is temporarily unavailable. Please contact the restaurant directly.</Say>
   <Hangup />
 </Response>`);
         return;

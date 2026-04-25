@@ -90,6 +90,10 @@ export default function BillingPage() {
     queryKey: ["/api/billing/usage-ledger"],
   });
 
+  const { data: paymentMethodStatus } = useQuery<{ hasPaymentMethod: boolean; count: number }>({
+    queryKey: ["/api/billing/payment-methods"],
+  });
+
   const createPortalSession = useMutation({
     mutationFn: async () => {
       const res = await apiRequest('POST', '/api/billing/create-portal-session');
@@ -124,7 +128,7 @@ export default function BillingPage() {
     },
   });
 
-  const hasPaymentMethod = !!subscription?.stripeCustomerId;
+  const hasPaymentMethod = paymentMethodStatus?.hasPaymentMethod ?? !!subscription?.stripeCustomerId;
   const isTrialOrFree = !subscription?.stripeSubscriptionId || subscription?.planType === 'trial';
 
   const nextBillingDate = subscription?.currentPeriodEnd
@@ -249,7 +253,9 @@ export default function BillingPage() {
                       {creditLow ? (
                         <p className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-1.5" data-testid="text-credit-low-warning">
                           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                          Credit running low — add a payment method to avoid interruption.
+                          {hasPaymentMethod
+                            ? "Credit running low — you'll be billed automatically once it's used up."
+                            : "Credit running low — add a payment method to avoid interruption."}
                         </p>
                       ) : (
                         <p className="text-sm text-muted-foreground" data-testid="text-credit-info">
@@ -257,7 +263,7 @@ export default function BillingPage() {
                         </p>
                       )}
 
-                      {creditLow && (
+                      {creditLow && !hasPaymentMethod && (
                         <Button
                           size="sm"
                           onClick={() => createCheckoutSession.mutate()}

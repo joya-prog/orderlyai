@@ -158,9 +158,6 @@ export function VoiceSelector({ open, onOpenChange, provider: initialProvider, s
     try {
       setLoadingVoiceId(voiceId);
 
-      // Find the voice to get its preview_url if available
-      const voice = voices.find(v => getVoiceId(v) === voiceId);
-      
       const response = await fetch(`/api/voices/${activeProvider}/preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

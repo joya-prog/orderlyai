@@ -548,6 +548,13 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
             <div className="px-4 pb-3 space-y-2">
               {transitions.map((t, index) => (
                 <div key={t.id} className="relative flex items-center gap-2 group/transition">
+                  {/* Drag-to-connect hint — appears on transition row hover */}
+                  <span
+                    className="absolute right-7 top-1/2 -translate-y-1/2 text-[9px] font-medium text-muted-foreground bg-popover border border-border rounded px-1.5 py-0.5 opacity-0 group-hover/transition:opacity-100 transition-opacity duration-150 pointer-events-none whitespace-nowrap shadow-sm z-20"
+                    aria-hidden="true"
+                  >
+                    drag →
+                  </span>
                   <div className="flex items-center gap-2 flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400 flex-shrink-0">
                       <circle cx="12" cy="12" r="1" />

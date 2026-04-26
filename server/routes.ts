@@ -4628,8 +4628,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const lastAlertAt = creditAlertThrottle.get(phoneNumber.userId) ?? 0;
         if (Date.now() - lastAlertAt > CREDIT_ALERT_THROTTLE_MS) {
           creditAlertThrottle.set(phoneNumber.userId, Date.now());
-          const host = req.get('host') || 'app.getorderly.io';
-          const billingUrl = `https://${host}/billing`;
+          const canonicalHost =
+            process.env.REPLIT_DOMAINS?.split(',').find(d => !d.includes('replit.dev')) ||
+            process.env.APP_BASE_URL ||
+            'app.getorderly.io';
+          const billingUrl = `https://${canonicalHost}/billing`;
           storage.getUser(phoneNumber.userId).then(owner => {
             if (owner?.email) {
               sendCreditExhaustedAlert(owner.email, From || 'Unknown caller', billingUrl).catch(err => {

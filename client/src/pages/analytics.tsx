@@ -609,15 +609,15 @@ export default function AnalyticsPage() {
   const displayName = user?.restaurantName || user?.firstName || "there";
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto" data-testid="page-analytics">
+    <div className="flex flex-col h-full overflow-hidden" data-testid="page-analytics">
       <div className="px-6 pt-6 pb-4 flex items-start justify-between gap-4 flex-shrink-0 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-greeting">
+          <h1 className="text-[30px] font-bold tracking-tight leading-tight" data-testid="text-greeting">
             {getGreeting()}, {displayName}!
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">{getDailyTagline()}</p>
         </div>
-        <div className="flex items-center gap-1 rounded-full border bg-muted/40 p-1 flex-shrink-0">
+        <div className="flex items-center gap-1 rounded-full bg-foreground/90 p-1 flex-shrink-0">
           {(["7days", "30days", "90days", "12months"] as DateRangePreset[]).map((p) => (
             <button
               key={p}
@@ -626,7 +626,7 @@ export default function AnalyticsPage() {
               className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                 preset === p
                   ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  : "text-white/60 hover:text-white/90"
               }`}
             >
               {PRESET_LABELS[p]}
@@ -635,7 +635,7 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      <div className="px-6 pb-6 flex flex-col gap-5">
+      <div className="px-6 pb-6 flex flex-col gap-5 overflow-y-auto flex-1">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
             label="Total Calls"

@@ -1,28 +1,26 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
+import { Link } from "wouter";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, TrendingDown, CalendarDays, MoreHorizontal, Zap, Target } from "lucide-react";
-import { BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
-import type { AnalyticsEvent } from "@shared/schema";
+import {
+  TrendingUp, TrendingDown, Phone, Clock, DollarSign, Timer,
+  Maximize2, PhoneCall, PhoneMissed, ChevronRight, BarChart2, Zap,
+  CalendarDays,
+} from "lucide-react";
+import {
+  BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  LineChart, Line, RadialBarChart, RadialBar,
+} from "recharts";
+import type { AnalyticsEvent, CallLog } from "@shared/schema";
 
-function formatDuration(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}m ${secs}s`;
-}
-
-function formatCurrency(amount: number): string {
-  if (amount >= 1000) return `$${(amount / 1000).toFixed(1)}k`;
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
-}
-
-function formatNumber(num: number): string {
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
-  return num.toString();
-}
+// ─────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────
 
 interface AnalyticsOverview {
   totalCalls: number;
@@ -32,57 +30,169 @@ interface AnalyticsOverview {
   events: number;
 }
 
-type DateRangePreset = "7days" | "30days" | "90days" | "12months" | "alltime";
-
-function getDateRangeFromPreset(preset: DateRangePreset): { startDate: string; endDate: string } {
-  const endDate = new Date();
-  let startDate: Date;
-  switch (preset) {
-    case "7days": startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); break;
-    case "30days": startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); break;
-    case "90days": startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000); break;
-    case "12months": startDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000); break;
-    case "alltime": startDate = new Date("2020-01-01"); break;
-  }
-  return { startDate: startDate.toISOString(), endDate: endDate.toISOString() };
+interface UsageSummary {
+  current: {
+    totalMinutes: number;
+    totalCostCents: number;
+    callCount: number;
+    avgDurationSeconds: number;
+    dailyBreakdown: Array<{ date: string; minutes: number; costCents: number; callCount: number }>;
+  };
+  previous: {
+    totalMinutes: number;
+    totalCostCents: number;
+    callCount: number;
+    avgDurationSeconds: number;
+  };
 }
 
-const CHART_COLORS = {
-  primary: 'hsl(217 91% 60%)', accent: 'hsl(168 76% 42%)', purple: 'hsl(280 65% 60%)',
-  amber: 'hsl(43 96% 56%)', green: 'hsl(142 76% 36%)', pink: 'hsl(330 80% 60%)', blue: 'hsl(217 91% 60%)',
+interface AuthUser {
+  id: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  restaurantName?: string;
+}
+
+type DateRangePreset = "7days" | "30days" | "90days" | "12months";
+type ExpandType = "calls" | "revenue" | "peakhours" | "conversion" | "recentcalls";
+
+// ─────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────
+
+function formatDuration(seconds: number): string {
+  if (!seconds || seconds === 0) return "0m 0s";
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.round(seconds % 60);
+  return `${mins}m ${secs}s`;
+}
+
+function formatCents(cents: number): string {
+  const dollars = cents / 100;
+  if (dollars >= 1000) return `$${(dollars / 1000).toFixed(1)}k`;
+  return `$${dollars.toFixed(2)}`;
+}
+
+function formatNumber(num: number): string {
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
+  return String(Math.round(num));
+}
+
+function calcTrend(current: number, previous: number): number {
+  if (previous === 0) return current > 0 ? 100 : 0;
+  return ((current - previous) / previous) * 100;
+}
+
+function getDateRange(preset: DateRangePreset): { startDate: string; endDate: string } {
+  const end = new Date();
+  let ms: number;
+  switch (preset) {
+    case "7days":    ms = 7 * 86400000; break;
+    case "30days":   ms = 30 * 86400000; break;
+    case "90days":   ms = 90 * 86400000; break;
+    case "12months": ms = 365 * 86400000; break;
+  }
+  return {
+    startDate: new Date(Date.now() - ms).toISOString(),
+    endDate: end.toISOString(),
+  };
+}
+
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+const TAGLINES = [
+  "Here's how your AI agent is performing.",
+  "Let's see what your callers were up to.",
+  "Your performance summary is ready.",
+  "Here's your latest call intelligence.",
+  "Your voice AI insights at a glance.",
+  "Let's see what happened on the phones.",
+  "Here's your restaurant's AI activity report.",
+];
+
+function getDailyTagline(): string {
+  const day = new Date().getDay();
+  return TAGLINES[day % TAGLINES.length];
+}
+
+const PRESET_LABELS: Record<DateRangePreset, string> = {
+  "7days": "7 days",
+  "30days": "30 days",
+  "90days": "90 days",
+  "12months": "12 months",
 };
 
-const PIE_COLORS = ['hsl(217 91% 60%)', 'hsl(168 76% 42%)', 'hsl(280 65% 60%)', 'hsl(43 96% 56%)'];
+// ─────────────────────────────────────────
+// Sub-components
+// ─────────────────────────────────────────
 
-
-type ChartType = 'calls' | 'revenue' | 'orders' | 'peakhours' | 'conversion';
-
-interface ExpandedCardData { title: string; type: ChartType; }
-
-function MiniSparkline({ data, color, height = 16 }: { data: number[]; color: string; height?: number }) {
-  if (data.length === 0) return <div style={{ height }} className="bg-muted/30 rounded" />;
+function MiniSparkline({ data, color }: { data: number[]; color: string }) {
+  if (data.length < 2) {
+    return <div className="h-8 bg-muted/20 rounded" />;
+  }
   const chartData = data.map((value, index) => ({ value, index }));
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={chartData}><Line type="monotone" dataKey="value" stroke={color} strokeWidth={1.5} dot={false} /></LineChart>
+    <ResponsiveContainer width="100%" height={32}>
+      <LineChart data={chartData}>
+        <Line type="monotone" dataKey="value" stroke={color} strokeWidth={1.5} dot={false} />
+      </LineChart>
     </ResponsiveContainer>
   );
 }
 
-function ProgressBar({ value, max, color, label }: { value: number; max: number; color: string; label: string }) {
-  const percentage = Math.min((value / max) * 100, 100);
+function TrendBadge({ pct }: { pct: number }) {
+  const up = pct >= 0;
   return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-sm"><span className="text-muted-foreground">{label}</span><span className="font-medium">{formatNumber(value)}</span></div>
-      <div className="h-2 bg-muted rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${percentage}%`, backgroundColor: color }} /></div>
+    <span
+      className={`inline-flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded-full ${
+        up
+          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+      }`}
+      data-testid="badge-trend"
+    >
+      {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+      {Math.abs(pct).toFixed(0)}%
+    </span>
+  );
+}
+
+function EmptyState({ icon: Icon, title, hint }: { icon: React.ElementType; title: string; hint: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-2 py-8 text-center">
+      <div className="p-3 rounded-full bg-muted/40">
+        <Icon className="h-5 w-5 text-muted-foreground" />
+      </div>
+      <p className="text-sm font-medium text-foreground">{title}</p>
+      <p className="text-xs text-muted-foreground max-w-[200px]">{hint}</p>
     </div>
   );
 }
 
+const TOOLTIP_STYLE = {
+  backgroundColor: "hsl(var(--card))",
+  border: "1px solid hsl(var(--border))",
+  borderRadius: "8px",
+  fontSize: "12px",
+};
+
+// ─────────────────────────────────────────
+// Main Component
+// ─────────────────────────────────────────
+
 export default function AnalyticsPage() {
-  const [datePreset, setDatePreset] = useState<DateRangePreset>("30days");
-  const [expandedCard, setExpandedCard] = useState<ExpandedCardData | null>(null);
-  const dateRange = useMemo(() => getDateRangeFromPreset(datePreset), [datePreset]);
+  const [preset, setPreset] = useState<DateRangePreset>("30days");
+  const [expanded, setExpanded] = useState<{ type: ExpandType; title: string } | null>(null);
+
+  const dateRange = useMemo(() => getDateRange(preset), [preset]);
+
+  const { data: user } = useQuery<AuthUser>({ queryKey: ["/api/auth/user"] });
 
   const { data: overview, isLoading: overviewLoading } = useQuery<AnalyticsOverview>({
     queryKey: [`/api/analytics/overview?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`],
@@ -92,335 +202,636 @@ export default function AnalyticsPage() {
     queryKey: [`/api/analytics/events?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`],
   });
 
-  const comparisonDateRange = useMemo(() => {
-    const endDate = new Date();
-    const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-    return { startDate: startDate.toISOString(), endDate: endDate.toISOString() };
-  }, []);
-
-  const { data: comparisonEvents, isLoading: comparisonLoading } = useQuery<AnalyticsEvent[]>({
-    queryKey: [`/api/analytics/events?startDate=${comparisonDateRange.startDate}&endDate=${comparisonDateRange.endDate}`],
+  const { data: usage, isLoading: usageLoading } = useQuery<UsageSummary>({
+    queryKey: [`/api/analytics/usage-summary?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`],
   });
 
-  const isLoading = overviewLoading || eventsLoading;
-  const hasData = events && events.length > 0;
+  const { data: callLogs, isLoading: logsLoading } = useQuery<CallLog[]>({
+    queryKey: ["/api/call-logs"],
+  });
 
-  const processedData = useMemo(() => {
+  const isLoading = overviewLoading || eventsLoading || usageLoading;
+
+  // ── Processed event data ──
+  const processed = useMemo(() => {
     if (!events || events.length === 0) {
-      return { callVolumeData: [], revenueData: [], hourlyData: [], eventTypeData: [], peakDay: 'N/A', conversionRate: 0, avgOrderValue: 0, totalRevenue: 0, sparklineData: { calls: [], revenue: [], orders: [] } };
+      return {
+        callVolumeData: [] as Array<{ date: string; calls: number; orders: number; reservations: number }>,
+        hourlyData: [] as Array<{ hour: string; count: number; rawHour: number }>,
+        conversionRate: 0,
+      };
     }
 
-    const dailyMap = new Map<string, { calls: number; revenue: number; orders: number; reservations: number; timestamp: number }>();
+    const dailyMap = new Map<string, { calls: number; orders: number; reservations: number; ts: number }>();
     const hourlyMap = new Map<number, number>();
-    const dayMap = new Map<string, number>();
-    const eventTypeMap = new Map<string, number>();
-    let totalRevenue = 0, orderCount = 0;
-
     for (let i = 0; i < 24; i++) hourlyMap.set(i, 0);
 
-    events.forEach((event) => {
-      if (!event.createdAt) return;
-      const dateObj = new Date(event.createdAt);
-      const date = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
-      const hour = dateObj.getHours();
-      const existing = dailyMap.get(date) || { calls: 0, revenue: 0, orders: 0, reservations: 0, timestamp: dateObj.getTime() };
-      existing.calls += 1;
-      if (event.eventType === 'order_placed' && event.metadata) {
-        const amount = typeof (event.metadata as any).amount === 'number' ? (event.metadata as any).amount : parseFloat((event.metadata as any).amount) || 0;
-        existing.revenue += amount; existing.orders += 1; totalRevenue += amount; orderCount++;
-      }
-      if (event.eventType === 'reservation_created') {
-        existing.reservations += 1;
-      }
-      dailyMap.set(date, existing);
-      hourlyMap.set(hour, (hourlyMap.get(hour) || 0) + 1);
-      dayMap.set(dayName, (dayMap.get(dayName) || 0) + 1);
-      eventTypeMap.set(event.eventType, (eventTypeMap.get(event.eventType) || 0) + 1);
+    let callsStarted = 0, ordersPlaced = 0;
+
+    events.forEach((e) => {
+      if (!e.createdAt) return;
+      const d = new Date(e.createdAt);
+      const dateKey = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const hour = d.getHours();
+
+      const existing = dailyMap.get(dateKey) ?? { calls: 0, orders: 0, reservations: 0, ts: d.getTime() };
+      existing.calls++;
+      if (e.eventType === "order_placed") existing.orders++;
+      if (e.eventType === "reservation_created") existing.reservations++;
+      dailyMap.set(dateKey, existing);
+      hourlyMap.set(hour, (hourlyMap.get(hour) ?? 0) + 1);
+
+      if (e.eventType === "call_started") callsStarted++;
+      if (e.eventType === "order_placed") ordersPlaced++;
     });
 
-    const callVolumeData = Array.from(dailyMap.entries()).map(([date, data]) => ({ date, ...data })).sort((a, b) => a.timestamp - b.timestamp).slice(-14);
-    const hourlyData = Array.from(hourlyMap.entries()).map(([hour, count]) => ({ hour: hour === 0 ? '12a' : hour === 12 ? '12p' : hour > 12 ? `${hour - 12}p` : `${hour}a`, count, rawHour: hour })).sort((a, b) => a.rawHour - b.rawHour);
-    const peakDay = Array.from(dayMap.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
-    const eventTypeData = Array.from(eventTypeMap.entries()).map(([name, value]) => ({ name: name.replace(/_/g, ' '), value })).sort((a, b) => b.value - a.value).slice(0, 4);
-    const callsStarted = eventTypeMap.get('call_started') || 0;
-    const ordersPlaced = eventTypeMap.get('order_placed') || 0;
-    const conversionRate = callsStarted > 0 ? (ordersPlaced / callsStarted) * 100 : 0;
-    const avgOrderValue = orderCount > 0 ? totalRevenue / orderCount : 0;
+    const callVolumeData = Array.from(dailyMap.entries())
+      .map(([date, v]) => ({ date, calls: v.calls, orders: v.orders, reservations: v.reservations, ts: v.ts }))
+      .sort((a, b) => a.ts - b.ts)
+      .slice(-14)
+      .map(({ ts: _ts, ...rest }) => rest);
 
-    return {
-      callVolumeData,
-      revenueData: callVolumeData.map(d => ({ date: d.date, revenue: d.revenue })),
-      hourlyData, eventTypeData, peakDay, conversionRate, avgOrderValue, totalRevenue,
-      sparklineData: { calls: callVolumeData.map(d => d.calls), revenue: callVolumeData.map(d => d.revenue), orders: callVolumeData.map(d => d.orders) },
-    };
+    const hourlyData = Array.from(hourlyMap.entries())
+      .map(([h, count]) => ({
+        hour: h === 0 ? "12a" : h === 12 ? "12p" : h > 12 ? `${h - 12}p` : `${h}a`,
+        count,
+        rawHour: h,
+      }))
+      .sort((a, b) => a.rawHour - b.rawHour);
+
+    const conversionRate = callsStarted > 0 ? (ordersPlaced / callsStarted) * 100 : 0;
+
+    return { callVolumeData, hourlyData, conversionRate };
   }, [events]);
 
-  const previousPeriodChange = useMemo(() => {
-    if (!comparisonEvents || comparisonEvents.length === 0) return { calls: 0, revenue: 0, orders: 0 };
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
-    let currentCalls = 0, prevCalls = 0, currentRevenue = 0, prevRevenue = 0, currentOrders = 0, prevOrders = 0;
-    comparisonEvents.forEach(event => {
-      if (!event.createdAt) return;
-      const eventDate = new Date(event.createdAt);
-      const isOrder = event.eventType === 'order_placed';
-      const amount = isOrder && event.metadata ? (typeof (event.metadata as any).amount === 'number' ? (event.metadata as any).amount : parseFloat((event.metadata as any).amount) || 0) : 0;
-      if (eventDate >= thirtyDaysAgo) { currentCalls++; if (isOrder) { currentRevenue += amount; currentOrders++; } }
-      else if (eventDate >= sixtyDaysAgo) { prevCalls++; if (isOrder) { prevRevenue += amount; prevOrders++; } }
-    });
-    const calcChange = (curr: number, prev: number) => prev > 0 ? ((curr - prev) / prev) * 100 : (curr > 0 ? 100 : 0);
-    return { calls: calcChange(currentCalls, prevCalls), revenue: calcChange(currentRevenue, prevRevenue), orders: calcChange(currentOrders, prevOrders) };
-  }, [comparisonEvents]);
+  // ── KPI sparklines from daily usage breakdown ──
+  const sparklines = useMemo(() => {
+    const breakdown = usage?.current?.dailyBreakdown ?? [];
+    return {
+      calls: breakdown.map((d) => d.callCount),
+      minutes: breakdown.map((d) => d.minutes),
+      cost: breakdown.map((d) => d.costCents / 100),
+    };
+  }, [usage]);
 
-  const renderExpandedChart = () => {
-    if (!expandedCard) return null;
-    if (isLoading) return <div className="h-[400px] flex items-center justify-center"><Skeleton className="h-full w-full" /></div>;
-    const noDataFallback = <div className="h-[400px] flex items-center justify-center text-muted-foreground">No data available</div>;
-    switch (expandedCard.type) {
-      case 'calls':
-        if (!hasData || processedData.callVolumeData.length === 0) return noDataFallback;
-        return (<ResponsiveContainer width="100%" height={400}><AreaChart data={processedData.callVolumeData}><defs><linearGradient id="ecg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CHART_COLORS.blue} stopOpacity={0.4}/><stop offset="100%" stopColor={CHART_COLORS.blue} stopOpacity={0.05}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} /><XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} /><YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} /><Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} /><Area type="monotone" dataKey="calls" stroke={CHART_COLORS.blue} strokeWidth={2} fill="url(#ecg)" /></AreaChart></ResponsiveContainer>);
-      case 'revenue':
-        if (!hasData || processedData.revenueData.length === 0) return noDataFallback;
-        return (<ResponsiveContainer width="100%" height={400}><AreaChart data={processedData.revenueData}><defs><linearGradient id="erg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CHART_COLORS.green} stopOpacity={0.4}/><stop offset="100%" stopColor={CHART_COLORS.green} stopOpacity={0.05}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} /><XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} /><YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `$${v}`} /><Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} formatter={(value: number) => [`$${value.toFixed(2)}`, 'Revenue']} /><Area type="monotone" dataKey="revenue" stroke={CHART_COLORS.green} strokeWidth={2} fill="url(#erg)" /></AreaChart></ResponsiveContainer>);
-      case 'orders':
-        if (!hasData || processedData.callVolumeData.length === 0) return noDataFallback;
-        return (<ResponsiveContainer width="100%" height={400}><BarChart data={processedData.callVolumeData} barCategoryGap="15%"><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} /><XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} /><YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} /><Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} /><Bar dataKey="orders" fill={CHART_COLORS.accent} radius={[4, 4, 0, 0]} barSize={28} /></BarChart></ResponsiveContainer>);
-      case 'peakhours':
-        if (!hasData || processedData.hourlyData.length === 0) return noDataFallback;
-        return (<ResponsiveContainer width="100%" height={400}><BarChart data={processedData.hourlyData} barCategoryGap="10%"><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} /><XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" fontSize={11} /><YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} /><Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} /><Bar dataKey="count" fill={CHART_COLORS.amber} radius={[4, 4, 0, 0]} barSize={22} /></BarChart></ResponsiveContainer>);
-      case 'conversion':
-        if (!hasData || processedData.eventTypeData.length === 0) return noDataFallback;
-        return (<ResponsiveContainer width="100%" height={400}><PieChart><Pie data={processedData.eventTypeData} cx="50%" cy="50%" innerRadius={80} outerRadius={140} paddingAngle={3} dataKey="value">{processedData.eventTypeData.map((_, i) => (<Cell key={`c-${i}`} fill={PIE_COLORS[i % PIE_COLORS.length]} />))}</Pie><Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} /></PieChart></ResponsiveContainer>);
-      default: return noDataFallback;
-    }
+  // ── KPI trends ──
+  const trends = useMemo(() => {
+    if (!usage) return { calls: 0, minutes: 0, cost: 0, duration: 0 };
+    const { current, previous } = usage;
+    return {
+      calls: calcTrend(current.callCount, previous.callCount),
+      minutes: calcTrend(current.totalMinutes, previous.totalMinutes),
+      cost: calcTrend(current.totalCostCents, previous.totalCostCents),
+      duration: calcTrend(current.avgDurationSeconds, previous.avgDurationSeconds),
+    };
+  }, [usage]);
+
+  // ── Duration sparklines from call volume data ──
+  const durationSparkline = useMemo(() => {
+    return processed.callVolumeData.map((d) => d.calls);
+  }, [processed]);
+
+  // ── Peak hours color scale ──
+  const maxHourCount = useMemo(
+    () => Math.max(...processed.hourlyData.map((d) => d.count), 1),
+    [processed.hourlyData]
+  );
+
+  const getHourColor = (count: number) => {
+    const ratio = count / maxHourCount;
+    if (ratio < 0.25) return "hsl(217 91% 70%)";
+    if (ratio < 0.5) return "hsl(199 89% 58%)";
+    if (ratio < 0.75) return "hsl(43 96% 56%)";
+    return "hsl(25 95% 53%)";
   };
 
+  // ── Recent calls ──
+  const recentCalls = useMemo(() => (callLogs ?? []).slice(0, 6), [callLogs]);
+
+  // ── Donut/gauge for AI performance ──
+  const gaugeData = useMemo(() => {
+    const score = Math.min(Math.round(processed.conversionRate), 100);
+    const color =
+      score < 10 ? "hsl(0 84% 60%)" : score < 25 ? "hsl(43 96% 56%)" : "hsl(142 76% 36%)";
+    return { score, color };
+  }, [processed.conversionRate]);
+
+  const performanceInsight = useMemo(() => {
+    const { score } = gaugeData;
+    if (score === 0) return "No orders recorded yet — calls are coming in.";
+    if (score < 10) return `${score}% of calls result in an order.`;
+    const n = Math.round(100 / score);
+    return `Roughly 1 in ${n} calls results in an order.`;
+  }, [gaugeData]);
+
+  // ── Expand modal chart renderer ──
+  function renderExpandedContent() {
+    if (!expanded) return null;
+
+    switch (expanded.type) {
+      case "calls":
+        if (!processed.callVolumeData.length)
+          return <EmptyState icon={BarChart2} title="No call data yet" hint="Call activity will appear once your agent starts handling calls." />;
+        return (
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={processed.callVolumeData} barGap={4} barCategoryGap="15%">
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+              <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+              <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} />
+              <Bar dataKey="calls" name="Calls" fill="hsl(217 91% 60%)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="orders" name="Orders" fill="hsl(168 76% 42%)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="reservations" name="Reservations" fill="hsl(280 65% 60%)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        );
+
+      case "revenue": {
+        const breakdown = usage?.current?.dailyBreakdown ?? [];
+        if (!breakdown.length)
+          return <EmptyState icon={DollarSign} title="No usage data yet" hint="Cost data will appear after your first call." />;
+        const data = breakdown.map((d) => ({ date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }), cost: d.costCents / 100 }));
+        return (
+          <ResponsiveContainer width="100%" height={400}>
+            <AreaChart data={data}>
+              <defs>
+                <linearGradient id="costGradEx" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(142 76% 36%)" stopOpacity={0.4} />
+                  <stop offset="100%" stopColor="hsl(142 76% 36%)" stopOpacity={0.05} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+              <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+              <YAxis tickFormatter={(v) => `$${v.toFixed(2)}`} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`$${v.toFixed(3)}`, "Cost"]} />
+              <Area type="monotone" dataKey="cost" stroke="hsl(142 76% 36%)" strokeWidth={2} fill="url(#costGradEx)" dot={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        );
+      }
+
+      case "peakhours":
+        if (!processed.hourlyData.length)
+          return <EmptyState icon={Clock} title="No hourly data yet" hint="Peak hours will appear once calls come in." />;
+        return (
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={processed.hourlyData} barCategoryGap="10%">
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+              <XAxis dataKey="hour" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+              <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} />
+              <Bar dataKey="count" name="Calls" radius={[4, 4, 0, 0]}>
+                {processed.hourlyData.map((entry, i) => (
+                  <Cell key={i} fill={getHourColor(entry.count)} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        );
+
+      case "recentcalls":
+        return (
+          <div className="space-y-2">
+            {callLogs && callLogs.length > 0 ? callLogs.slice(0, 20).map((log) => (
+              <CallRow key={log.id} log={log} />
+            )) : (
+              <EmptyState icon={PhoneCall} title="No calls yet" hint="Recent calls will appear here after your agent handles its first call." />
+            )}
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  }
+
+  const displayName = user?.restaurantName || user?.firstName || "there";
+
   return (
-    <div className="h-[calc(100vh-64px)] overflow-hidden flex flex-col" data-testid="page-analytics">
-      {/* Header */}
-      <div className="h-14 px-5 flex items-center justify-between flex-shrink-0 border-b">
-        <h1 className="text-xl font-bold" data-testid="text-page-title">Analytics Overview</h1>
-        <Select value={datePreset} onValueChange={(v: DateRangePreset) => setDatePreset(v)}>
-          <SelectTrigger className="w-32 h-9 text-sm" data-testid="select-date-range">
-            <div className="flex items-center gap-2"><CalendarDays className="h-4 w-4" /><SelectValue /></div>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7days">7 days</SelectItem>
-            <SelectItem value="30days">30 days</SelectItem>
-            <SelectItem value="90days">90 days</SelectItem>
-            <SelectItem value="12months">12 months</SelectItem>
-            <SelectItem value="alltime">All time</SelectItem>
-          </SelectContent>
-        </Select>
+    <div className="flex flex-col h-full overflow-y-auto" data-testid="page-analytics">
+      {/* ── Header ── */}
+      <div className="px-6 pt-6 pb-4 flex items-start justify-between gap-4 flex-shrink-0 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-greeting">
+            {getGreeting()}, {displayName}!
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{getDailyTagline()}</p>
+        </div>
+        <div className="flex items-center gap-1 rounded-full border bg-muted/40 p-1 flex-shrink-0">
+          {(["7days", "30days", "90days", "12months"] as DateRangePreset[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPreset(p)}
+              data-testid={`button-preset-${p}`}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                preset === p
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {PRESET_LABELS[p]}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Grid layout - fits viewport without scrolling */}
-      <div className="flex-1 p-4 flex flex-col gap-3 overflow-hidden">
-        {/* Chart rows - use remaining space */}
-        <div className="flex-1 grid grid-rows-2 gap-3 min-h-0">
-          {/* Row 1 */}
-          <div className="flex gap-3 min-h-0">
-            <Card className="flex-[3] cursor-pointer hover-elevate flex flex-col overflow-hidden" onClick={() => setExpandedCard({ title: 'Call Volume', type: 'calls' })} data-testid="card-metric-calls">
-              <CardContent className="p-4 flex-1 flex flex-col">
-                <div className="flex items-center justify-between flex-shrink-0 mb-2">
-                  <h3 className="text-base font-semibold">Call Activity</h3>
-                  <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <div className="flex items-center gap-6 mb-2 flex-shrink-0">
-                  {isLoading ? <><Skeleton className="h-10 w-20" /><Skeleton className="h-10 w-20" /><Skeleton className="h-10 w-20" /><Skeleton className="h-10 w-24" /></> : (
-                    <>
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Calls</p>
-                        <p className="text-2xl font-bold text-blue-600" data-testid="text-total-calls">{formatNumber(overview?.totalCalls ?? 0)}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Orders</p>
-                        <p className="text-2xl font-bold text-teal-600" data-testid="text-total-orders">{formatNumber(overview?.totalOrders ?? 0)}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Reservations</p>
-                        <p className="text-2xl font-bold text-purple-600" data-testid="text-reservations">{overview?.totalReservations ?? 0}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Avg Duration</p>
-                        <p className="text-2xl font-bold text-amber-600" data-testid="text-avg-duration">{formatDuration(overview?.avgDuration ?? 0)}</p>
-                      </div>
-                    </>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 mb-2 flex-shrink-0">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: CHART_COLORS.accent }} />
-                    <span className="text-[10px] text-muted-foreground">Orders</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: CHART_COLORS.purple }} />
-                    <span className="text-[10px] text-muted-foreground">Reservations</span>
-                  </div>
-                </div>
-                <div className="flex-1 min-h-0">
-                  {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.callVolumeData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={processedData.callVolumeData} barGap={4} barCategoryGap="15%">
-                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} interval="preserveStartEnd" />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} width={30} />
-                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
-                        <Bar dataKey="orders" fill={CHART_COLORS.accent} radius={[4, 4, 0, 0]} barSize={20} />
-                        <Bar dataKey="reservations" fill={CHART_COLORS.purple} radius={[4, 4, 0, 0]} barSize={20} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No data available</div>}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="flex-1 cursor-pointer hover-elevate flex flex-col overflow-hidden bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20" onClick={() => setExpandedCard({ title: 'Revenue', type: 'revenue' })} data-testid="card-metric-revenue">
-              <CardContent className="p-4 flex-1 flex flex-col">
-                <div className="flex items-center justify-between flex-shrink-0 mb-2">
-                  <h3 className="text-base font-semibold">Revenue</h3>
-                  <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                </div>
-                {isLoading ? <Skeleton className="h-8 w-20 mb-2" /> : (
-                  <div className="mb-2 flex-shrink-0">
-                    <p className="text-2xl font-bold text-green-700 dark:text-green-400" data-testid="text-revenue">${(processedData.totalRevenue || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      {comparisonLoading ? <Skeleton className="h-4 w-14" /> : (
-                        <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${previousPeriodChange.revenue >= 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
-                          {previousPeriodChange.revenue >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                          <span>{Math.abs(previousPeriodChange.revenue).toFixed(0)}%</span>
-                        </div>
-                      )}
-                      {comparisonLoading ? <Skeleton className="h-3 w-10" /> : <span className="text-xs text-muted-foreground">vs last</span>}
-                    </div>
-                  </div>
-                )}
-                <div className="flex-1 min-h-0">
-                  {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.revenueData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={processedData.revenueData}>
-                        <defs><linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CHART_COLORS.green} stopOpacity={0.4}/><stop offset="100%" stopColor={CHART_COLORS.green} stopOpacity={0.05}/></linearGradient></defs>
-                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} interval="preserveStartEnd" />
-                        <YAxis hide />
-                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} formatter={(v: number) => [`$${v.toFixed(0)}`, 'Revenue']} />
-                        <Area type="monotone" dataKey="revenue" stroke={CHART_COLORS.green} strokeWidth={2} fill="url(#revGrad)" dot={false} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  ) : <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No data available</div>}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Row 2 */}
-          <div className="flex gap-3 min-h-0">
-            <Card className="flex-[2] cursor-pointer hover-elevate flex flex-col overflow-hidden" onClick={() => setExpandedCard({ title: 'Orders', type: 'orders' })} data-testid="card-metric-orders-trend">
-              <CardContent className="p-4 flex-1 flex flex-col">
-                <div className="flex items-center justify-between flex-shrink-0 mb-2">
-                  <h3 className="text-base font-semibold">Revenue Trend</h3>
-                  <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-h-0">
-                  {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.revenueData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={processedData.revenueData}>
-                        <defs><linearGradient id="rag" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CHART_COLORS.green} stopOpacity={0.4}/><stop offset="100%" stopColor={CHART_COLORS.green} stopOpacity={0.05}/></linearGradient></defs>
-                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} interval="preserveStartEnd" />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} width={40} tickFormatter={(v) => `$${v}`} />
-                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} formatter={(v: number) => [`$${v.toFixed(0)}`, 'Revenue']} />
-                        <Area type="monotone" dataKey="revenue" stroke={CHART_COLORS.green} strokeWidth={2} fill="url(#rag)" dot={false} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  ) : <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No data available</div>}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="flex-1 cursor-pointer hover-elevate flex flex-col overflow-hidden" onClick={() => setExpandedCard({ title: 'Peak Hours', type: 'peakhours' })} data-testid="card-metric-duration">
-              <CardContent className="p-4 flex-1 flex flex-col">
-                <div className="flex items-center justify-between flex-shrink-0 mb-2">
-                  <h3 className="text-base font-semibold">Peak Hours</h3>
-                  <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                </div>
-                {isLoading ? <Skeleton className="h-5 w-20 mb-2" /> : (
-                  <div className="mb-2 flex-shrink-0">
-                    <div className="inline-block px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-md text-xs font-medium">
-                      Peak Day: {processedData.peakDay}
-                    </div>
-                  </div>
-                )}
-                <div className="flex-1 min-h-0">
-                  {isLoading ? <Skeleton className="h-full w-full" /> : hasData && processedData.hourlyData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={processedData.hourlyData} barCategoryGap="15%">
-                        <XAxis dataKey="hour" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} interval={3} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} width={25} />
-                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
-                        <Bar dataKey="count" fill={CHART_COLORS.amber} radius={[4, 4, 0, 0]} barSize={16} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No data available</div>}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+      <div className="px-6 pb-6 flex flex-col gap-5">
+        {/* ── KPI Cards ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard
+            label="Total Calls"
+            icon={Phone}
+            iconColor="text-blue-600"
+            value={isLoading ? null : formatNumber(usage?.current?.callCount ?? overview?.totalCalls ?? 0)}
+            trend={isLoading ? null : trends.calls}
+            sparkData={sparklines.calls}
+            sparkColor="hsl(217 91% 60%)"
+            testId="card-kpi-calls"
+          />
+          <KpiCard
+            label="Minutes Used"
+            icon={Timer}
+            iconColor="text-teal-600"
+            value={isLoading ? null : `${formatNumber(usage?.current?.totalMinutes ?? 0)}m`}
+            trend={isLoading ? null : trends.minutes}
+            sparkData={sparklines.minutes}
+            sparkColor="hsl(168 76% 42%)"
+            testId="card-kpi-minutes"
+          />
+          <KpiCard
+            label="Estimated Cost"
+            icon={DollarSign}
+            iconColor="text-green-600"
+            value={isLoading ? null : formatCents(usage?.current?.totalCostCents ?? 0)}
+            trend={isLoading ? null : trends.cost}
+            sparkData={sparklines.cost}
+            sparkColor="hsl(142 76% 36%)"
+            testId="card-kpi-cost"
+          />
+          <KpiCard
+            label="Avg Call Duration"
+            icon={Clock}
+            iconColor="text-amber-600"
+            value={isLoading ? null : formatDuration(usage?.current?.avgDurationSeconds ?? overview?.avgDuration ?? 0)}
+            trend={isLoading ? null : trends.duration}
+            sparkData={durationSparkline}
+            sparkColor="hsl(43 96% 56%)"
+            testId="card-kpi-duration"
+          />
         </div>
 
-        {/* Bottom summary row - fixed height */}
-        <div className="flex gap-3 flex-shrink-0 h-[72px]">
-          <Card className="flex-[7] cursor-pointer hover-elevate overflow-hidden" onClick={() => setExpandedCard({ title: 'Transactions', type: 'orders' })} data-testid="card-metric-orders">
-            <CardContent className="px-4 py-3 flex items-center gap-4 h-full">
-              {isLoading ? <Skeleton className="h-12 w-24" /> : (
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Transactions</p>
-                  <p className="text-2xl font-bold">{formatNumber((overview?.totalOrders ?? 0) + (overview?.totalReservations ?? 0))}</p>
-                </div>
-              )}
-              {isLoading || comparisonLoading ? <Skeleton className="h-10 w-16" /> : (
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">vs last</p>
-                  <p className={`text-lg font-bold ${previousPeriodChange.orders >= 0 ? 'text-green-600' : 'text-red-600'}`}>{previousPeriodChange.orders >= 0 ? '+' : ''}{previousPeriodChange.orders.toFixed(0)}%</p>
-                </div>
-              )}
-              {isLoading ? <Skeleton className="h-8 w-24" /> : (
-                <div className="px-3 py-2 bg-muted rounded-md text-sm text-muted-foreground flex items-center gap-2">
-                  <Target className="h-4 w-4" />
-                  <span>Peak:</span>
-                  <span className="font-semibold text-foreground">{processedData.peakDay}</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="flex-[5] cursor-pointer hover-elevate overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20" onClick={() => setExpandedCard({ title: 'Insights', type: 'conversion' })} data-testid="card-metric-insights">
-            <CardContent className="px-4 py-3 flex items-center justify-between h-full">
-              <div className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-blue-600" />
-                <span className="text-base font-semibold">Insights</span>
+        {/* ── Call Volume Chart ── */}
+        <Card data-testid="card-chart-calls">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 flex-wrap">
+            <div>
+              <CardTitle className="text-base font-semibold">Call Volume & Activity</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">Daily calls, orders, and reservations</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                {[
+                  { color: "hsl(217 91% 60%)", label: "Calls" },
+                  { color: "hsl(168 76% 42%)", label: "Orders" },
+                  { color: "hsl(280 65% 60%)", label: "Reservations" },
+                ].map(({ color, label }) => (
+                  <div key={label} className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
+                    <span className="text-xs text-muted-foreground">{label}</span>
+                  </div>
+                ))}
               </div>
-              {isLoading ? <Skeleton className="h-12 w-20" /> : (
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-blue-600">{processedData.conversionRate.toFixed(0)}%</p>
-                  <p className="text-xs text-muted-foreground">Conversion</p>
-                </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setExpanded({ type: "calls", title: "Call Volume & Activity" })}
+                data-testid="button-expand-calls"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="h-52">
+              {isLoading ? (
+                <Skeleton className="h-full w-full" />
+              ) : processed.callVolumeData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={processed.callVolumeData} barGap={3} barCategoryGap="18%">
+                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} interval="preserveStartEnd" />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} width={28} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} />
+                    <Bar dataKey="calls" name="Calls" fill="hsl(217 91% 60%)" radius={[3, 3, 0, 0]} barSize={14} />
+                    <Bar dataKey="orders" name="Orders" fill="hsl(168 76% 42%)" radius={[3, 3, 0, 0]} barSize={14} />
+                    <Bar dataKey="reservations" name="Reservations" fill="hsl(280 65% 60%)" radius={[3, 3, 0, 0]} barSize={14} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyState
+                  icon={BarChart2}
+                  title="No activity yet"
+                  hint="Call, order, and reservation data will appear here once your agent goes live."
+                />
               )}
-              {isLoading ? <Skeleton className="h-10 w-20" /> : (
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Avg Order</p>
-                  <p className="text-lg font-bold">{formatCurrency(processedData.avgOrderValue)}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Revenue Trend + Peak Hours ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Revenue / Cost Trend */}
+          <Card data-testid="card-chart-revenue">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 flex-wrap">
+              <div>
+                <CardTitle className="text-base font-semibold">Cost Trend</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">Daily AI usage cost</p>
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setExpanded({ type: "revenue", title: "Cost Trend" })}
+                data-testid="button-expand-revenue"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="h-44">
+                {usageLoading ? (
+                  <Skeleton className="h-full w-full" />
+                ) : (usage?.current?.dailyBreakdown ?? []).length > 0 ? (() => {
+                  const data = (usage!.current.dailyBreakdown).map((d) => ({
+                    date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+                    cost: d.costCents / 100,
+                  }));
+                  return (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={data}>
+                        <defs>
+                          <linearGradient id="costGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(142 76% 36%)" stopOpacity={0.35} />
+                            <stop offset="100%" stopColor="hsl(142 76% 36%)" stopOpacity={0.03} />
+                          </linearGradient>
+                        </defs>
+                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} interval="preserveStartEnd" />
+                        <YAxis axisLine={false} tickLine={false} hide />
+                        <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`$${v.toFixed(3)}`, "Cost"]} />
+                        <Area type="monotone" dataKey="cost" stroke="hsl(142 76% 36%)" strokeWidth={2} fill="url(#costGrad)" dot={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  );
+                })() : (
+                  <EmptyState
+                    icon={DollarSign}
+                    title="No cost data yet"
+                    hint="Usage costs will appear after your first call."
+                  />
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Peak Call Hours */}
+          <Card data-testid="card-chart-peakhours">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 flex-wrap">
+              <div>
+                <CardTitle className="text-base font-semibold">Peak Call Hours</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">When your callers reach out most</p>
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setExpanded({ type: "peakhours", title: "Peak Call Hours" })}
+                data-testid="button-expand-peakhours"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="h-44">
+                {eventsLoading ? (
+                  <Skeleton className="h-full w-full" />
+                ) : processed.hourlyData.some((d) => d.count > 0) ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={processed.hourlyData} barCategoryGap="12%">
+                      <XAxis dataKey="hour" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} interval={3} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} width={24} />
+                      <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [v, "Calls"]} />
+                      <Bar dataKey="count" name="Calls" radius={[3, 3, 0, 0]} barSize={14}>
+                        {processed.hourlyData.map((entry, i) => (
+                          <Cell key={i} fill={getHourColor(entry.count)} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyState
+                    icon={CalendarDays}
+                    title="No hourly data yet"
+                    hint="Peak hours will show once calls start coming in."
+                  />
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ── AI Performance Score + Recent Calls ── */}
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          {/* AI Performance Donut */}
+          <Card className="md:col-span-2" data-testid="card-ai-performance">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold">AI Performance Score</CardTitle>
+              <p className="text-xs text-muted-foreground">Call-to-order conversion rate</p>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center justify-center gap-3 py-2">
+              {eventsLoading ? (
+                <Skeleton className="h-36 w-36 rounded-full" />
+              ) : (
+                <>
+                  <div className="relative">
+                    <ResponsiveContainer width={144} height={144}>
+                      <RadialBarChart
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={48}
+                        outerRadius={68}
+                        startAngle={90}
+                        endAngle={-270}
+                        data={[{ value: gaugeData.score, fill: gaugeData.color }]}
+                      >
+                        <RadialBar dataKey="value" cornerRadius={6} background={{ fill: "hsl(var(--muted))" }} />
+                      </RadialBarChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 flex items-center justify-center flex-col">
+                      <span className="text-2xl font-bold" style={{ color: gaugeData.color }} data-testid="text-conversion-rate">
+                        {gaugeData.score}%
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">conversion</span>
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="flex items-center justify-center gap-1.5 mb-1">
+                      <Zap className="h-3.5 w-3.5 text-amber-500" />
+                      <span className="text-xs font-medium">Insight</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground max-w-[180px] text-center">{performanceInsight}</p>
+                  </div>
+                  <div className="flex gap-3 text-center">
+                    <div>
+                      <p className="text-base font-bold" data-testid="text-total-calls">{formatNumber(overview?.totalCalls ?? 0)}</p>
+                      <p className="text-[10px] text-muted-foreground">calls</p>
+                    </div>
+                    <div className="w-px bg-border" />
+                    <div>
+                      <p className="text-base font-bold" data-testid="text-total-orders">{formatNumber(overview?.totalOrders ?? 0)}</p>
+                      <p className="text-[10px] text-muted-foreground">orders</p>
+                    </div>
+                    <div className="w-px bg-border" />
+                    <div>
+                      <p className="text-base font-bold" data-testid="text-reservations">{formatNumber(overview?.totalReservations ?? 0)}</p>
+                      <p className="text-[10px] text-muted-foreground">reservations</p>
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Calls Mini-list */}
+          <Card className="md:col-span-3" data-testid="card-recent-calls">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 flex-wrap">
+              <div>
+                <CardTitle className="text-base font-semibold">Recent Calls</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">Latest activity from your agent</p>
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setExpanded({ type: "recentcalls", title: "All Recent Calls" })}
+                data-testid="button-expand-recentcalls"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="px-4 pb-3">
+              {logsLoading ? (
+                <div className="space-y-2">
+                  {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
                 </div>
+              ) : recentCalls.length > 0 ? (
+                <>
+                  <div className="space-y-1">
+                    {recentCalls.map((log) => (
+                      <CallRow key={log.id} log={log} />
+                    ))}
+                  </div>
+                  <div className="mt-3 pt-2 border-t">
+                    <Link href="/calls">
+                      <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-view-all-calls">
+                        View all calls <ChevronRight className="h-3 w-3" />
+                      </button>
+                    </Link>
+                  </div>
+                </>
+              ) : (
+                <EmptyState
+                  icon={PhoneCall}
+                  title="No calls recorded yet"
+                  hint="Your call history will appear here after your first live call."
+                />
               )}
             </CardContent>
           </Card>
         </div>
       </div>
 
-      {/* Modal */}
-      <Dialog open={!!expandedCard} onOpenChange={(o) => !o && setExpandedCard(null)}>
-        <DialogContent className="max-w-4xl"><DialogHeader><DialogTitle>{expandedCard?.title}</DialogTitle></DialogHeader><div className="py-4">{renderExpandedChart()}</div></DialogContent>
+      {/* ── Expand Modal ── */}
+      <Dialog open={!!expanded} onOpenChange={(o) => !o && setExpanded(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>{expanded?.title}</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">{renderExpandedContent()}</div>
+        </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────
+// KPI Card
+// ─────────────────────────────────────────
+
+function KpiCard({
+  label, icon: Icon, iconColor, value, trend, sparkData, sparkColor, testId,
+}: {
+  label: string;
+  icon: React.ElementType;
+  iconColor: string;
+  value: string | null;
+  trend: number | null;
+  sparkData: number[];
+  sparkColor: string;
+  testId: string;
+}) {
+  return (
+    <Card data-testid={testId}>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-medium text-muted-foreground">{label}</span>
+          <Icon className={`h-4 w-4 ${iconColor}`} />
+        </div>
+        {value === null ? (
+          <Skeleton className="h-7 w-20 mb-2" />
+        ) : (
+          <p className="text-2xl font-bold tracking-tight mb-1" data-testid={`text-${testId}`}>{value}</p>
+        )}
+        <div className="flex items-center justify-between">
+          {trend === null ? <Skeleton className="h-4 w-12" /> : <TrendBadge pct={trend} />}
+          <span className="text-[10px] text-muted-foreground">vs prev</span>
+        </div>
+        <div className="mt-2">
+          <MiniSparkline data={sparkData} color={sparkColor} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────
+// Call Row
+// ─────────────────────────────────────────
+
+function CallRow({ log }: { log: CallLog }) {
+  const isCompleted = log.status === "completed";
+  const dur = parseInt(log.durationSeconds ?? log.duration ?? "0", 10);
+  const cost = log.costCents ? parseInt(log.costCents, 10) / 100 : null;
+  const caller = log.fromNumber ?? log.callerName ?? "Unknown";
+
+  return (
+    <div className="flex items-center justify-between py-2 gap-3" data-testid={`row-call-${log.id}`}>
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className={`p-1.5 rounded-full flex-shrink-0 ${isCompleted ? "bg-green-100 dark:bg-green-900/30" : "bg-red-100 dark:bg-red-900/30"}`}>
+          {isCompleted
+            ? <PhoneCall className="h-3 w-3 text-green-600 dark:text-green-400" />
+            : <PhoneMissed className="h-3 w-3 text-red-600 dark:text-red-400" />
+          }
+        </div>
+        <span className="text-sm font-medium truncate" data-testid={`text-caller-${log.id}`}>{caller}</span>
+      </div>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <span className="text-xs text-muted-foreground">{formatDuration(dur)}</span>
+        <Badge
+          variant={isCompleted ? "secondary" : "outline"}
+          className="text-[10px] px-1.5 py-0"
+          data-testid={`badge-status-${log.id}`}
+        >
+          {log.status}
+        </Badge>
+        {cost !== null && (
+          <span className="text-xs text-muted-foreground">${cost.toFixed(3)}</span>
+        )}
+      </div>
     </div>
   );
 }

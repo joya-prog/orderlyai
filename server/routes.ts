@@ -2903,6 +2903,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/analytics/usage-summary", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { startDate, endDate } = req.query;
+
+      const end = endDate ? new Date(endDate as string) : new Date();
+      const start = startDate ? new Date(startDate as string) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const periodMs = end.getTime() - start.getTime();
+      const prevEnd = new Date(start.getTime());
+      const prevStart = new Date(start.getTime() - periodMs);
+
+      const [currentUsage, prevUsage, currentCalls, prevCalls] = await Promise.all([
+        db.select({
+          totalMinutes: sql<string>`COALESCE(SUM(CAST(${usageLedger.minutesUsed} AS numeric)), 0)`,
+          totalCostCents: sql<string>`COALESCE(SUM(CAST(${usageLedger.costCents} AS numeric)), 0)`,
+          callCount: sql<number>`COUNT(*)`,
+        }).from(usageLedger).where(
+          and(
+            eq(usageLedger.userId, userId),
+            sql`${usageLedger.createdAt} >= ${start}`,
+            sql`${usageLedger.createdAt} <= ${end}`
+          )
+        ),
+        db.select({
+          totalMinutes: sql<string>`COALESCE(SUM(CAST(${usageLedger.minutesUsed} AS numeric)), 0)`,
+          totalCostCents: sql<string>`COALESCE(SUM(CAST(${usageLedger.costCents} AS numeric)), 0)`,
+          callCount: sql<number>`COUNT(*)`,
+        }).from(usageLedger).where(
+          and(
+            eq(usageLedger.userId, userId),
+            sql`${usageLedger.createdAt} >= ${prevStart}`,
+            sql`${usageLedger.createdAt} < ${prevEnd}`
+          )
+        ),
+        db.select({
+          count: sql<number>`COUNT(*)`,
+          avgDuration: sql<string>`COALESCE(AVG(NULLIF(CAST(${callLogs.durationSeconds} AS numeric), 0)), 0)`,
+        }).from(callLogs).where(
+          and(
+            eq(callLogs.userId, userId),
+            sql`${callLogs.createdAt} >= ${start}`,
+            sql`${callLogs.createdAt} <= ${end}`
+          )
+        ),
+        db.select({
+          count: sql<number>`COUNT(*)`,
+          avgDuration: sql<string>`COALESCE(AVG(NULLIF(CAST(${callLogs.durationSeconds} AS numeric), 0)), 0)`,
+        }).from(callLogs).where(
+          and(
+            eq(callLogs.userId, userId),
+            sql`${callLogs.createdAt} >= ${prevStart}`,
+            sql`${callLogs.createdAt} < ${prevEnd}`
+          )
+        ),
+      ]);
+
+      const dailyRows = await db.select({
+        day: sql<string>`DATE(${usageLedger.createdAt})`,
+        minutes: sql<string>`COALESCE(SUM(CAST(${usageLedger.minutesUsed} AS numeric)), 0)`,
+        costCents: sql<string>`COALESCE(SUM(CAST(${usageLedger.costCents} AS numeric)), 0)`,
+        callCount: sql<number>`COUNT(*)`,
+      }).from(usageLedger).where(
+        and(
+          eq(usageLedger.userId, userId),
+          sql`${usageLedger.createdAt} >= ${start}`,
+          sql`${usageLedger.createdAt} <= ${end}`
+        )
+      ).groupBy(sql`DATE(${usageLedger.createdAt})`).orderBy(sql`DATE(${usageLedger.createdAt})`);
+
+      res.json({
+        current: {
+          totalMinutes: parseFloat(currentUsage[0]?.totalMinutes || '0'),
+          totalCostCents: parseFloat(currentUsage[0]?.totalCostCents || '0'),
+          callCount: Number(currentCalls[0]?.count || 0),
+          avgDurationSeconds: parseFloat(currentCalls[0]?.avgDuration || '0'),
+          dailyBreakdown: dailyRows.map(r => ({
+            date: r.day,
+            minutes: parseFloat(r.minutes),
+            costCents: parseFloat(r.costCents),
+            callCount: Number(r.callCount),
+          })),
+        },
+        previous: {
+          totalMinutes: parseFloat(prevUsage[0]?.totalMinutes || '0'),
+          totalCostCents: parseFloat(prevUsage[0]?.totalCostCents || '0'),
+          callCount: Number(prevCalls[0]?.count || 0),
+          avgDurationSeconds: parseFloat(prevCalls[0]?.avgDuration || '0'),
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching usage summary:", error);
+      res.status(500).json({ message: "Failed to fetch usage summary" });
+    }
+  });
+
   // Call logs routes
   app.get("/api/call-logs", isAuthenticated, async (req: any, res) => {
     try {

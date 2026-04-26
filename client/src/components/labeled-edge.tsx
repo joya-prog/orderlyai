@@ -61,6 +61,8 @@ export function LabeledEdge({
   const [isEditing, setIsEditing] = useState(false);
   const [draftLabel, setDraftLabel] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  // Track explicit Escape cancels so onBlur doesn't commit after Escape
+  const cancelledRef = useRef(false);
 
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
@@ -91,13 +93,26 @@ export function LabeledEdge({
   );
 
   const commitEdit = useCallback(() => {
-    const trimmed = draftLabel.trim();
+    // Escape was pressed — skip commit; reset cancel flag
+    if (cancelledRef.current) {
+      cancelledRef.current = false;
+      setIsEditing(false);
+      return;
+    }
     setIsEditing(false);
+
+    const trimmed = draftLabel.trim();
     if (!trimmed || trimmed === rawLabel) return;
 
-    // Update edge label
+    // Update all edges that share the same source handle (fan-out support)
     setEdges((eds) =>
-      eds.map((e) => (e.id === id ? { ...e, label: trimmed } : e)),
+      eds.map((e) => {
+        const sameHandle = e.source === source && e.sourceHandle === sourceHandleId;
+        if (e.id === id || sameHandle) {
+          return { ...e, label: trimmed };
+        }
+        return e;
+      }),
     );
 
     // Update source node's matching transition condition
@@ -124,7 +139,11 @@ export function LabeledEdge({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Enter') commitEdit();
-      if (e.key === 'Escape') setIsEditing(false);
+      if (e.key === 'Escape') {
+        // Mark cancelled so subsequent onBlur skips the commit
+        cancelledRef.current = true;
+        inputRef.current?.blur();
+      }
     },
     [commitEdit],
   );

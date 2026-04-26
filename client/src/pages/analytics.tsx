@@ -550,8 +550,8 @@ export default function AnalyticsPage() {
     }
 
     if (expanded.type === "revenue") {
-      if (!processed.revenueData.length)
-        return <EmptyState icon={DollarSign} title="No order revenue yet" hint="Revenue data appears when orders are placed through your agent." />;
+      if (!processed.revenueData.some((d) => d.revenue > 0))
+        return <EmptyState icon={DollarSign} title="No order revenue yet" hint="Revenue data appears when orders with tracked amounts are placed through your agent." />;
       return (
         <ResponsiveContainer width="100%" height={420}>
           <AreaChart data={processed.revenueData}>

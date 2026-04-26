@@ -2972,11 +2972,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         )
       ).groupBy(sql`DATE(${usageLedger.createdAt})`).orderBy(sql`DATE(${usageLedger.createdAt})`);
 
+      const currCallCount = Number(currentUsage[0]?.callCount || 0);
+      const currCostCents = parseFloat(currentUsage[0]?.totalCostCents || '0');
+      const prevCallCount = Number(prevUsage[0]?.callCount || 0);
+      const prevCostCents = parseFloat(prevUsage[0]?.totalCostCents || '0');
+
       res.json({
         current: {
           totalMinutes: parseFloat(currentUsage[0]?.totalMinutes || '0'),
-          totalCostCents: parseFloat(currentUsage[0]?.totalCostCents || '0'),
-          callCount: Number(currentCalls[0]?.count || 0),
+          totalCostCents: currCostCents,
+          callCount: currCallCount,
+          avgCostCentsPerCall: currCallCount > 0 ? currCostCents / currCallCount : 0,
           avgDurationSeconds: parseFloat(currentCalls[0]?.avgDuration || '0'),
           dailyBreakdown: dailyRows.map(r => ({
             date: r.day,
@@ -2985,10 +2991,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             callCount: Number(r.callCount),
           })),
         },
-        previous: {
+        previousPeriod: {
           totalMinutes: parseFloat(prevUsage[0]?.totalMinutes || '0'),
-          totalCostCents: parseFloat(prevUsage[0]?.totalCostCents || '0'),
-          callCount: Number(prevCalls[0]?.count || 0),
+          totalCostCents: prevCostCents,
+          callCount: prevCallCount,
+          avgCostCentsPerCall: prevCallCount > 0 ? prevCostCents / prevCallCount : 0,
           avgDurationSeconds: parseFloat(prevCalls[0]?.avgDuration || '0'),
         },
       });

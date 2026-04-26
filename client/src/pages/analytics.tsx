@@ -12,9 +12,8 @@ import {
   CalendarDays,
 } from "lucide-react";
 import {
-  BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line, RadialBarChart, RadialBar,
+  BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, LineChart, Line, RadialBarChart, RadialBar, Cell,
 } from "recharts";
 import type { AnalyticsEvent, CallLog } from "@shared/schema";
 
@@ -35,13 +34,15 @@ interface UsageSummary {
     totalMinutes: number;
     totalCostCents: number;
     callCount: number;
+    avgCostCentsPerCall: number;
     avgDurationSeconds: number;
     dailyBreakdown: Array<{ date: string; minutes: number; costCents: number; callCount: number }>;
   };
-  previous: {
+  previousPeriod: {
     totalMinutes: number;
     totalCostCents: number;
     callCount: number;
+    avgCostCentsPerCall: number;
     avgDurationSeconds: number;
   };
 }
@@ -55,7 +56,16 @@ interface AuthUser {
 }
 
 type DateRangePreset = "7days" | "30days" | "90days" | "12months";
-type ExpandType = "calls" | "revenue" | "peakhours" | "conversion" | "recentcalls";
+type ExpandType =
+  | "calls"
+  | "revenue"
+  | "cost"
+  | "peakhours"
+  | "recentcalls"
+  | "kpi_calls"
+  | "kpi_minutes"
+  | "kpi_cost"
+  | "kpi_duration";
 
 // ─────────────────────────────────────────
 // Helpers
@@ -117,8 +127,7 @@ const TAGLINES = [
 ];
 
 function getDailyTagline(): string {
-  const day = new Date().getDay();
-  return TAGLINES[day % TAGLINES.length];
+  return TAGLINES[new Date().getDay() % TAGLINES.length];
 }
 
 const PRESET_LABELS: Record<DateRangePreset, string> = {
@@ -128,14 +137,19 @@ const PRESET_LABELS: Record<DateRangePreset, string> = {
   "12months": "12 months",
 };
 
+const TOOLTIP_STYLE = {
+  backgroundColor: "hsl(var(--card))",
+  border: "1px solid hsl(var(--border))",
+  borderRadius: "8px",
+  fontSize: "12px",
+};
+
 // ─────────────────────────────────────────
 // Sub-components
 // ─────────────────────────────────────────
 
 function MiniSparkline({ data, color }: { data: number[]; color: string }) {
-  if (data.length < 2) {
-    return <div className="h-8 bg-muted/20 rounded" />;
-  }
+  if (data.length < 2) return <div className="h-8 bg-muted/20 rounded" />;
   const chartData = data.map((value, index) => ({ value, index }));
   return (
     <ResponsiveContainer width="100%" height={32}>
@@ -175,12 +189,76 @@ function EmptyState({ icon: Icon, title, hint }: { icon: React.ElementType; titl
   );
 }
 
-const TOOLTIP_STYLE = {
-  backgroundColor: "hsl(var(--card))",
-  border: "1px solid hsl(var(--border))",
-  borderRadius: "8px",
-  fontSize: "12px",
-};
+function CallRow({ log }: { log: CallLog }) {
+  const isCompleted = log.status === "completed";
+  const dur = parseInt(log.durationSeconds ?? log.duration ?? "0", 10);
+  const cost = log.costCents ? parseInt(log.costCents, 10) / 100 : null;
+  const caller = log.fromNumber ?? log.callerName ?? "Unknown";
+
+  return (
+    <div className="flex items-center justify-between py-2 gap-3" data-testid={`row-call-${log.id}`}>
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className={`p-1.5 rounded-full flex-shrink-0 ${isCompleted ? "bg-green-100 dark:bg-green-900/30" : "bg-red-100 dark:bg-red-900/30"}`}>
+          {isCompleted
+            ? <PhoneCall className="h-3 w-3 text-green-600 dark:text-green-400" />
+            : <PhoneMissed className="h-3 w-3 text-red-600 dark:text-red-400" />}
+        </div>
+        <span className="text-sm font-medium truncate" data-testid={`text-caller-${log.id}`}>{caller}</span>
+      </div>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <span className="text-xs text-muted-foreground">{formatDuration(dur)}</span>
+        <Badge variant={isCompleted ? "secondary" : "outline"} className="text-[10px] px-1.5 py-0" data-testid={`badge-status-${log.id}`}>
+          {log.status}
+        </Badge>
+        {cost !== null && <span className="text-xs text-muted-foreground">${cost.toFixed(3)}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────
+// KPI Card
+// ─────────────────────────────────────────
+
+function KpiCard({
+  label, icon: Icon, iconColor, value, trend, sparkData, sparkColor, testId, onExpand,
+}: {
+  label: string;
+  icon: React.ElementType;
+  iconColor: string;
+  value: string | null;
+  trend: number | null;
+  sparkData: number[];
+  sparkColor: string;
+  testId: string;
+  onExpand: () => void;
+}) {
+  return (
+    <Card data-testid={testId}>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1.5">
+            <Icon className={`h-4 w-4 ${iconColor}`} />
+            <span className="text-xs font-medium text-muted-foreground">{label}</span>
+          </div>
+          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={onExpand} data-testid={`button-expand-${testId}`}>
+            <Maximize2 className="h-3 w-3 text-muted-foreground" />
+          </Button>
+        </div>
+        {value === null ? (
+          <Skeleton className="h-7 w-20 mb-2" />
+        ) : (
+          <p className="text-2xl font-bold tracking-tight mb-1" data-testid={`text-${testId}`}>{value}</p>
+        )}
+        <div className="flex items-center justify-between mb-2">
+          {trend === null ? <Skeleton className="h-4 w-12" /> : <TrendBadge pct={trend} />}
+          <span className="text-[10px] text-muted-foreground">vs prev period</span>
+        </div>
+        <MiniSparkline data={sparkData} color={sparkColor} />
+      </CardContent>
+    </Card>
+  );
+}
 
 // ─────────────────────────────────────────
 // Main Component
@@ -217,12 +295,13 @@ export default function AnalyticsPage() {
     if (!events || events.length === 0) {
       return {
         callVolumeData: [] as Array<{ date: string; calls: number; orders: number; reservations: number }>,
+        revenueData: [] as Array<{ date: string; revenue: number }>,
         hourlyData: [] as Array<{ hour: string; count: number; rawHour: number }>,
         conversionRate: 0,
       };
     }
 
-    const dailyMap = new Map<string, { calls: number; orders: number; reservations: number; ts: number }>();
+    const dailyMap = new Map<string, { calls: number; orders: number; reservations: number; revenue: number; ts: number }>();
     const hourlyMap = new Map<number, number>();
     for (let i = 0; i < 24; i++) hourlyMap.set(i, 0);
 
@@ -234,22 +313,31 @@ export default function AnalyticsPage() {
       const dateKey = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
       const hour = d.getHours();
 
-      const existing = dailyMap.get(dateKey) ?? { calls: 0, orders: 0, reservations: 0, ts: d.getTime() };
+      const existing = dailyMap.get(dateKey) ?? { calls: 0, orders: 0, reservations: 0, revenue: 0, ts: d.getTime() };
       existing.calls++;
-      if (e.eventType === "order_placed") existing.orders++;
+
+      if (e.eventType === "order_placed") {
+        existing.orders++;
+        const amount = (e.metadata && typeof (e.metadata as any).amount === "number")
+          ? (e.metadata as any).amount
+          : parseFloat((e.metadata as any)?.amount ?? "0") || 0;
+        existing.revenue += amount;
+      }
       if (e.eventType === "reservation_created") existing.reservations++;
+
       dailyMap.set(dateKey, existing);
       hourlyMap.set(hour, (hourlyMap.get(hour) ?? 0) + 1);
-
       if (e.eventType === "call_started") callsStarted++;
       if (e.eventType === "order_placed") ordersPlaced++;
     });
 
-    const callVolumeData = Array.from(dailyMap.entries())
-      .map(([date, v]) => ({ date, calls: v.calls, orders: v.orders, reservations: v.reservations, ts: v.ts }))
+    const sorted = Array.from(dailyMap.entries())
+      .map(([date, v]) => ({ date, ...v }))
       .sort((a, b) => a.ts - b.ts)
-      .slice(-14)
-      .map(({ ts: _ts, ...rest }) => rest);
+      .slice(-14);
+
+    const callVolumeData = sorted.map(({ ts: _ts, revenue: _r, ...rest }) => rest);
+    const revenueData = sorted.map(({ date, revenue }) => ({ date, revenue }));
 
     const hourlyData = Array.from(hourlyMap.entries())
       .map(([h, count]) => ({
@@ -261,7 +349,7 @@ export default function AnalyticsPage() {
 
     const conversionRate = callsStarted > 0 ? (ordersPlaced / callsStarted) * 100 : 0;
 
-    return { callVolumeData, hourlyData, conversionRate };
+    return { callVolumeData, revenueData, hourlyData, conversionRate };
   }, [events]);
 
   // ── KPI sparklines from daily usage breakdown ──
@@ -277,19 +365,20 @@ export default function AnalyticsPage() {
   // ── KPI trends ──
   const trends = useMemo(() => {
     if (!usage) return { calls: 0, minutes: 0, cost: 0, duration: 0 };
-    const { current, previous } = usage;
+    const { current, previousPeriod } = usage;
     return {
-      calls: calcTrend(current.callCount, previous.callCount),
-      minutes: calcTrend(current.totalMinutes, previous.totalMinutes),
-      cost: calcTrend(current.totalCostCents, previous.totalCostCents),
-      duration: calcTrend(current.avgDurationSeconds, previous.avgDurationSeconds),
+      calls: calcTrend(current.callCount, previousPeriod.callCount),
+      minutes: calcTrend(current.totalMinutes, previousPeriod.totalMinutes),
+      cost: calcTrend(current.totalCostCents, previousPeriod.totalCostCents),
+      duration: calcTrend(current.avgDurationSeconds, previousPeriod.avgDurationSeconds),
     };
   }, [usage]);
 
-  // ── Duration sparklines from call volume data ──
-  const durationSparkline = useMemo(() => {
-    return processed.callVolumeData.map((d) => d.calls);
-  }, [processed]);
+  // ── Duration sparkline reuses call count data as proxy ──
+  const durationSparkline = useMemo(
+    () => processed.callVolumeData.map((d) => d.calls),
+    [processed]
+  );
 
   // ── Peak hours color scale ──
   const maxHourCount = useMemo(
@@ -308,11 +397,10 @@ export default function AnalyticsPage() {
   // ── Recent calls ──
   const recentCalls = useMemo(() => (callLogs ?? []).slice(0, 6), [callLogs]);
 
-  // ── Donut/gauge for AI performance ──
+  // ── AI Performance gauge ──
   const gaugeData = useMemo(() => {
     const score = Math.min(Math.round(processed.conversionRate), 100);
-    const color =
-      score < 10 ? "hsl(0 84% 60%)" : score < 25 ? "hsl(43 96% 56%)" : "hsl(142 76% 36%)";
+    const color = score < 10 ? "hsl(0 84% 60%)" : score < 25 ? "hsl(43 96% 56%)" : "hsl(142 76% 36%)";
     return { score, color };
   }, [processed.conversionRate]);
 
@@ -324,85 +412,163 @@ export default function AnalyticsPage() {
     return `Roughly 1 in ${n} calls results in an order.`;
   }, [gaugeData]);
 
-  // ── Expand modal chart renderer ──
+  // ── Expand modal content ──
   function renderExpandedContent() {
     if (!expanded) return null;
 
-    switch (expanded.type) {
-      case "calls":
-        if (!processed.callVolumeData.length)
-          return <EmptyState icon={BarChart2} title="No call data yet" hint="Call activity will appear once your agent starts handling calls." />;
-        return (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={processed.callVolumeData} barGap={4} barCategoryGap="15%">
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-              <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
-              <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} />
-              <Bar dataKey="calls" name="Calls" fill="hsl(217 91% 60%)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="orders" name="Orders" fill="hsl(168 76% 42%)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="reservations" name="Reservations" fill="hsl(280 65% 60%)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        );
-
-      case "revenue": {
-        const breakdown = usage?.current?.dailyBreakdown ?? [];
-        if (!breakdown.length)
-          return <EmptyState icon={DollarSign} title="No usage data yet" hint="Cost data will appear after your first call." />;
-        const data = breakdown.map((d) => ({ date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }), cost: d.costCents / 100 }));
-        return (
-          <ResponsiveContainer width="100%" height={400}>
-            <AreaChart data={data}>
-              <defs>
-                <linearGradient id="costGradEx" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(142 76% 36%)" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="hsl(142 76% 36%)" stopOpacity={0.05} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-              <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
-              <YAxis tickFormatter={(v) => `$${v.toFixed(2)}`} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`$${v.toFixed(3)}`, "Cost"]} />
-              <Area type="monotone" dataKey="cost" stroke="hsl(142 76% 36%)" strokeWidth={2} fill="url(#costGradEx)" dot={false} />
-            </AreaChart>
-          </ResponsiveContainer>
-        );
-      }
-
-      case "peakhours":
-        if (!processed.hourlyData.length)
-          return <EmptyState icon={Clock} title="No hourly data yet" hint="Peak hours will appear once calls come in." />;
-        return (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={processed.hourlyData} barCategoryGap="10%">
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-              <XAxis dataKey="hour" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
-              <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} />
-              <Bar dataKey="count" name="Calls" radius={[4, 4, 0, 0]}>
-                {processed.hourlyData.map((entry, i) => (
-                  <Cell key={i} fill={getHourColor(entry.count)} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        );
-
-      case "recentcalls":
-        return (
-          <div className="space-y-2">
-            {callLogs && callLogs.length > 0 ? callLogs.slice(0, 20).map((log) => (
-              <CallRow key={log.id} log={log} />
-            )) : (
-              <EmptyState icon={PhoneCall} title="No calls yet" hint="Recent calls will appear here after your agent handles its first call." />
-            )}
-          </div>
-        );
-
-      default:
-        return null;
+    // KPI detail modals
+    if (expanded.type === "kpi_calls") {
+      const breakdown = usage?.current?.dailyBreakdown ?? [];
+      if (!breakdown.length) return <EmptyState icon={Phone} title="No call data yet" hint="Call data will appear after your first call." />;
+      const data = breakdown.map((d) => ({ date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }), calls: d.callCount }));
+      return (
+        <ResponsiveContainer width="100%" height={380}>
+          <BarChart data={data}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+            <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+            <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} />
+            <Bar dataKey="calls" name="Calls" fill="hsl(217 91% 60%)" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      );
     }
+
+    if (expanded.type === "kpi_minutes") {
+      const breakdown = usage?.current?.dailyBreakdown ?? [];
+      if (!breakdown.length) return <EmptyState icon={Timer} title="No minutes data yet" hint="Usage minutes will appear after your first call." />;
+      const data = breakdown.map((d) => ({ date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }), minutes: d.minutes }));
+      return (
+        <ResponsiveContainer width="100%" height={380}>
+          <AreaChart data={data}>
+            <defs>
+              <linearGradient id="minsGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="hsl(168 76% 42%)" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="hsl(168 76% 42%)" stopOpacity={0.03} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+            <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+            <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`${v.toFixed(2)} min`, "Minutes"]} />
+            <Area type="monotone" dataKey="minutes" stroke="hsl(168 76% 42%)" strokeWidth={2} fill="url(#minsGrad)" dot={false} />
+          </AreaChart>
+        </ResponsiveContainer>
+      );
+    }
+
+    if (expanded.type === "kpi_cost") {
+      const breakdown = usage?.current?.dailyBreakdown ?? [];
+      if (!breakdown.length) return <EmptyState icon={DollarSign} title="No cost data yet" hint="Cost data will appear after your first call." />;
+      const data = breakdown.map((d) => ({ date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }), cost: d.costCents / 100 }));
+      return (
+        <ResponsiveContainer width="100%" height={380}>
+          <AreaChart data={data}>
+            <defs>
+              <linearGradient id="costGradEx" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="hsl(142 76% 36%)" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="hsl(142 76% 36%)" stopOpacity={0.03} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+            <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+            <YAxis tickFormatter={(v) => `$${v.toFixed(2)}`} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`$${v.toFixed(3)}`, "Cost"]} />
+            <Area type="monotone" dataKey="cost" stroke="hsl(142 76% 36%)" strokeWidth={2} fill="url(#costGradEx)" dot={false} />
+          </AreaChart>
+        </ResponsiveContainer>
+      );
+    }
+
+    if (expanded.type === "kpi_duration") {
+      if (!processed.callVolumeData.length) return <EmptyState icon={Clock} title="No duration data yet" hint="Call duration averages will appear once calls come in." />;
+      return (
+        <ResponsiveContainer width="100%" height={380}>
+          <BarChart data={processed.callVolumeData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+            <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+            <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} />
+            <Bar dataKey="calls" name="Calls" fill="hsl(43 96% 56%)" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      );
+    }
+
+    // Main panel modals
+    if (expanded.type === "calls") {
+      if (!processed.callVolumeData.length)
+        return <EmptyState icon={BarChart2} title="No call data yet" hint="Call activity will appear once your agent starts handling calls." />;
+      return (
+        <ResponsiveContainer width="100%" height={420}>
+          <BarChart data={processed.callVolumeData} barGap={4} barCategoryGap="15%">
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+            <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+            <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} />
+            <Bar dataKey="calls" name="Calls" fill="hsl(217 91% 60%)" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="orders" name="Orders" fill="hsl(168 76% 42%)" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="reservations" name="Reservations" fill="hsl(280 65% 60%)" radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      );
+    }
+
+    if (expanded.type === "revenue") {
+      if (!processed.revenueData.length)
+        return <EmptyState icon={DollarSign} title="No order revenue yet" hint="Revenue data appears when orders are placed through your agent." />;
+      return (
+        <ResponsiveContainer width="100%" height={420}>
+          <AreaChart data={processed.revenueData}>
+            <defs>
+              <linearGradient id="revGradEx" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="hsl(142 76% 36%)" stopOpacity={0.4} />
+                <stop offset="100%" stopColor="hsl(142 76% 36%)" stopOpacity={0.05} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+            <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+            <YAxis tickFormatter={(v) => `$${v}`} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`$${v.toFixed(2)}`, "Revenue"]} />
+            <Area type="monotone" dataKey="revenue" stroke="hsl(142 76% 36%)" strokeWidth={2} fill="url(#revGradEx)" dot={false} />
+          </AreaChart>
+        </ResponsiveContainer>
+      );
+    }
+
+    if (expanded.type === "peakhours") {
+      if (!processed.hourlyData.length)
+        return <EmptyState icon={Clock} title="No hourly data yet" hint="Peak hours will show once calls start coming in." />;
+      return (
+        <ResponsiveContainer width="100%" height={420}>
+          <BarChart data={processed.hourlyData} layout="vertical" barCategoryGap="10%">
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} horizontal={false} />
+            <XAxis type="number" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+            <YAxis dataKey="hour" type="category" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} width={36} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [v, "Calls"]} />
+            <Bar dataKey="count" name="Calls" radius={[0, 4, 4, 0]} barSize={14}>
+              {processed.hourlyData.map((entry, i) => (
+                <Cell key={i} fill={getHourColor(entry.count)} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      );
+    }
+
+    if (expanded.type === "recentcalls") {
+      return (
+        <div className="space-y-1 max-h-[500px] overflow-y-auto">
+          {callLogs && callLogs.length > 0 ? (
+            callLogs.slice(0, 30).map((log) => <CallRow key={log.id} log={log} />)
+          ) : (
+            <EmptyState icon={PhoneCall} title="No calls yet" hint="Your call history will appear here after your agent handles its first call." />
+          )}
+        </div>
+      );
+    }
+
+    return null;
   }
 
   const displayName = user?.restaurantName || user?.firstName || "there";
@@ -447,6 +613,7 @@ export default function AnalyticsPage() {
             sparkData={sparklines.calls}
             sparkColor="hsl(217 91% 60%)"
             testId="card-kpi-calls"
+            onExpand={() => setExpanded({ type: "kpi_calls", title: "Call Volume — Daily Breakdown" })}
           />
           <KpiCard
             label="Minutes Used"
@@ -457,6 +624,7 @@ export default function AnalyticsPage() {
             sparkData={sparklines.minutes}
             sparkColor="hsl(168 76% 42%)"
             testId="card-kpi-minutes"
+            onExpand={() => setExpanded({ type: "kpi_minutes", title: "Minutes Used — Daily Breakdown" })}
           />
           <KpiCard
             label="Estimated Cost"
@@ -467,6 +635,7 @@ export default function AnalyticsPage() {
             sparkData={sparklines.cost}
             sparkColor="hsl(142 76% 36%)"
             testId="card-kpi-cost"
+            onExpand={() => setExpanded({ type: "kpi_cost", title: "Estimated Cost — Daily Breakdown" })}
           />
           <KpiCard
             label="Avg Call Duration"
@@ -477,6 +646,7 @@ export default function AnalyticsPage() {
             sparkData={durationSparkline}
             sparkColor="hsl(43 96% 56%)"
             testId="card-kpi-duration"
+            onExpand={() => setExpanded({ type: "kpi_duration", title: "Call Duration — Daily Activity" })}
           />
         </div>
 
@@ -538,17 +708,17 @@ export default function AnalyticsPage() {
 
         {/* ── Revenue Trend + Peak Hours ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Revenue / Cost Trend */}
+          {/* Order Revenue Trend */}
           <Card data-testid="card-chart-revenue">
             <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 flex-wrap">
               <div>
-                <CardTitle className="text-base font-semibold">Cost Trend</CardTitle>
-                <p className="text-xs text-muted-foreground mt-0.5">Daily AI usage cost</p>
+                <CardTitle className="text-base font-semibold">Revenue Trend</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">Daily order revenue from your agent</p>
               </div>
               <Button
                 size="icon"
                 variant="ghost"
-                onClick={() => setExpanded({ type: "revenue", title: "Cost Trend" })}
+                onClick={() => setExpanded({ type: "revenue", title: "Revenue Trend" })}
                 data-testid="button-expand-revenue"
               >
                 <Maximize2 className="h-4 w-4" />
@@ -556,41 +726,35 @@ export default function AnalyticsPage() {
             </CardHeader>
             <CardContent>
               <div className="h-44">
-                {usageLoading ? (
+                {eventsLoading ? (
                   <Skeleton className="h-full w-full" />
-                ) : (usage?.current?.dailyBreakdown ?? []).length > 0 ? (() => {
-                  const data = (usage!.current.dailyBreakdown).map((d) => ({
-                    date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-                    cost: d.costCents / 100,
-                  }));
-                  return (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={data}>
-                        <defs>
-                          <linearGradient id="costGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="hsl(142 76% 36%)" stopOpacity={0.35} />
-                            <stop offset="100%" stopColor="hsl(142 76% 36%)" stopOpacity={0.03} />
-                          </linearGradient>
-                        </defs>
-                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} interval="preserveStartEnd" />
-                        <YAxis axisLine={false} tickLine={false} hide />
-                        <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`$${v.toFixed(3)}`, "Cost"]} />
-                        <Area type="monotone" dataKey="cost" stroke="hsl(142 76% 36%)" strokeWidth={2} fill="url(#costGrad)" dot={false} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  );
-                })() : (
+                ) : processed.revenueData.some((d) => d.revenue > 0) ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={processed.revenueData}>
+                      <defs>
+                        <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(142 76% 36%)" stopOpacity={0.35} />
+                          <stop offset="100%" stopColor="hsl(142 76% 36%)" stopOpacity={0.03} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} interval="preserveStartEnd" />
+                      <YAxis axisLine={false} tickLine={false} hide />
+                      <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`$${v.toFixed(2)}`, "Revenue"]} />
+                      <Area type="monotone" dataKey="revenue" stroke="hsl(142 76% 36%)" strokeWidth={2} fill="url(#revGrad)" dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
                   <EmptyState
                     icon={DollarSign}
-                    title="No cost data yet"
-                    hint="Usage costs will appear after your first call."
+                    title="No order revenue yet"
+                    hint="Revenue will appear when your agent processes orders for customers."
                   />
                 )}
               </div>
             </CardContent>
           </Card>
 
-          {/* Peak Call Hours */}
+          {/* Peak Call Hours — horizontal bars */}
           <Card data-testid="card-chart-peakhours">
             <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 flex-wrap">
               <div>
@@ -612,11 +776,11 @@ export default function AnalyticsPage() {
                   <Skeleton className="h-full w-full" />
                 ) : processed.hourlyData.some((d) => d.count > 0) ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={processed.hourlyData} barCategoryGap="12%">
-                      <XAxis dataKey="hour" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} interval={3} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} width={24} />
+                    <BarChart data={processed.hourlyData} layout="vertical" barCategoryGap="10%">
+                      <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} />
+                      <YAxis dataKey="hour" type="category" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 9 }} width={30} interval={3} />
                       <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [v, "Calls"]} />
-                      <Bar dataKey="count" name="Calls" radius={[3, 3, 0, 0]} barSize={14}>
+                      <Bar dataKey="count" name="Calls" radius={[0, 3, 3, 0]} barSize={8}>
                         {processed.hourlyData.map((entry, i) => (
                           <Cell key={i} fill={getHourColor(entry.count)} />
                         ))}
@@ -720,7 +884,7 @@ export default function AnalyticsPage() {
                 </div>
               ) : recentCalls.length > 0 ? (
                 <>
-                  <div className="space-y-1">
+                  <div className="divide-y">
                     {recentCalls.map((log) => (
                       <CallRow key={log.id} log={log} />
                     ))}
@@ -754,84 +918,6 @@ export default function AnalyticsPage() {
           <div className="py-2">{renderExpandedContent()}</div>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────
-// KPI Card
-// ─────────────────────────────────────────
-
-function KpiCard({
-  label, icon: Icon, iconColor, value, trend, sparkData, sparkColor, testId,
-}: {
-  label: string;
-  icon: React.ElementType;
-  iconColor: string;
-  value: string | null;
-  trend: number | null;
-  sparkData: number[];
-  sparkColor: string;
-  testId: string;
-}) {
-  return (
-    <Card data-testid={testId}>
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-medium text-muted-foreground">{label}</span>
-          <Icon className={`h-4 w-4 ${iconColor}`} />
-        </div>
-        {value === null ? (
-          <Skeleton className="h-7 w-20 mb-2" />
-        ) : (
-          <p className="text-2xl font-bold tracking-tight mb-1" data-testid={`text-${testId}`}>{value}</p>
-        )}
-        <div className="flex items-center justify-between">
-          {trend === null ? <Skeleton className="h-4 w-12" /> : <TrendBadge pct={trend} />}
-          <span className="text-[10px] text-muted-foreground">vs prev</span>
-        </div>
-        <div className="mt-2">
-          <MiniSparkline data={sparkData} color={sparkColor} />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─────────────────────────────────────────
-// Call Row
-// ─────────────────────────────────────────
-
-function CallRow({ log }: { log: CallLog }) {
-  const isCompleted = log.status === "completed";
-  const dur = parseInt(log.durationSeconds ?? log.duration ?? "0", 10);
-  const cost = log.costCents ? parseInt(log.costCents, 10) / 100 : null;
-  const caller = log.fromNumber ?? log.callerName ?? "Unknown";
-
-  return (
-    <div className="flex items-center justify-between py-2 gap-3" data-testid={`row-call-${log.id}`}>
-      <div className="flex items-center gap-2.5 min-w-0">
-        <div className={`p-1.5 rounded-full flex-shrink-0 ${isCompleted ? "bg-green-100 dark:bg-green-900/30" : "bg-red-100 dark:bg-red-900/30"}`}>
-          {isCompleted
-            ? <PhoneCall className="h-3 w-3 text-green-600 dark:text-green-400" />
-            : <PhoneMissed className="h-3 w-3 text-red-600 dark:text-red-400" />
-          }
-        </div>
-        <span className="text-sm font-medium truncate" data-testid={`text-caller-${log.id}`}>{caller}</span>
-      </div>
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <span className="text-xs text-muted-foreground">{formatDuration(dur)}</span>
-        <Badge
-          variant={isCompleted ? "secondary" : "outline"}
-          className="text-[10px] px-1.5 py-0"
-          data-testid={`badge-status-${log.id}`}
-        >
-          {log.status}
-        </Badge>
-        {cost !== null && (
-          <span className="text-xs text-muted-foreground">${cost.toFixed(3)}</span>
-        )}
-      </div>
     </div>
   );
 }

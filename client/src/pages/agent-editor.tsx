@@ -9,7 +9,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAgentEditorTour } from "@/components/onboarding-tour";
 import type { Agent, KnowledgeBase } from "@shared/schema";
 import { RetellWebClient } from "retell-client-js-sdk";
-import type { Node, Edge, Connection, NodeTypes } from '@xyflow/react';
+import type { Node, Edge, Connection, NodeTypes, EdgeTypes } from '@xyflow/react';
 import {
   ReactFlow,
   Background,
@@ -23,6 +23,7 @@ import {
   ReactFlowProvider,
   Panel,
 } from '@xyflow/react';
+import { LabeledEdge, type EdgeData, type FlowTransition, type FlowConnectionRecord, type FlowNodeRecord } from '@/components/labeled-edge';
 import '@xyflow/react/dist/style.css';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -515,8 +516,10 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
 
 const nodeTypes: NodeTypes = { custom: CustomNode };
 
+const edgeTypes: EdgeTypes = { labeled: LabeledEdge };
+
 const defaultEdgeOptions = {
-  type: 'smoothstep',
+  type: 'labeled',
   style: { stroke: '#94a3b8', strokeWidth: 2 },
   markerEnd: { type: 'arrowclosed' as const, color: '#94a3b8', width: 20, height: 20 },
 };
@@ -945,16 +948,35 @@ function AgentEditorInner() {
 
   useEffect(() => {
     if (flowConnectionsData.length > 0) {
-      const loadedEdges = flowConnectionsData.map((conn) => ({
-        id: conn.id,
-        source: conn.sourceNodeId,
-        target: conn.targetNodeId,
-        sourceHandle: conn.sourceHandle || undefined,
-        label: conn.label,
-      }));
+      const typedConnections = flowConnectionsData as FlowConnectionRecord[];
+      const typedNodes = flowNodesData as FlowNodeRecord[];
+      const loadedEdges = typedConnections.map((conn) => {
+        let edgeColor = 'indigo';
+        if (conn.sourceHandle && conn.sourceNodeId) {
+          const sourceNode = typedNodes.find(n => n.id === conn.sourceNodeId);
+          if (sourceNode) {
+            const transitions: FlowTransition[] = sourceNode.config?.transitions || [];
+            const prefix = `${conn.sourceNodeId}-`;
+            if (conn.sourceHandle.startsWith(prefix)) {
+              const transitionId = conn.sourceHandle.slice(prefix.length);
+              const transition = transitions.find(t => t.id === transitionId);
+              if (transition?.color) edgeColor = transition.color;
+            }
+          }
+        }
+        return {
+          id: conn.id,
+          source: conn.sourceNodeId,
+          target: conn.targetNodeId,
+          sourceHandle: conn.sourceHandle || undefined,
+          label: conn.label,
+          type: 'labeled',
+          data: { color: edgeColor } as EdgeData,
+        };
+      });
       setEdges(loadedEdges);
     }
-  }, [flowConnectionsData, setEdges]);
+  }, [flowConnectionsData, flowNodesData, setEdges]);
 
   // Auth redirect
   useEffect(() => {
@@ -1162,9 +1184,33 @@ function AgentEditorInner() {
   }, [agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, repeatCustomerRecognition, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, hoursEnabled, hoursTimezone, hoursSchedule, afterHoursMode, afterHoursMessage, nodes, edges, triggerAutoSave, isNew]);
 
   // Handlers
-  const updateNodeData = useCallback((nodeId: string, newData: any) => {
+  const updateNodeData = useCallback((nodeId: string, newData: Record<string, unknown>) => {
     setNodes((nds) => nds.map((node) => node.id === nodeId ? { ...node, data: { ...node.data, ...newData } } : node));
-  }, [setNodes]);
+    // Sync edge labels and colors when transitions change
+    const transitions = newData.transitions;
+    if (Array.isArray(transitions)) {
+      setEdges((eds) =>
+        eds.map((edge) => {
+          if (edge.source === nodeId && edge.sourceHandle) {
+            const prefix = `${nodeId}-`;
+            if (edge.sourceHandle.startsWith(prefix)) {
+              const transitionId = edge.sourceHandle.slice(prefix.length);
+              const transition = (transitions as FlowTransition[]).find(t => t.id === transitionId);
+              if (transition) {
+                const newLabel = transition.condition || transition.label || '';
+                const newColor = transition.color || 'indigo';
+                const edgeData = (edge.data ?? {}) as EdgeData;
+                if (edge.label !== newLabel || edgeData.color !== newColor) {
+                  return { ...edge, label: newLabel, data: { ...edgeData, color: newColor } };
+                }
+              }
+            }
+          }
+          return edge;
+        })
+      );
+    }
+  }, [setNodes, setEdges]);
 
   const deleteNode = useCallback((nodeId: string) => {
     setNodes((nds) => nds.filter((node) => node.id !== nodeId));
@@ -1172,7 +1218,26 @@ function AgentEditorInner() {
     if (selectedNodeId === nodeId) setSelectedNodeId(null);
   }, [setNodes, setEdges, selectedNodeId]);
 
-  const onConnect = useCallback((params: Connection) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
+  const onConnect = useCallback((params: Connection) => {
+    let edgeLabel = '';
+    let edgeColor = 'indigo';
+    if (params.sourceHandle && params.source) {
+      const sourceNode = nodes.find(n => n.id === params.source);
+      const transitions = sourceNode?.data?.transitions as Array<{ id: string; condition?: string; label?: string; color?: string }> | undefined;
+      if (transitions && Array.isArray(transitions)) {
+        const prefix = `${params.source}-`;
+        if (params.sourceHandle.startsWith(prefix)) {
+          const transitionId = params.sourceHandle.slice(prefix.length);
+          const transition = transitions.find(t => t.id === transitionId);
+          if (transition) {
+            edgeLabel = transition.condition || transition.label || '';
+            edgeColor = transition.color || 'indigo';
+          }
+        }
+      }
+    }
+    setEdges((eds) => addEdge({ ...params, label: edgeLabel, data: { color: edgeColor } }, eds));
+  }, [setEdges, nodes]);
   const onNodeClick = useCallback((_event: any, node: Node) => setSelectedNodeId(node.id), []);
   const onPaneClick = useCallback(() => setSelectedNodeId(null), []);
   const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; }, []);
@@ -2234,6 +2299,7 @@ function AgentEditorInner() {
                 onDrop={onDrop}
                 onDragOver={onDragOver}
                 nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
                 defaultEdgeOptions={defaultEdgeOptions}
                 fitView
                 className="bg-transparent"

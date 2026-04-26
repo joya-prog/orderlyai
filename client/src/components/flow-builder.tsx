@@ -13,11 +13,13 @@ import {
   type Edge,
   type Connection,
   type NodeTypes,
+  type EdgeTypes,
   BackgroundVariant,
   useReactFlow,
   ReactFlowProvider,
   Panel,
 } from '@xyflow/react';
+import { LabeledEdge, type EdgeData, type FlowTransition } from '@/components/labeled-edge';
 import '@xyflow/react/dist/style.css';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -615,9 +617,13 @@ const nodeTypes: NodeTypes = {
   custom: CustomNode,
 };
 
+const edgeTypes: EdgeTypes = {
+  labeled: LabeledEdge,
+};
+
 // Custom edge style
 const defaultEdgeOptions = {
-  type: 'smoothstep',
+  type: 'labeled',
   animated: false,
   style: { 
     stroke: '#6366f1', 
@@ -760,13 +766,14 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
 
   const onConnect = useCallback(
     (params: Connection) => {
-      // Extract transition label from source node's transitions
+      // Extract transition label and color from source node's transitions
       // sourceHandle format is "${nodeId}-${transitionId}"
       let edgeLabel = '';
+      let edgeColor = 'indigo';
       
       if (params.sourceHandle && params.source) {
         const sourceNode = nodes.find(n => n.id === params.source);
-        const transitions = sourceNode?.data?.transitions as Array<{ id: string; condition?: string; label?: string }> | undefined;
+        const transitions = sourceNode?.data?.transitions as Array<{ id: string; condition?: string; label?: string; color?: string }> | undefined;
         if (transitions && Array.isArray(transitions)) {
           // Parse transition ID by stripping the nodeId prefix
           // Format: "${nodeId}-${transitionId}" - strip "${nodeId}-" to get transitionId
@@ -776,12 +783,13 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
             const transition = transitions.find(t => t.id === transitionId);
             if (transition) {
               edgeLabel = transition.condition || transition.label || '';
+              edgeColor = transition.color || 'indigo';
             }
           }
         }
       }
       
-      setEdges((eds) => addEdge({ ...params, label: edgeLabel }, eds));
+      setEdges((eds) => addEdge({ ...params, label: edgeLabel, data: { color: edgeColor } }, eds));
     },
     [setEdges, nodes],
   );
@@ -809,7 +817,7 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
       )
     );
     
-    // If transitions were updated, sync edge labels for any edges coming from this node
+    // If transitions were updated, sync edge labels and colors for any edges coming from this node
     if (newData.transitions && Array.isArray(newData.transitions)) {
       setEdges((eds) =>
         eds.map((edge) => {
@@ -820,12 +828,14 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
             if (edge.sourceHandle.startsWith(prefix)) {
               const transitionId = edge.sourceHandle.slice(prefix.length);
               const transition = newData.transitions.find(
-                (t: { id: string; condition?: string; label?: string }) => t.id === transitionId
+                (t: { id: string; condition?: string; label?: string; color?: string }) => t.id === transitionId
               );
               if (transition) {
                 const newLabel = transition.condition || transition.label || '';
-                if (edge.label !== newLabel) {
-                  return { ...edge, label: newLabel };
+                const newColor = transition.color || 'indigo';
+                const edgeData = (edge.data ?? {}) as EdgeData;
+                if (edge.label !== newLabel || edgeData.color !== newColor) {
+                  return { ...edge, label: newLabel, data: { ...edgeData, color: newColor } };
                 }
               }
             }
@@ -1023,6 +1033,7 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
           onDrop={onDrop}
           onDragOver={onDragOver}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
           connectionRadius={40}
           connectionLineStyle={{ stroke: '#6366f1', strokeWidth: 2.5, strokeDasharray: '8 4' }}

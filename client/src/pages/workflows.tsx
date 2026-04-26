@@ -12,6 +12,7 @@ import { Workflow, HelpCircle } from "lucide-react";
 import { FlowBuilder } from "@/components/flow-builder";
 import { useWorkflowTour } from "@/components/onboarding-tour";
 import type { Node, Edge } from '@xyflow/react';
+import type { EdgeData, FlowConnectionRecord, FlowNodeRecord, FlowTransition } from '@/components/labeled-edge';
 
 export default function WorkflowsPage() {
   const { toast } = useToast();
@@ -66,14 +67,33 @@ export default function WorkflowsPage() {
   }, [flowNodesData]);
 
   const initialEdges = useMemo(() => {
-    return flowConnectionsData.map((conn) => ({
-      id: conn.id,
-      source: conn.sourceNodeId,
-      target: conn.targetNodeId,
-      sourceHandle: conn.sourceHandle || undefined,
-      label: conn.label,
-    }));
-  }, [flowConnectionsData]);
+    const typedConnections = flowConnectionsData as FlowConnectionRecord[];
+    const typedNodes = flowNodesData as FlowNodeRecord[];
+    return typedConnections.map((conn) => {
+      let edgeColor = 'indigo';
+      if (conn.sourceHandle && conn.sourceNodeId) {
+        const sourceNode = typedNodes.find(n => n.id === conn.sourceNodeId);
+        if (sourceNode) {
+          const transitions: FlowTransition[] = sourceNode.config?.transitions || [];
+          const prefix = `${conn.sourceNodeId}-`;
+          if (conn.sourceHandle.startsWith(prefix)) {
+            const transitionId = conn.sourceHandle.slice(prefix.length);
+            const transition = transitions.find(t => t.id === transitionId);
+            if (transition?.color) edgeColor = transition.color;
+          }
+        }
+      }
+      return {
+        id: conn.id,
+        source: conn.sourceNodeId,
+        target: conn.targetNodeId,
+        sourceHandle: conn.sourceHandle || undefined,
+        label: conn.label,
+        type: 'labeled',
+        data: { color: edgeColor } as EdgeData,
+      };
+    });
+  }, [flowConnectionsData, flowNodesData]);
 
   const saveFlowMutation = useMutation({
     mutationFn: async ({ nodes, edges }: { nodes: Node[]; edges: Edge[] }) => {

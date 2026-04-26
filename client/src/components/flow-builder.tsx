@@ -408,7 +408,7 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
         <Handle 
           type="target" 
           position={Position.Left} 
-          className="!w-3 !h-3 !bg-white !border-2 !border-gray-300 dark:!border-gray-600 !-left-1.5 !rounded-full"
+          className="!w-5 !h-5 !bg-white !border-2 !border-indigo-400 dark:!border-indigo-500 !rounded-full flow-handle-target"
           id={`${id}-target`}
           isConnectable={true}
         />
@@ -577,10 +577,11 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
                   <Handle 
                     type="source" 
                     position={Position.Right}
-                    className="!w-3 !h-3 !bg-white !border-2 !border-gray-300 dark:!border-gray-600 !rounded-full !relative !right-0 !top-0 !transform-none"
+                    className={`!w-5 !h-5 !border-2 !border-white !rounded-full flow-handle-source ${
+                      transitionColors[t.color || 'emerald']?.handle || '!bg-indigo-500'
+                    }`}
                     id={`${id}-${t.id}`}
                     isConnectable={true}
-                    style={{ position: 'relative', right: 'auto', top: 'auto', transform: 'none' }}
                   />
                 </div>
               ))}
@@ -612,14 +613,14 @@ const defaultEdgeOptions = {
   type: 'smoothstep',
   animated: false,
   style: { 
-    stroke: '#94a3b8', 
-    strokeWidth: 2,
+    stroke: '#6366f1', 
+    strokeWidth: 2.5,
   },
   markerEnd: {
     type: 'arrowclosed' as const,
-    color: '#94a3b8',
-    width: 20,
-    height: 20,
+    color: '#6366f1',
+    width: 16,
+    height: 16,
   },
 };
 
@@ -1016,6 +1017,8 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
           onDragOver={onDragOver}
           nodeTypes={nodeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
+          connectionRadius={40}
+          connectionLineStyle={{ stroke: '#6366f1', strokeWidth: 2.5, strokeDasharray: '8 4' }}
           fitView
           className="bg-transparent"
           data-testid="flow-canvas"

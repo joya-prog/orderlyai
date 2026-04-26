@@ -410,3 +410,35 @@
   outline: 3px solid hsl(217 91% 60%) !important;
   outline-offset: 4px !important;
 }
+
+/* ============================================================
+   ReactFlow — handle UX improvements
+   ============================================================ */
+.react-flow__handle {
+  cursor: crosshair;
+  transition: box-shadow 0.15s ease;
+}
+
+.react-flow__handle-left:hover {
+  transform: translate(-50%, -50%) scale(1.35) !important;
+  box-shadow: 0 0 0 5px rgba(99, 102, 241, 0.22) !important;
+  z-index: 10;
+}
+
+.react-flow__handle-right:hover {
+  transform: translate(50%, -50%) scale(1.35) !important;
+  box-shadow: 0 0 0 5px rgba(99, 102, 241, 0.22) !important;
+  z-index: 10;
+}
+
+.react-flow__handle.connectingto {
+  box-shadow: 0 0 0 7px rgba(16, 185, 129, 0.35) !important;
+}
+
+.react-flow__edge-path {
+  stroke-linecap: round;
+}
+
+.react-flow__connection-path {
+  stroke-linecap: round;
+}

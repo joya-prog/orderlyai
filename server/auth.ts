@@ -79,6 +79,64 @@ async function provisionTrialCredit(userId: string, email: string, name: string)
   }
 }
 
+export async function sendCreditExhaustedAlert(toEmail: string, callerNumber: string, billingUrl: string): Promise<void> {
+  if (!resend) {
+    console.warn("[Email] RESEND_API_KEY not set — skipping credit exhausted alert to", toEmail);
+    return;
+  }
+
+  const callTime = new Date().toLocaleString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true,
+    timeZoneName: 'short',
+  });
+
+  const { error } = await resend.emails.send({
+    from: FROM_EMAIL,
+    to: toEmail,
+    subject: "Missed call — your Orderly AI trial credit has run out",
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f9f7f4; margin: 0; padding: 40px 20px;">
+          <div style="max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 40px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);">
+            <div style="margin-bottom: 24px;">
+              <div style="display: inline-block; background: #fff3cd; color: #856404; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; margin-bottom: 16px;">Action Required</div>
+              <h1 style="font-size: 20px; font-weight: 700; color: #1a1a1a; margin: 0 0 8px 0;">A call was missed</h1>
+              <p style="color: #555; font-size: 15px; margin: 0 0 16px 0;">An incoming call was blocked because your Orderly AI trial credit has been used up.</p>
+            </div>
+            <div style="background: #f8f9fa; border-radius: 10px; padding: 16px; margin-bottom: 24px;">
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="color: #888; font-size: 13px; padding: 4px 0; width: 40%;">Caller</td>
+                  <td style="color: #1a1a1a; font-size: 13px; font-weight: 600; padding: 4px 0;">${callerNumber}</td>
+                </tr>
+                <tr>
+                  <td style="color: #888; font-size: 13px; padding: 4px 0;">Time</td>
+                  <td style="color: #1a1a1a; font-size: 13px; font-weight: 600; padding: 4px 0;">${callTime}</td>
+                </tr>
+              </table>
+            </div>
+            <p style="color: #555; font-size: 14px; margin: 0 0 20px 0;">Add a payment method to restore service immediately. Future calls will be billed at your plan's per-minute rate.</p>
+            <a href="${billingUrl}" style="display: inline-block; background: #2d6a4f; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-size: 15px; font-weight: 600; margin-bottom: 28px;">
+              Add Payment Method
+            </a>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+            <p style="color: #bbb; font-size: 12px; margin: 0;">Orderly AI · Voice Agent Platform for Restaurants</p>
+          </div>
+        </body>
+      </html>
+    `,
+  });
+
+  if (error) {
+    console.error("[Email] Failed to send credit exhausted alert:", error);
+  } else {
+    console.log(`[Email] Credit exhausted alert sent to ${toEmail}`);
+  }
+}
+
 async function sendPasswordResetEmail(toEmail: string, resetUrl: string): Promise<void> {
   if (!resend) {
     console.warn("[Email] RESEND_API_KEY not set — skipping email send. Reset URL:", resetUrl);

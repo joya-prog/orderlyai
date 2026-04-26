@@ -3,7 +3,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer } from "ws";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated, isAdmin, isSuperAdmin } from "./auth";
+import { setupAuth, isAuthenticated, isAdmin, isSuperAdmin, sendCreditExhaustedAlert } from "./auth";
 import { generateAgentResponse, transcribeAudio, synthesizeSpeech, VoiceConfig, buildFlowContext, analyzeCallTranscript } from "./openai";
 import { handleTwilioWebSocket, generateTwiML, getActiveCalls, handleBrowserTestWebSocket } from "./voiceCallHandler";
 import { createWorkflowExecutor, WorkflowState } from "./workflowExecutor";
@@ -30,6 +30,10 @@ interface CreditStatus {
 
 // In-memory cache: 30s TTL for fresh entries, stale entries returned as fallback on Stripe errors
 const creditStatusCache = new Map<string, { status: CreditStatus; expiresAt: number }>();
+
+// Throttle: at most one credit-exhausted alert email per user per hour
+const creditAlertThrottle = new Map<string, number>();
+const CREDIT_ALERT_THROTTLE_MS = 60 * 60 * 1000; // 1 hour
 
 async function getUserCreditStatus(userId: string): Promise<CreditStatus | null> {
   const now = Date.now();
@@ -4619,6 +4623,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const creditStatus = await getUserCreditStatus(phoneNumber.userId);
       if (creditStatus && creditStatus.isTrial && creditStatus.balanceCents <= 0 && !creditStatus.hasPaymentMethod) {
         console.warn(`[Voice] Blocking call to ${To} — trial user ${phoneNumber.userId} has no credit and no payment method`);
+
+        // Fire alert email (throttled to once per hour per user, non-blocking)
+        const lastAlertAt = creditAlertThrottle.get(phoneNumber.userId) ?? 0;
+        if (Date.now() - lastAlertAt > CREDIT_ALERT_THROTTLE_MS) {
+          creditAlertThrottle.set(phoneNumber.userId, Date.now());
+          const host = req.get('host') || 'app.getorderly.io';
+          const billingUrl = `https://${host}/billing`;
+          storage.getUser(phoneNumber.userId).then(owner => {
+            if (owner?.email) {
+              sendCreditExhaustedAlert(owner.email, From || 'Unknown caller', billingUrl).catch(err => {
+                console.error('[Voice] Failed to send credit alert email:', err);
+              });
+            }
+          }).catch(() => {});
+        }
+
         res.type('text/xml');
         res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>

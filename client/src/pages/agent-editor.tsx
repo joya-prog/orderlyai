@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback, useRef, DragEvent, memo } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { useParams, useLocation } from "wouter";
+import { useParams, useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -86,9 +86,11 @@ import {
   Maximize2,
   Check,
   AlertCircle,
+  AlertTriangle,
   Info,
   HelpCircle,
 } from "lucide-react";
+import { ToastAction } from "@/components/ui/toast";
 import { VoiceSelector } from "@/components/voice-selector";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -751,6 +753,15 @@ function AgentEditorInner() {
   const [voiceServiceDisabled, setVoiceServiceDisabled] = useState(false);
   const retellClientRef = useRef<RetellWebClient | null>(null);
   
+  // Billing queries for proactive credit exhaustion check
+  const { data: creditBalance } = useQuery<{ creditGrantedCents: number; balanceCents: number; hasCredit: boolean }>({
+    queryKey: ["/api/billing/credit-balance"],
+  });
+  const { data: paymentMethodStatus } = useQuery<{ hasPaymentMethod: boolean; count: number }>({
+    queryKey: ["/api/billing/payment-methods"],
+  });
+  const isCreditExhausted = creditBalance !== undefined && creditBalance.balanceCents <= 0 && paymentMethodStatus !== undefined && !paymentMethodStatus.hasPaymentMethod;
+
   // Floating panel state - Settings panel (left)
   const [settingsPanelPos, setSettingsPanelPos] = useState({ x: 16, y: 16 });
   const [settingsPanelSize, setSettingsPanelSize] = useState({ width: 288, height: 0 }); // height 0 = auto
@@ -1443,7 +1454,18 @@ function AgentEditorInner() {
         }
       }
       
-      if (errorMessage.includes('Microphone')) {
+      if (errorMessage.startsWith('402:')) {
+        toast({
+          title: "Trial credit exhausted",
+          description: "Add a payment method to continue making test calls.",
+          variant: "destructive",
+          action: (
+            <ToastAction altText="Go to Billing" onClick={() => navigate("/billing")}>
+              Go to Billing
+            </ToastAction>
+          ),
+        });
+      } else if (errorMessage.includes('Microphone')) {
         toast({ title: "Microphone Access Required", description: "Please allow microphone access to use voice testing", variant: "destructive" });
       } else if (isServiceDisabled) {
         // Graceful degradation: set disabled state, no toast (inline notice shown instead)
@@ -1452,7 +1474,7 @@ function AgentEditorInner() {
         toast({ title: "Error", description: errorMessage || "Failed to start voice call", variant: "destructive" });
       }
     }
-  }, [isNew, id, user, toast]);
+  }, [isNew, id, user, toast, navigate]);
 
   // Voice call - stop call
   const stopVoiceCall = useCallback(() => {
@@ -2558,6 +2580,30 @@ function AgentEditorInner() {
                       <PhoneOff className="h-5 w-5" />
                       End Call
                     </Button>
+                  ) : isCreditExhausted ? (
+                    <div className="w-full" data-testid="banner-credit-exhausted">
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 mb-4">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                          <div className="text-sm text-red-800 dark:text-red-200">
+                            <p className="font-medium mb-1">Trial credit used</p>
+                            <p className="text-red-700 dark:text-red-300 text-xs">
+                              Add a payment method to continue making test calls.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <Link href="/billing">
+                        <Button
+                          size="lg"
+                          className="gap-2 w-full"
+                          variant="outline"
+                          data-testid="button-go-to-billing"
+                        >
+                          Add Payment Method
+                        </Button>
+                      </Link>
+                    </div>
                   ) : (
                     <Button 
                       size="lg"

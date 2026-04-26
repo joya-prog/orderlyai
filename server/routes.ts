@@ -4627,14 +4627,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Fire alert email (throttled to once per hour per user, non-blocking)
         const lastAlertAt = creditAlertThrottle.get(phoneNumber.userId) ?? 0;
         if (Date.now() - lastAlertAt > CREDIT_ALERT_THROTTLE_MS) {
-          creditAlertThrottle.set(phoneNumber.userId, Date.now());
-          const canonicalHost =
+          // Normalize APP_BASE_URL — strip any protocol prefix so we always control the scheme
+          const rawBase =
             process.env.REPLIT_DOMAINS?.split(',').find(d => !d.includes('replit.dev')) ||
             process.env.APP_BASE_URL ||
             'app.getorderly.io';
+          const canonicalHost = rawBase.replace(/^https?:\/\//, '').replace(/\/$/, '');
           const billingUrl = `https://${canonicalHost}/billing`;
+          // Set throttle only after we confirm the owner has an email (avoids silently burning 1h quota on lookup failures)
           storage.getUser(phoneNumber.userId).then(owner => {
             if (owner?.email) {
+              creditAlertThrottle.set(phoneNumber.userId, Date.now());
               sendCreditExhaustedAlert(owner.email, From || 'Unknown caller', billingUrl).catch(err => {
                 console.error('[Voice] Failed to send credit alert email:', err);
               });

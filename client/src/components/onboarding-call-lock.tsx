@@ -535,6 +535,7 @@ export function OnboardingCallLock({ user }: OnboardingCallLockProps) {
   const hasIntake = !!user.preCallIntake && !user.onboardingCallUnlocked;
   const [step, setStep] = useState<Step>(hasIntake ? "done" : "calendly");
   const [formData, setFormData] = useState<PreCallIntake>(DEFAULT_INTAKE);
+  const [booked, setBooked] = useState(false);
 
   useEffect(() => {
     function handler(e: MessageEvent) {
@@ -543,12 +544,19 @@ export function OnboardingCallLock({ user }: OnboardingCallLockProps) {
         e.origin === CALENDLY_ORIGIN || e.origin.endsWith(".calendly.com");
       if (!isCalendlyOrigin) return;
       if (e.data?.event === "calendly.event_scheduled") {
-        setStep("hours");
+        setBooked(true);
       }
     }
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
   }, []);
+
+  // Auto-advance 2 seconds after booking is confirmed
+  useEffect(() => {
+    if (!booked || step !== "calendly") return;
+    const timer = setTimeout(() => setStep("hours"), 2000);
+    return () => clearTimeout(timer);
+  }, [booked, step]);
 
   const saveMutation = useMutation({
     mutationFn: (intake: PreCallIntake) =>
@@ -621,32 +629,50 @@ export function OnboardingCallLock({ user }: OnboardingCallLockProps) {
           {/* Step content */}
           {step === "calendly" && (
             <>
+              {booked && (
+                <div className="mx-6 mt-4 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 flex items-center gap-3" data-testid="banner-booking-confirmed">
+                  <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground">Your call is booked!</p>
+                    <p className="text-xs text-muted-foreground">Taking you to the next step…</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => setStep("hours")}
+                    data-testid="button-booking-continue"
+                  >
+                    Continue
+                    <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                  </Button>
+                </div>
+              )}
               <iframe
                 src={CALENDLY_URL}
                 width="100%"
-                height="650"
+                height="560"
                 frameBorder="0"
                 title="Book your Orderly AI setup call"
                 data-testid="iframe-calendly"
                 className="block"
               />
-              <div className="px-6 py-3 border-t border-border/50 bg-muted/30 space-y-1.5">
+              <div className="px-6 py-3 border-t border-border/50 bg-muted/30 space-y-2">
                 <p className="text-xs text-muted-foreground text-center" data-testid="text-lock-footer">
                   After your call, your account manager will unlock your dashboard. Questions?{" "}
                   <a href="mailto:hello@getorderly.io" className="text-primary hover:underline">
                     hello@getorderly.io
                   </a>
                 </p>
-                <p className="text-xs text-center">
-                  <button
-                    type="button"
+                <div className="flex justify-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => setStep("hours")}
-                    className="text-primary hover:underline font-medium"
                     data-testid="button-already-booked"
                   >
-                    Already booked your call? Continue →
-                  </button>
-                </p>
+                    <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+                    Already booked your call? Continue
+                  </Button>
+                </div>
               </div>
             </>
           )}

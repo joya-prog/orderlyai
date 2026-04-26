@@ -1183,6 +1183,27 @@ function AgentEditorInner() {
     
   }, [agentName, language, globalPrompt, aiModel, selectedVoiceName, voiceProvider, selectedVoiceId, voiceSpeed, voiceTemperature, voiceVolume, responsiveness, interruptionSensitivity, backgroundSound, beginMessageDelay, maxCallDuration, inactivityTimeout, repeatCustomerRecognition, voicemailDetection, warmTransferEnabled, warmTransferNumber, warmTransferMessage, hoursEnabled, hoursTimezone, hoursSchedule, afterHoursMode, afterHoursMessage, nodes, edges, triggerAutoSave, isNew]);
 
+  // Flush pending auto-save immediately when user switches tabs or minimizes window
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState === 'hidden' &&
+        hasLoadedRef.current &&
+        !isNew &&
+        !isSavingRef.current
+      ) {
+        if (autoSaveTimerRef.current) {
+          clearTimeout(autoSaveTimerRef.current);
+          autoSaveTimerRef.current = null;
+        }
+        executeSave();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isNew, executeSave]);
+
   // Handlers
   const updateNodeData = useCallback((nodeId: string, newData: Record<string, unknown>) => {
     setNodes((nds) => nds.map((node) => node.id === nodeId ? { ...node, data: { ...node.data, ...newData } } : node));

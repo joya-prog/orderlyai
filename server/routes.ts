@@ -1486,7 +1486,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/voices/:provider/preview", isAuthenticated, async (req: any, res) => {
     try {
       const { provider } = req.params;
-      const { voiceId, text, previewUrl } = req.body;
+      const { voiceId, text } = req.body;
       
       if (!voiceId) {
         return res.status(400).json({ message: "Voice ID required" });
@@ -1513,32 +1513,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.setHeader("Content-Length", audioBuffer.length);
         res.send(audioBuffer);
       } else if (provider === 'elevenlabs') {
-        // If a direct preview URL is available (from Retell), proxy it
-        if (previewUrl) {
-          try {
-            const audioResponse = await fetch(previewUrl);
-            if (audioResponse.ok && audioResponse.body) {
-              const arrayBuffer = await audioResponse.arrayBuffer();
-              const buffer = Buffer.from(arrayBuffer);
-              res.setHeader("Content-Type", "audio/mpeg");
-              res.setHeader("Content-Length", buffer.length);
-              return res.send(buffer);
-            }
-          } catch (e) {
-            console.log("Preview URL fetch failed, falling back to TTS API");
-          }
-        }
-
         // Strip "11labs-" prefix if present for direct ElevenLabs API calls
         let cleanVoiceId = voiceId;
         if (cleanVoiceId.startsWith('11labs-')) {
           cleanVoiceId = cleanVoiceId.replace('11labs-', '');
         }
 
-        // If the ID looks like a UUID (real ElevenLabs ID), use it directly
-        // Otherwise it's a Retell name-based ID - try to find the real ID from Retell
+        // If the ID looks like a real ElevenLabs UUID/alphanumeric ID, call ElevenLabs directly
+        // Otherwise it's a Retell name-based ID — fall back to OpenAI TTS so we never
+        // serve Retell-branded audio samples
         const isRealElevenLabsId = /^[a-zA-Z0-9]{20,}$/.test(cleanVoiceId);
-        
+
         if (isRealElevenLabsId) {
           const { previewElevenLabsVoice } = await import('./elevenlabs');
           const audioBuffer = await previewElevenLabsVoice(cleanVoiceId, previewText);
@@ -1546,20 +1531,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           res.setHeader("Content-Length", audioBuffer.length);
           res.send(audioBuffer);
         } else {
-          // For Retell-format IDs, try to find the voice's preview URL from Retell
-          const retellVoices = await retell.listRetellVoices('elevenlabs');
-          const matchedVoice = retellVoices.find(v => v.voice_id === voiceId);
-          if (matchedVoice?.preview_audio_url) {
-            const audioResponse = await fetch(matchedVoice.preview_audio_url);
-            if (audioResponse.ok) {
-              const arrayBuffer = await audioResponse.arrayBuffer();
-              const buffer = Buffer.from(arrayBuffer);
-              res.setHeader("Content-Type", "audio/mpeg");
-              res.setHeader("Content-Length", buffer.length);
-              return res.send(buffer);
-            }
-          }
-          return res.status(400).json({ message: "Could not resolve ElevenLabs voice for preview" });
+          // Retell-format IDs (e.g. "11labs-Willa") don't map to a real ElevenLabs UUID.
+          // Synthesize the preview text with OpenAI TTS instead so no Retell branding leaks.
+          const voiceConfig: VoiceConfig = {
+            provider: 'openai',
+            voiceId: 'alloy',
+            speed: '1.0',
+          };
+          const audioBuffer = await synthesizeSpeech(previewText, voiceConfig);
+          res.setHeader("Content-Type", "audio/mpeg");
+          res.setHeader("Content-Length", audioBuffer.length);
+          res.send(audioBuffer);
         }
       } else if (provider === 'cartesia') {
         res.status(501).json({ message: "Cartesia preview coming soon" });

@@ -167,7 +167,6 @@ export function VoiceSelector({ open, onOpenChange, provider: initialProvider, s
         body: JSON.stringify({ 
           voiceId,
           text: getPreviewPhrase(voiceId),
-          previewUrl: voice?.preview_url || undefined,
         }),
       });
 

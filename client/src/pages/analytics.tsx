@@ -17,10 +17,6 @@ import {
 } from "recharts";
 import type { AnalyticsEvent, CallLog } from "@shared/schema";
 
-// ─────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────
-
 interface AnalyticsOverview {
   totalCalls: number;
   totalOrders: number;
@@ -57,19 +53,8 @@ interface AuthUser {
 
 type DateRangePreset = "7days" | "30days" | "90days" | "12months";
 type ExpandType =
-  | "calls"
-  | "revenue"
-  | "cost"
-  | "peakhours"
-  | "recentcalls"
-  | "kpi_calls"
-  | "kpi_minutes"
-  | "kpi_cost"
-  | "kpi_duration";
-
-// ─────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────
+  | "calls" | "revenue" | "peakhours" | "recentcalls" | "aiperformance"
+  | "kpi_calls" | "kpi_minutes" | "kpi_cost" | "kpi_duration";
 
 function formatDuration(seconds: number): string {
   if (!seconds || seconds === 0) return "0m 0s";
@@ -144,9 +129,13 @@ const TOOLTIP_STYLE = {
   fontSize: "12px",
 };
 
-// ─────────────────────────────────────────
-// Sub-components
-// ─────────────────────────────────────────
+function getOrderAmount(metadata: AnalyticsEvent["metadata"]): number {
+  if (!metadata || typeof metadata !== "object") return 0;
+  const m = metadata as Record<string, unknown>;
+  if (typeof m.amount === "number") return m.amount;
+  if (typeof m.amount === "string") return parseFloat(m.amount) || 0;
+  return 0;
+}
 
 function MiniSparkline({ data, color }: { data: number[]; color: string }) {
   if (data.length < 2) return <div className="h-8 bg-muted/20 rounded" />;
@@ -216,10 +205,6 @@ function CallRow({ log }: { log: CallLog }) {
   );
 }
 
-// ─────────────────────────────────────────
-// KPI Card
-// ─────────────────────────────────────────
-
 function KpiCard({
   label, icon: Icon, iconColor, value, trend, sparkData, sparkColor, testId, onExpand,
 }: {
@@ -260,10 +245,6 @@ function KpiCard({
   );
 }
 
-// ─────────────────────────────────────────
-// Main Component
-// ─────────────────────────────────────────
-
 export default function AnalyticsPage() {
   const [preset, setPreset] = useState<DateRangePreset>("30days");
   const [expanded, setExpanded] = useState<{ type: ExpandType; title: string } | null>(null);
@@ -290,7 +271,6 @@ export default function AnalyticsPage() {
 
   const isLoading = overviewLoading || eventsLoading || usageLoading;
 
-  // ── Processed event data ──
   const processed = useMemo(() => {
     if (!events || events.length === 0) {
       return {
@@ -305,7 +285,8 @@ export default function AnalyticsPage() {
     const hourlyMap = new Map<number, number>();
     for (let i = 0; i < 24; i++) hourlyMap.set(i, 0);
 
-    let callsStarted = 0, ordersPlaced = 0;
+    let callsStarted = 0;
+    let ordersPlaced = 0;
 
     events.forEach((e) => {
       if (!e.createdAt) return;
@@ -318,10 +299,7 @@ export default function AnalyticsPage() {
 
       if (e.eventType === "order_placed") {
         existing.orders++;
-        const amount = (e.metadata && typeof (e.metadata as any).amount === "number")
-          ? (e.metadata as any).amount
-          : parseFloat((e.metadata as any)?.amount ?? "0") || 0;
-        existing.revenue += amount;
+        existing.revenue += getOrderAmount(e.metadata);
       }
       if (e.eventType === "reservation_created") existing.reservations++;
 
@@ -352,7 +330,6 @@ export default function AnalyticsPage() {
     return { callVolumeData, revenueData, hourlyData, conversionRate };
   }, [events]);
 
-  // ── KPI sparklines from daily usage breakdown ──
   const sparklines = useMemo(() => {
     const breakdown = usage?.current?.dailyBreakdown ?? [];
     return {
@@ -362,7 +339,6 @@ export default function AnalyticsPage() {
     };
   }, [usage]);
 
-  // ── KPI trends ──
   const trends = useMemo(() => {
     if (!usage) return { calls: 0, minutes: 0, cost: 0, duration: 0 };
     const { current, previousPeriod } = usage;
@@ -374,30 +350,26 @@ export default function AnalyticsPage() {
     };
   }, [usage]);
 
-  // ── Duration sparkline reuses call count data as proxy ──
   const durationSparkline = useMemo(
     () => processed.callVolumeData.map((d) => d.calls),
     [processed]
   );
 
-  // ── Peak hours color scale ──
   const maxHourCount = useMemo(
     () => Math.max(...processed.hourlyData.map((d) => d.count), 1),
     [processed.hourlyData]
   );
 
-  const getHourColor = (count: number) => {
+  function getHourColor(count: number) {
     const ratio = count / maxHourCount;
     if (ratio < 0.25) return "hsl(217 91% 70%)";
     if (ratio < 0.5) return "hsl(199 89% 58%)";
     if (ratio < 0.75) return "hsl(43 96% 56%)";
     return "hsl(25 95% 53%)";
-  };
+  }
 
-  // ── Recent calls ──
   const recentCalls = useMemo(() => (callLogs ?? []).slice(0, 6), [callLogs]);
 
-  // ── AI Performance gauge ──
   const gaugeData = useMemo(() => {
     const score = Math.min(Math.round(processed.conversionRate), 100);
     const color = score < 10 ? "hsl(0 84% 60%)" : score < 25 ? "hsl(43 96% 56%)" : "hsl(142 76% 36%)";
@@ -412,15 +384,17 @@ export default function AnalyticsPage() {
     return `Roughly 1 in ${n} calls results in an order.`;
   }, [gaugeData]);
 
-  // ── Expand modal content ──
   function renderExpandedContent() {
     if (!expanded) return null;
 
-    // KPI detail modals
     if (expanded.type === "kpi_calls") {
       const breakdown = usage?.current?.dailyBreakdown ?? [];
-      if (!breakdown.length) return <EmptyState icon={Phone} title="No call data yet" hint="Call data will appear after your first call." />;
-      const data = breakdown.map((d) => ({ date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }), calls: d.callCount }));
+      if (!breakdown.length)
+        return <EmptyState icon={Phone} title="No call data yet" hint="Call data will appear after your first call." />;
+      const data = breakdown.map((d) => ({
+        date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        calls: d.callCount,
+      }));
       return (
         <ResponsiveContainer width="100%" height={380}>
           <BarChart data={data}>
@@ -436,8 +410,12 @@ export default function AnalyticsPage() {
 
     if (expanded.type === "kpi_minutes") {
       const breakdown = usage?.current?.dailyBreakdown ?? [];
-      if (!breakdown.length) return <EmptyState icon={Timer} title="No minutes data yet" hint="Usage minutes will appear after your first call." />;
-      const data = breakdown.map((d) => ({ date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }), minutes: d.minutes }));
+      if (!breakdown.length)
+        return <EmptyState icon={Timer} title="No minutes data yet" hint="Usage minutes will appear after your first call." />;
+      const data = breakdown.map((d) => ({
+        date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        minutes: d.minutes,
+      }));
       return (
         <ResponsiveContainer width="100%" height={380}>
           <AreaChart data={data}>
@@ -459,8 +437,12 @@ export default function AnalyticsPage() {
 
     if (expanded.type === "kpi_cost") {
       const breakdown = usage?.current?.dailyBreakdown ?? [];
-      if (!breakdown.length) return <EmptyState icon={DollarSign} title="No cost data yet" hint="Cost data will appear after your first call." />;
-      const data = breakdown.map((d) => ({ date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }), cost: d.costCents / 100 }));
+      if (!breakdown.length)
+        return <EmptyState icon={DollarSign} title="No cost data yet" hint="Cost data will appear after your first call." />;
+      const data = breakdown.map((d) => ({
+        date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        cost: d.costCents / 100,
+      }));
       return (
         <ResponsiveContainer width="100%" height={380}>
           <AreaChart data={data}>
@@ -481,7 +463,8 @@ export default function AnalyticsPage() {
     }
 
     if (expanded.type === "kpi_duration") {
-      if (!processed.callVolumeData.length) return <EmptyState icon={Clock} title="No duration data yet" hint="Call duration averages will appear once calls come in." />;
+      if (!processed.callVolumeData.length)
+        return <EmptyState icon={Clock} title="No duration data yet" hint="Call duration averages will appear once calls come in." />;
       return (
         <ResponsiveContainer width="100%" height={380}>
           <BarChart data={processed.callVolumeData}>
@@ -495,7 +478,44 @@ export default function AnalyticsPage() {
       );
     }
 
-    // Main panel modals
+    if (expanded.type === "aiperformance") {
+      return (
+        <div className="flex flex-col items-center gap-6 py-4">
+          <div className="relative">
+            <ResponsiveContainer width={200} height={200}>
+              <RadialBarChart
+                cx="50%" cy="50%"
+                innerRadius={70} outerRadius={90}
+                startAngle={90} endAngle={-270}
+                data={[{ value: gaugeData.score, fill: gaugeData.color }]}
+              >
+                <RadialBar dataKey="value" cornerRadius={8} background={{ fill: "hsl(var(--muted))" }} />
+              </RadialBarChart>
+            </ResponsiveContainer>
+            <div className="absolute inset-0 flex items-center justify-center flex-col">
+              <span className="text-3xl font-bold" style={{ color: gaugeData.color }}>{gaugeData.score}%</span>
+              <span className="text-xs text-muted-foreground">conversion</span>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground text-center max-w-xs">{performanceInsight}</p>
+          <div className="flex gap-8 text-center">
+            <div>
+              <p className="text-2xl font-bold">{formatNumber(overview?.totalCalls ?? 0)}</p>
+              <p className="text-xs text-muted-foreground">total calls</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{formatNumber(overview?.totalOrders ?? 0)}</p>
+              <p className="text-xs text-muted-foreground">orders placed</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{formatNumber(overview?.totalReservations ?? 0)}</p>
+              <p className="text-xs text-muted-foreground">reservations</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     if (expanded.type === "calls") {
       if (!processed.callVolumeData.length)
         return <EmptyState icon={BarChart2} title="No call data yet" hint="Call activity will appear once your agent starts handling calls." />;
@@ -575,7 +595,6 @@ export default function AnalyticsPage() {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto" data-testid="page-analytics">
-      {/* ── Header ── */}
       <div className="px-6 pt-6 pb-4 flex items-start justify-between gap-4 flex-shrink-0 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-greeting">
@@ -602,13 +621,12 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="px-6 pb-6 flex flex-col gap-5">
-        {/* ── KPI Cards ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
             label="Total Calls"
             icon={Phone}
             iconColor="text-blue-600"
-            value={isLoading ? null : formatNumber(usage?.current?.callCount ?? overview?.totalCalls ?? 0)}
+            value={isLoading ? null : formatNumber(overview?.totalCalls ?? 0)}
             trend={isLoading ? null : trends.calls}
             sparkData={sparklines.calls}
             sparkColor="hsl(217 91% 60%)"
@@ -650,7 +668,6 @@ export default function AnalyticsPage() {
           />
         </div>
 
-        {/* ── Call Volume Chart ── */}
         <Card data-testid="card-chart-calls">
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 flex-wrap">
             <div>
@@ -706,9 +723,7 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        {/* ── Revenue Trend + Peak Hours ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Order Revenue Trend */}
           <Card data-testid="card-chart-revenue">
             <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 flex-wrap">
               <div>
@@ -754,7 +769,6 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          {/* Peak Call Hours — horizontal bars */}
           <Card data-testid="card-chart-peakhours">
             <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 flex-wrap">
               <div>
@@ -799,13 +813,21 @@ export default function AnalyticsPage() {
           </Card>
         </div>
 
-        {/* ── AI Performance Score + Recent Calls ── */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          {/* AI Performance Donut */}
           <Card className="md:col-span-2" data-testid="card-ai-performance">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold">AI Performance Score</CardTitle>
-              <p className="text-xs text-muted-foreground">Call-to-order conversion rate</p>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 flex-wrap">
+              <div>
+                <CardTitle className="text-base font-semibold">AI Performance Score</CardTitle>
+                <p className="text-xs text-muted-foreground">Call-to-order conversion rate</p>
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setExpanded({ type: "aiperformance", title: "AI Performance Score" })}
+                data-testid="button-expand-aiperformance"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-3 py-2">
               {eventsLoading ? (
@@ -815,12 +837,9 @@ export default function AnalyticsPage() {
                   <div className="relative">
                     <ResponsiveContainer width={144} height={144}>
                       <RadialBarChart
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={48}
-                        outerRadius={68}
-                        startAngle={90}
-                        endAngle={-270}
+                        cx="50%" cy="50%"
+                        innerRadius={48} outerRadius={68}
+                        startAngle={90} endAngle={-270}
                         data={[{ value: gaugeData.score, fill: gaugeData.color }]}
                       >
                         <RadialBar dataKey="value" cornerRadius={6} background={{ fill: "hsl(var(--muted))" }} />
@@ -861,7 +880,6 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          {/* Recent Calls Mini-list */}
           <Card className="md:col-span-3" data-testid="card-recent-calls">
             <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 flex-wrap">
               <div>
@@ -885,12 +903,10 @@ export default function AnalyticsPage() {
               ) : recentCalls.length > 0 ? (
                 <>
                   <div className="divide-y">
-                    {recentCalls.map((log) => (
-                      <CallRow key={log.id} log={log} />
-                    ))}
+                    {recentCalls.map((log) => <CallRow key={log.id} log={log} />)}
                   </div>
                   <div className="mt-3 pt-2 border-t">
-                    <Link href="/calls">
+                    <Link href="/logs">
                       <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-view-all-calls">
                         View all calls <ChevronRight className="h-3 w-3" />
                       </button>
@@ -909,7 +925,6 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* ── Expand Modal ── */}
       <Dialog open={!!expanded} onOpenChange={(o) => !o && setExpanded(null)}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>

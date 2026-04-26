@@ -442,3 +442,15 @@
 .react-flow__connection-path {
   stroke-linecap: round;
 }
+
+/* ============================================================
+   Edge label pill — click-to-edit affordance
+   ============================================================ */
+.edge-label-pill:hover {
+  filter: brightness(1.12);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25) !important;
+}
+
+.edge-label-pill:active {
+  filter: brightness(0.95);
+}

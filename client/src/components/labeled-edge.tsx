@@ -1,7 +1,9 @@
+import { useState, useRef, useCallback } from 'react';
 import {
   getSmoothStepPath,
   EdgeLabelRenderer,
   BaseEdge,
+  useReactFlow,
   type EdgeProps,
 } from '@xyflow/react';
 
@@ -42,6 +44,8 @@ export const transitionColorHex: Record<string, string> = {
 
 export function LabeledEdge({
   id,
+  source,
+  sourceHandleId,
   sourceX,
   sourceY,
   targetX,
@@ -53,6 +57,11 @@ export function LabeledEdge({
   markerEnd,
   style,
 }: EdgeProps) {
+  const { setEdges, setNodes } = useReactFlow();
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftLabel, setDraftLabel] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
@@ -68,6 +77,58 @@ export function LabeledEdge({
   const colorName = (data?.color as string) || 'indigo';
   const bgColor = transitionColorHex[colorName] ?? transitionColorHex.indigo;
 
+  const handlePillClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setDraftLabel(rawLabel);
+      setIsEditing(true);
+      setTimeout(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }, 0);
+    },
+    [rawLabel],
+  );
+
+  const commitEdit = useCallback(() => {
+    const trimmed = draftLabel.trim();
+    setIsEditing(false);
+    if (!trimmed || trimmed === rawLabel) return;
+
+    // Update edge label
+    setEdges((eds) =>
+      eds.map((e) => (e.id === id ? { ...e, label: trimmed } : e)),
+    );
+
+    // Update source node's matching transition condition
+    if (source && sourceHandleId) {
+      const prefix = `${source}-`;
+      if (sourceHandleId.startsWith(prefix)) {
+        const transitionId = sourceHandleId.slice(prefix.length);
+        setNodes((nds) =>
+          nds.map((n) => {
+            if (n.id !== source) return n;
+            const transitions = (n.data.transitions as FlowTransition[]) || [];
+            const updated = transitions.map((t) =>
+              t.id === transitionId
+                ? { ...t, condition: trimmed, label: trimmed }
+                : t,
+            );
+            return { ...n, data: { ...n.data, transitions: updated } };
+          }),
+        );
+      }
+    }
+  }, [draftLabel, rawLabel, id, source, sourceHandleId, setEdges, setNodes]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') commitEdit();
+      if (e.key === 'Escape') setIsEditing(false);
+    },
+    [commitEdit],
+  );
+
   return (
     <>
       <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
@@ -81,26 +142,78 @@ export function LabeledEdge({
             }}
             className="nodrag nopan"
           >
-            <span
-              style={{
-                backgroundColor: bgColor,
-                fontSize: '12px',
-                lineHeight: '1',
-                color: '#ffffff',
-                padding: '3px 8px',
-                borderRadius: '999px',
-                whiteSpace: 'nowrap',
-                maxWidth: '160px',
-                display: 'inline-block',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                fontWeight: 500,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                userSelect: 'none',
-              }}
-            >
-              {truncated}
-            </span>
+            {isEditing ? (
+              <input
+                ref={inputRef}
+                value={draftLabel}
+                onChange={(e) => setDraftLabel(e.target.value)}
+                onBlur={commitEdit}
+                onKeyDown={handleKeyDown}
+                style={{
+                  backgroundColor: bgColor,
+                  fontSize: '12px',
+                  lineHeight: '1',
+                  color: '#ffffff',
+                  padding: '3px 8px',
+                  borderRadius: '999px',
+                  whiteSpace: 'nowrap',
+                  minWidth: '60px',
+                  maxWidth: '180px',
+                  width: `${Math.max(60, draftLabel.length * 7 + 16)}px`,
+                  display: 'inline-block',
+                  fontWeight: 500,
+                  boxShadow: '0 0 0 2px rgba(255,255,255,0.6), 0 1px 4px rgba(0,0,0,0.25)',
+                  outline: 'none',
+                  border: 'none',
+                  caretColor: '#ffffff',
+                }}
+                data-testid={`input-edge-label-${id}`}
+              />
+            ) : (
+              <span
+                onClick={handlePillClick}
+                title="Click to edit condition"
+                style={{
+                  backgroundColor: bgColor,
+                  fontSize: '12px',
+                  lineHeight: '1',
+                  color: '#ffffff',
+                  padding: '3px 8px',
+                  borderRadius: '999px',
+                  whiteSpace: 'nowrap',
+                  maxWidth: '160px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  fontWeight: 500,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                  userSelect: 'none',
+                  cursor: 'pointer',
+                  transition: 'box-shadow 0.15s ease, filter 0.15s ease',
+                }}
+                className="edge-label-pill"
+                data-testid={`label-edge-${id}`}
+              >
+                {truncated}
+                <svg
+                  width="9"
+                  height="9"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ flexShrink: 0, opacity: 0.7 }}
+                  aria-hidden="true"
+                >
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </span>
+            )}
           </div>
         </EdgeLabelRenderer>
       )}

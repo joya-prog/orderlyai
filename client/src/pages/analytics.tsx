@@ -295,18 +295,19 @@ export default function AnalyticsPage() {
       const hour = d.getHours();
 
       const existing = dailyMap.get(dateKey) ?? { calls: 0, orders: 0, reservations: 0, revenue: 0, ts: d.getTime() };
-      existing.calls++;
-
+      if (e.eventType === "call_started") {
+        existing.calls++;
+        callsStarted++;
+      }
       if (e.eventType === "order_placed") {
         existing.orders++;
         existing.revenue += getOrderAmount(e.metadata);
+        ordersPlaced++;
       }
       if (e.eventType === "reservation_created") existing.reservations++;
 
       dailyMap.set(dateKey, existing);
       hourlyMap.set(hour, (hourlyMap.get(hour) ?? 0) + 1);
-      if (e.eventType === "call_started") callsStarted++;
-      if (e.eventType === "order_placed") ordersPlaced++;
     });
 
     const sorted = Array.from(dailyMap.entries())
@@ -350,10 +351,13 @@ export default function AnalyticsPage() {
     };
   }, [usage]);
 
-  const durationSparkline = useMemo(
-    () => processed.callVolumeData.map((d) => d.calls),
-    [processed]
-  );
+  const durationSparkline = useMemo(() => {
+    const breakdown = usage?.current?.dailyBreakdown ?? [];
+    if (breakdown.length === 0) return [];
+    return breakdown.map((d) =>
+      d.callCount > 0 ? (d.minutes / d.callCount) * 60 : 0
+    );
+  }, [usage]);
 
   const maxHourCount = useMemo(
     () => Math.max(...processed.hourlyData.map((d) => d.count), 1),
@@ -463,17 +467,28 @@ export default function AnalyticsPage() {
     }
 
     if (expanded.type === "kpi_duration") {
-      if (!processed.callVolumeData.length)
+      const breakdown = usage?.current?.dailyBreakdown ?? [];
+      if (!breakdown.length)
         return <EmptyState icon={Clock} title="No duration data yet" hint="Call duration averages will appear once calls come in." />;
+      const data = breakdown.map((d) => ({
+        date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        avgSeconds: d.callCount > 0 ? (d.minutes / d.callCount) * 60 : 0,
+      }));
       return (
         <ResponsiveContainer width="100%" height={380}>
-          <BarChart data={processed.callVolumeData}>
+          <AreaChart data={data}>
+            <defs>
+              <linearGradient id="durGradEx" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="hsl(43 96% 56%)" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="hsl(43 96% 56%)" stopOpacity={0.03} />
+              </linearGradient>
+            </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
             <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
-            <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} />
-            <Bar dataKey="calls" name="Calls" fill="hsl(43 96% 56%)" radius={[4, 4, 0, 0]} />
-          </BarChart>
+            <YAxis tickFormatter={(v) => `${Math.floor(v / 60)}m ${Math.round(v % 60)}s`} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} width={52} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [formatDuration(v), "Avg Duration"]} />
+            <Area type="monotone" dataKey="avgSeconds" name="Avg Duration" stroke="hsl(43 96% 56%)" strokeWidth={2} fill="url(#durGradEx)" dot={false} />
+          </AreaChart>
         </ResponsiveContainer>
       );
     }

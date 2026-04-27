@@ -11,14 +11,14 @@ import * as retell from "./retell";
 import multer from "multer";
 
 const upload = multer({ storage: multer.memoryStorage() });
-import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema, insertIntegrationConfigSchema, insertAnalyticsEventSchema, onboardingSchema, users, adminAuditLogs, agents, usageLedger, callLogs, supportMessages, kbCollections, kbSources } from "@shared/schema";
+import { insertAgentSchema, insertKnowledgeBaseSchema, updateKnowledgeBaseSchema, insertContactSchema, insertPhoneNumberSchema, updatePhoneNumberSchema, insertIntegrationConfigSchema, insertAnalyticsEventSchema, onboardingSchema, users, adminAuditLogs, agents, usageLedger, callLogs, supportMessages, kbCollections, kbSources, agentKbCollections } from "@shared/schema";
 import twilio from "twilio";
 import crypto from "crypto";
 import { getTwilioClient, getTwilioAccountSid, getTwilioAuthToken, sendSms2FACode, verifySms2FACode, sendSignupNotification } from "./twilioClient";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { calculateCallCostCents, DEFAULT_TRIAL_CREDIT_CENTS } from '../shared/pricing';
 import { db } from "./db";
-import { sql, eq, and, sum, count, desc } from "drizzle-orm";
+import { sql, eq, and, sum, count, desc, inArray } from "drizzle-orm";
 
 // ==================== CREDIT STATUS HELPER ====================
 
@@ -130,6 +130,62 @@ async function getKbContentForUser(userId: string): Promise<string> {
     return text.trim();
   } catch (err) {
     console.error('[KB] Error fetching KB content for user:', err);
+    return '';
+  }
+}
+
+async function getKbContentForAgent(agentId: string, userId: string): Promise<string> {
+  try {
+    // Check if this agent has any explicit collection attachments
+    const attachments = await db
+      .select({ collectionId: agentKbCollections.collectionId })
+      .from(agentKbCollections)
+      .where(eq(agentKbCollections.agentId, agentId));
+
+    if (attachments.length === 0) {
+      // No explicit attachments — fall back to all user collections (backward compat)
+      return getKbContentForUser(userId);
+    }
+
+    const collectionIds = attachments.map(a => a.collectionId);
+
+    // Fetch sources only for attached collections, verifying ownership via userId join
+    const sources = await db
+      .select({
+        collectionName: kbCollections.name,
+        sourceName: kbSources.name,
+        content: kbSources.content,
+      })
+      .from(kbSources)
+      .innerJoin(kbCollections, eq(kbSources.collectionId, kbCollections.id))
+      .where(
+        and(
+          eq(kbCollections.userId, userId),
+          inArray(kbCollections.id, collectionIds)
+        )
+      );
+
+    if (sources.length === 0) return '';
+
+    const grouped: Record<string, Array<{ name: string; content: string }>> = {};
+    for (const s of sources) {
+      if (!s.content) continue;
+      if (!grouped[s.collectionName]) grouped[s.collectionName] = [];
+      grouped[s.collectionName].push({ name: s.sourceName, content: s.content });
+    }
+
+    if (Object.keys(grouped).length === 0) return '';
+
+    let text = '';
+    for (const [collName, items] of Object.entries(grouped)) {
+      text += `### ${collName}\n\n`;
+      for (const item of items) {
+        text += `**${item.name}**\n${item.content}\n\n`;
+      }
+    }
+    return text.trim();
+  } catch (err) {
+    console.error('[KB] Error fetching KB content for agent:', err);
     return '';
   }
 }
@@ -566,7 +622,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Sync with Retell AI if configured
       if (await retell.isRetellConfigured()) {
         try {
-          const kbContent = await getKbContentForUser(userId);
+          const kbContent = await getKbContentForAgent(agent.id, userId);
           const enrichedPrompt = appendKbBlock(data.systemPrompt || '', kbContent);
           // Create Conversation Flow in Retell (conversation-flow type agent)
           const flowId = await retell.createRetellConversationFlow({
@@ -653,7 +709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Update Conversation Flow if prompt/model/hours changed
           if (data.systemPrompt || data.greetingMessage || data.aiModel || data.businessHours || data.afterHoursMode || data.afterHoursMessage !== undefined || data.timezone) {
             const mergedAgent = { ...agent, ...data };
-            const kbContent = await getKbContentForUser(agent.userId);
+            const kbContent = await getKbContentForAgent(agent.id, agent.userId);
             const basePrompt = data.systemPrompt || agent.systemPrompt || '';
             const enrichedPrompt = appendKbBlock(basePrompt, kbContent);
             await retell.updateRetellConversationFlow(agent.retellLlmId, {
@@ -761,7 +817,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Retell AI is not configured" });
       }
 
-      const kbContent = await getKbContentForUser(agent.userId);
+      const kbContent = await getKbContentForAgent(agent.id, agent.userId);
       const enrichedPrompt = appendKbBlock(agent.systemPrompt || '', kbContent);
 
       // If already synced, push current config as an update instead of creating new resources
@@ -877,7 +933,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let flowId = agent.retellLlmId;
 
       // Build enriched prompt: base + business hours block + KB content
-      const webCallKbContent = await getKbContentForUser(agent.userId);
+      const webCallKbContent = await getKbContentForAgent(agent.id, agent.userId);
       const webCallBasePrompt = agent.systemPrompt || "You are a helpful restaurant assistant.";
       const webCallEnrichedPrompt = appendKbBlock(webCallBasePrompt, webCallKbContent);
       
@@ -5109,6 +5165,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ],
     });
   });
+  // ── Agent ↔ KB Collection assignments ───────────────────────────────────────
+
+  // GET /api/agents/:id/kb-collections — list attached collection IDs for an agent
+  app.get("/api/agents/:id/kb-collections", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { id: agentId } = req.params;
+      const agent = await storage.getAgent(agentId);
+      if (!agent || agent.userId !== userId) return res.status(404).json({ message: "Not found" });
+
+      const rows = await db
+        .select({ collectionId: agentKbCollections.collectionId })
+        .from(agentKbCollections)
+        .where(eq(agentKbCollections.agentId, agentId));
+
+      res.json(rows.map(r => r.collectionId));
+    } catch (error: any) {
+      console.error("Error fetching agent KB collections:", error);
+      res.status(500).json({ message: "Failed to fetch agent KB collections" });
+    }
+  });
+
+  // POST /api/agents/:id/kb-collections/:collectionId — attach a collection to an agent
+  app.post("/api/agents/:id/kb-collections/:collectionId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { id: agentId, collectionId } = req.params;
+
+      const agent = await storage.getAgent(agentId);
+      if (!agent || agent.userId !== userId) return res.status(404).json({ message: "Agent not found" });
+
+      const [col] = await db
+        .select()
+        .from(kbCollections)
+        .where(and(eq(kbCollections.id, collectionId), eq(kbCollections.userId, userId)));
+      if (!col) return res.status(404).json({ message: "Collection not found" });
+
+      await db
+        .insert(agentKbCollections)
+        .values({ agentId, collectionId })
+        .onConflictDoNothing();
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error attaching KB collection to agent:", error);
+      res.status(500).json({ message: "Failed to attach KB collection" });
+    }
+  });
+
+  // DELETE /api/agents/:id/kb-collections/:collectionId — detach a collection from an agent
+  app.delete("/api/agents/:id/kb-collections/:collectionId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { id: agentId, collectionId } = req.params;
+
+      const agent = await storage.getAgent(agentId);
+      if (!agent || agent.userId !== userId) return res.status(404).json({ message: "Agent not found" });
+
+      await db
+        .delete(agentKbCollections)
+        .where(and(eq(agentKbCollections.agentId, agentId), eq(agentKbCollections.collectionId, collectionId)));
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error detaching KB collection from agent:", error);
+      res.status(500).json({ message: "Failed to detach KB collection" });
+    }
+  });
+
   // ── KB Collections ──────────────────────────────────────────────────────────
 
   // GET /api/kb — list user's collections with source count

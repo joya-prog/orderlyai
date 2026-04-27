@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAgentEditorTour } from "@/components/onboarding-tour";
-import type { Agent, KnowledgeBase } from "@shared/schema";
+import type { Agent, KnowledgeBase, KbCollection } from "@shared/schema";
 import { RetellWebClient } from "retell-client-js-sdk";
 import type { Node, Edge, Connection, NodeTypes, EdgeTypes } from '@xyflow/react';
 import {
@@ -90,6 +90,7 @@ import {
   AlertTriangle,
   Info,
   HelpCircle,
+  BookOpen,
 } from "lucide-react";
 import { ToastAction } from "@/components/ui/toast";
 import { VoiceSelector } from "@/components/voice-selector";
@@ -823,14 +824,37 @@ function AgentEditorInner() {
     queryKey: ["/api/agents", id, "knowledge"],
     enabled: isAuthenticated && !isNew,
   });
-  
-  // Fetch all knowledge bases for the dropdown
-  const { data: allKnowledgeBases = [] } = useQuery<KnowledgeBase[]>({
-    queryKey: ["/api/knowledge"],
+
+  // KB Collections: all user's collections and which ones are attached to this agent
+  type CollectionWithCount = KbCollection & { sourceCount: number };
+  const { data: allKbCollections = [] } = useQuery<CollectionWithCount[]>({
+    queryKey: ["/api/kb"],
     enabled: isAuthenticated,
   });
-  
-  // State for knowledge base popover
+  const { data: attachedCollectionIds = [] } = useQuery<string[]>({
+    queryKey: ["/api/agents", id, "kb-collections"],
+    enabled: isAuthenticated && !isNew,
+  });
+
+  const attachKbCollection = useMutation({
+    mutationFn: (collectionId: string) =>
+      apiRequest("POST", `/api/agents/${id}/kb-collections/${collectionId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agents", id, "kb-collections"] });
+    },
+    onError: () => toast({ title: "Failed to attach collection", variant: "destructive" }),
+  });
+
+  const detachKbCollection = useMutation({
+    mutationFn: (collectionId: string) =>
+      apiRequest("DELETE", `/api/agents/${id}/kb-collections/${collectionId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agents", id, "kb-collections"] });
+    },
+    onError: () => toast({ title: "Failed to detach collection", variant: "destructive" }),
+  });
+
+  // State for KB collection popover
   const [kbPopoverOpen, setKbPopoverOpen] = useState(false);
 
   // Load agent data
@@ -1947,63 +1971,107 @@ function AgentEditorInner() {
               <SettingsSection title="Knowledge Base" icon={FileText}>
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground">
-                    Add knowledge base to provide context to the agent.
+                    Attach knowledge collections to give this agent context about your restaurant.
+                    {attachedCollectionIds.length === 0 && allKbCollections.length > 0 && (
+                      <span className="block mt-1 text-xs text-amber-600 dark:text-amber-400">
+                        No collections attached — agent uses all your collections by default.
+                      </span>
+                    )}
                   </p>
-                  <Popover open={kbPopoverOpen} onOpenChange={setKbPopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="gap-2" 
-                        data-testid="button-add-knowledge-base"
-                      >
-                        <Plus className="h-4 w-4" /> Add
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-72 p-0" align="start">
-                      <div className="max-h-[300px] overflow-y-auto">
-                        {/* Get unique knowledge base names from all entries */}
-                        {(() => {
-                          const uniqueNames = Array.from(new Set(allKnowledgeBases.map(kb => kb.question)));
-                          if (uniqueNames.length === 0) {
-                            return (
-                              <div className="p-3 text-sm text-muted-foreground">
-                                No knowledge bases available.
-                              </div>
-                            );
-                          }
-                          return uniqueNames.map((name, index) => (
+
+                  {/* Attached collections chips */}
+                  {attachedCollectionIds.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {attachedCollectionIds.map((colId) => {
+                        const col = allKbCollections.find(c => c.id === colId);
+                        return (
+                          <div
+                            key={colId}
+                            className="flex items-center gap-1.5 rounded-full border bg-muted px-3 py-1 text-sm"
+                            data-testid={`badge-kb-collection-${colId}`}
+                          >
+                            <BookOpen className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                            <span className="max-w-[140px] truncate">{col?.name ?? colId}</span>
                             <button
-                              key={index}
-                              className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-accent transition-colors border-b last:border-b-0"
+                              className="ml-0.5 rounded-full text-muted-foreground hover:text-foreground transition-colors"
+                              onClick={() => detachKbCollection.mutate(colId)}
+                              disabled={detachKbCollection.isPending}
+                              data-testid={`button-detach-kb-${colId}`}
+                              aria-label={`Remove ${col?.name}`}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Add collection button */}
+                  <div className="flex items-center gap-2">
+                    {isNew ? (
+                      <p className="text-xs text-muted-foreground italic">Save this agent first to attach knowledge collections.</p>
+                    ) : (
+                      <Popover open={kbPopoverOpen} onOpenChange={setKbPopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                            data-testid="button-add-kb-collection"
+                          >
+                            <Plus className="h-4 w-4" /> Attach Collection
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-0" align="start">
+                          <div className="max-h-[280px] overflow-y-auto">
+                            {(() => {
+                              const available = allKbCollections.filter(c => !attachedCollectionIds.includes(c.id));
+                              if (available.length === 0) {
+                                return (
+                                  <div className="p-4 text-sm text-muted-foreground text-center">
+                                    {allKbCollections.length === 0
+                                      ? "No collections yet."
+                                      : "All collections already attached."}
+                                  </div>
+                                );
+                              }
+                              return available.map((col) => (
+                                <button
+                                  key={col.id}
+                                  className="flex items-center gap-3 w-full px-4 py-3 text-left hover-elevate transition-colors border-b last:border-b-0"
+                                  onClick={() => {
+                                    attachKbCollection.mutate(col.id);
+                                    setKbPopoverOpen(false);
+                                  }}
+                                  data-testid={`button-attach-kb-${col.id}`}
+                                >
+                                  <BookOpen className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium truncate">{col.name}</p>
+                                    <p className="text-xs text-muted-foreground">{col.sourceCount} {col.sourceCount === 1 ? "source" : "sources"}</p>
+                                  </div>
+                                </button>
+                              ));
+                            })()}
+                          </div>
+                          <div className="border-t p-1">
+                            <button
+                              className="flex items-center gap-2 w-full px-3 py-2 text-left rounded hover-elevate transition-colors text-sm text-muted-foreground"
                               onClick={() => {
-                                // Find the knowledge base entry and navigate to it
                                 setKbPopoverOpen(false);
                                 navigate("/knowledge-base");
                               }}
-                              data-testid={`button-kb-select-${index}`}
+                              data-testid="button-go-to-knowledge-base"
                             >
-                              <Monitor className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                              <span className="text-sm truncate">{name}</span>
+                              <ArrowUpRight className="h-4 w-4 flex-shrink-0" />
+                              <span>Manage Knowledge Base</span>
                             </button>
-                          ));
-                        })()}
-                      </div>
-                      <div className="border-t">
-                        <button
-                          className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-accent transition-colors"
-                          onClick={() => {
-                            setKbPopoverOpen(false);
-                            navigate("/knowledge-base");
-                          }}
-                          data-testid="button-add-new-knowledge-base"
-                        >
-                          <ArrowUpRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                          <span className="text-sm">Add New Knowledge Base</span>
-                        </button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                  </div>
                 </div>
               </SettingsSection>
 

@@ -199,6 +199,40 @@ function appendKbBlock(prompt: string, kbContent: string): string {
   return prompt + kbSection;
 }
 
+// Debounce map: prevents duplicate Retell syncs when multiple KB sources change at once
+const kbSyncDebounceMap = new Map<string, ReturnType<typeof setTimeout>>();
+
+function scheduleKbSync(userId: string): void {
+  const existing = kbSyncDebounceMap.get(userId);
+  if (existing) clearTimeout(existing);
+  const timer = setTimeout(async () => {
+    kbSyncDebounceMap.delete(userId);
+    try {
+      if (!await retell.isRetellConfigured()) return;
+      const kbContent = await getKbContentForUser(userId);
+      const userAgents = await storage.getAgents(userId);
+      for (const agent of userAgents) {
+        if (!agent.retellAgentId || !agent.retellLlmId) continue;
+        try {
+          const enrichedPrompt = appendKbBlock(agent.systemPrompt || '', kbContent);
+          await retell.updateRetellConversationFlow(agent.retellLlmId, {
+            generalPrompt: enrichedPrompt,
+            beginMessage: agent.greetingMessage || '',
+            model: agent.aiModel || 'gpt-4o-mini',
+            modelTemperature: 0.7,
+          }, agent);
+          console.log(`[KB Sync] Re-synced agent ${agent.id} -> Retell ${agent.retellAgentId} after KB change`);
+        } catch (agentErr) {
+          console.error(`[KB Sync] Failed to sync agent ${agent.id}:`, agentErr);
+        }
+      }
+    } catch (err) {
+      console.error('[KB Sync] Failed to sync KB for user', userId, err);
+    }
+  }, 500);
+  kbSyncDebounceMap.set(userId, timer);
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
@@ -5448,6 +5482,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .insert(kbSources)
             .values({ collectionId: id, type: "url", name, url, content })
             .returning();
+          scheduleKbSync(userId);
           return res.json(src);
         }
 
@@ -5462,6 +5497,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .insert(kbSources)
             .values({ collectionId: id, type: "pdf", name: fileName, fileName, fileSizeBytes, content })
             .returning();
+          scheduleKbSync(userId);
           return res.json(src);
         }
 
@@ -5473,6 +5509,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .insert(kbSources)
             .values({ collectionId: id, type: "text", name, content })
             .returning();
+          scheduleKbSync(userId);
           return res.json(src);
         }
 
@@ -5496,6 +5533,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!col) return res.status(404).json({ message: "Not found" });
 
       await db.delete(kbSources).where(and(eq(kbSources.id, sourceId), eq(kbSources.collectionId, id)));
+      scheduleKbSync(userId);
       res.json({ success: true });
     } catch (error: any) {
       console.error("Error deleting KB source:", error);

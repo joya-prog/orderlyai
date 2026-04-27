@@ -4,6 +4,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   varchar,
@@ -847,10 +848,14 @@ export type InsertKbSource = z.infer<typeof insertKbSourceSchema>;
 export type KbSource = typeof kbSources.$inferSelect;
 
 // Agent → KB Collection many-to-many join table
-export const agentKbCollections = pgTable("agent_kb_collections", {
-  agentId: varchar("agent_id").notNull().references(() => agents.id, { onDelete: 'cascade' }),
-  collectionId: varchar("collection_id").notNull().references(() => kbCollections.id, { onDelete: 'cascade' }),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const agentKbCollections = pgTable(
+  "agent_kb_collections",
+  {
+    agentId: varchar("agent_id").notNull().references(() => agents.id, { onDelete: 'cascade' }),
+    collectionId: varchar("collection_id").notNull().references(() => kbCollections.id, { onDelete: 'cascade' }),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.agentId, table.collectionId] })],
+);
 
 export type AgentKbCollection = typeof agentKbCollections.$inferSelect;

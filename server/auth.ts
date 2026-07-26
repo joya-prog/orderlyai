@@ -311,6 +311,29 @@ export async function setupAuth(app: Express) {
     )
   );
 
+  // Neon serverless endpoints can be suspended after inactivity and return
+  // "The endpoint has been disabled" (code XX000) on the first hit.
+  // Retry up to 3 times with brief back-off so OAuth logins survive a cold start.
+  async function withNeonRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+    for (let i = 0; i < attempts; i++) {
+      try {
+        return await fn();
+      } catch (err: any) {
+        const isNeonColdStart =
+          err?.code === 'XX000' ||
+          (typeof err?.message === 'string' && err.message.includes('endpoint has been disabled'));
+        if (isNeonColdStart && i < attempts - 1) {
+          const delay = 500 * (i + 1); // 500 ms, 1000 ms
+          console.log(`[Neon] endpoint cold-start, retrying in ${delay}ms (attempt ${i + 1}/${attempts})`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw new Error('withNeonRetry: unreachable');
+  }
+
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     // Allow explicit callback URL override, otherwise auto-detect from Replit domain
     const callbackURL = process.env.GOOGLE_OAUTH_CALLBACK_URL || 
@@ -331,40 +354,45 @@ export async function setupAuth(app: Express) {
         },
         async (accessToken, refreshToken, profile, done) => {
           try {
-            let user = await storage.getUserByGoogleId(profile.id);
-            
-            const SUPER_ADMIN_EMAIL = 'hello@getorderly.io';
+            const result = await withNeonRetry(async () => {
+              let user = await storage.getUserByGoogleId(profile.id);
 
-            if (!user) {
-              const existingUser = await storage.getUserByEmail(profile.emails?.[0]?.value || '');
-              if (existingUser) {
-                user = await storage.linkGoogleAccount(existingUser.id, profile.id);
-              } else {
-                const isSuperAdminEmail = profile.emails?.[0]?.value === SUPER_ADMIN_EMAIL;
-                user = await storage.createUser({
-                  email: profile.emails?.[0]?.value,
-                  firstName: profile.name?.givenName,
-                  lastName: profile.name?.familyName,
-                  profileImageUrl: profile.photos?.[0]?.value,
-                  googleId: profile.id,
-                  authProvider: 'google',
-                  emailVerified: true,
-                  ...(isSuperAdminEmail ? { role: 'admin', accountStatus: 'active' } : {}),
-                });
-                if (!isSuperAdminEmail) {
-                  sendSignupNotification({ email: user.email || 'Unknown', signupMethod: 'Google OAuth' }).catch(console.error);
-                  const fullName = `${profile.name?.givenName || ''} ${profile.name?.familyName || ''}`.trim();
-                  provisionTrialCredit(user.id, user.email || '', fullName).catch(console.error);
+              const SUPER_ADMIN_EMAIL = 'hello@getorderly.io';
+
+              if (!user) {
+                const existingUser = await storage.getUserByEmail(profile.emails?.[0]?.value || '');
+                if (existingUser) {
+                  user = await storage.linkGoogleAccount(existingUser.id, profile.id);
+                } else {
+                  const isSuperAdminEmail = profile.emails?.[0]?.value === SUPER_ADMIN_EMAIL;
+                  user = await storage.createUser({
+                    email: profile.emails?.[0]?.value,
+                    firstName: profile.name?.givenName,
+                    lastName: profile.name?.familyName,
+                    profileImageUrl: profile.photos?.[0]?.value,
+                    googleId: profile.id,
+                    authProvider: 'google',
+                    emailVerified: true,
+                    ...(isSuperAdminEmail ? { role: 'admin', accountStatus: 'active' } : {}),
+                  });
+                  if (!isSuperAdminEmail) {
+                    sendSignupNotification({ email: user.email || 'Unknown', signupMethod: 'Google OAuth' }).catch(console.error);
+                    const fullName = `${profile.name?.givenName || ''} ${profile.name?.familyName || ''}`.trim();
+                    provisionTrialCredit(user.id, user.email || '', fullName).catch(console.error);
+                  }
                 }
               }
-            }
 
-            if (user.email === SUPER_ADMIN_EMAIL && user.role !== 'admin') {
-              user = await storage.updateUserRole(user.id, 'admin', 'active');
-            }
-            
-            return done(null, user);
+              if (user.email === SUPER_ADMIN_EMAIL && user.role !== 'admin') {
+                user = await storage.updateUserRole(user.id, 'admin', 'active');
+              }
+
+              return user;
+            });
+
+            return done(null, result);
           } catch (error) {
+            console.error('[Google OAuth] Auth failed - error details:', JSON.stringify({ message: (error as any)?.message, name: (error as any)?.name, code: (error as any)?.code, isString: typeof error === 'string' }));
             return done(error as Error);
           }
         }

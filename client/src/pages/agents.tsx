@@ -101,11 +101,11 @@ export default function Agents() {
       case "active":
         return "bg-teal-50 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300 border-teal-200 dark:border-teal-500/30";
       case "testing":
-        return "bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300 border-blue-200 dark:border-blue-500/30";
+        return "bg-chart-3/15 text-foreground dark:bg-chart-3/20 border-chart-3/40 dark:border-chart-3/40";
       case "paused":
         return "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 border-amber-200 dark:border-amber-500/30";
       default:
-        return "bg-slate-50 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300 border-slate-200 dark:border-slate-500/30";
+        return "bg-muted text-muted-foreground border-border";
     }
   };
 
@@ -142,8 +142,8 @@ export default function Agents() {
       {!agents || agents.length === 0 ? (
         <Card className="border-dashed shadow-sm">
           <CardContent className="flex flex-col items-center justify-center py-20">
-            <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-500/10 mb-6">
-              <Bot className="h-10 w-10 text-blue-600 dark:text-blue-400" />
+            <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/10 dark:bg-primary/15 mb-6">
+              <Bot className="h-10 w-10 text-primary" />
             </div>
             <h3 className="text-xl font-semibold mb-3">No agents yet</h3>
             <p className="text-muted-foreground text-center mb-8 max-w-md text-sm">

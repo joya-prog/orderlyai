@@ -376,7 +376,7 @@ export default function Auth() {
               setForgotPasswordSent(false);
               setAuthView('login');
             }}
-            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 mb-6"
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6"
             data-testid="button-back-to-login"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -384,10 +384,10 @@ export default function Auth() {
           </button>
 
           <div className="mb-8">
-            <h1 className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-white mb-3" style={{ fontFamily: "'Inter', sans-serif" }}>
+            <h1 className="text-4xl font-semibold tracking-tight text-foreground mb-3" style={{ fontFamily: "'Inter', sans-serif" }}>
               Forgot Password
             </h1>
-            <p className="text-gray-500 dark:text-gray-400">
+            <p className="text-muted-foreground">
               Enter your email address and we'll send you a link to reset your password.
             </p>
           </div>
@@ -397,8 +397,8 @@ export default function Auth() {
               <div className="mx-auto w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
                 <Mail className="h-8 w-8 text-green-600 dark:text-green-400" />
               </div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Check your email</h2>
-              <p className="text-gray-500 dark:text-gray-400 mb-6">
+              <h2 className="text-xl font-semibold text-foreground mb-2">Check your email</h2>
+              <p className="text-muted-foreground mb-6">
                 If an account exists with <strong>{forgotPasswordEmail}</strong>, you'll receive a password reset link shortly.
               </p>
               <Button
@@ -417,14 +417,14 @@ export default function Auth() {
           ) : (
             <form onSubmit={handleForgotPassword} className="space-y-5">
               <div className="space-y-2">
-                <Label htmlFor="forgot-email" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <Label htmlFor="forgot-email" className="text-sm font-medium text-foreground">
                   Email
                 </Label>
                 <Input
                   id="forgot-email"
                   type="email"
                   placeholder="you@restaurant.com"
-                  className="h-12 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 focus:border-indigo-500 focus:ring-indigo-500"
+                  className="h-12 bg-muted border-border focus:border-primary focus:ring-primary"
                   value={forgotPasswordEmail}
                   onChange={(e) => setForgotPasswordEmail(e.target.value)}
                   required
@@ -434,7 +434,7 @@ export default function Auth() {
 
               <Button
                 type="submit"
-                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg"
+                className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg"
                 disabled={isLoading}
                 data-testid="button-send-reset-link"
               >
@@ -454,17 +454,17 @@ export default function Auth() {
       return (
         <>
           <div className="mb-8">
-            <h1 className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-white mb-3" style={{ fontFamily: "'Inter', sans-serif" }}>
+            <h1 className="text-4xl font-semibold tracking-tight text-foreground mb-3" style={{ fontFamily: "'Inter', sans-serif" }}>
               Set New Password
             </h1>
-            <p className="text-gray-500 dark:text-gray-400">
+            <p className="text-muted-foreground">
               Enter your new password below.
             </p>
           </div>
 
           <form onSubmit={handleResetPassword} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="new-password" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <Label htmlFor="new-password" className="text-sm font-medium text-foreground">
                 New Password
               </Label>
               <div className="relative">
@@ -472,7 +472,7 @@ export default function Auth() {
                   id="new-password"
                   type={showPassword ? "text" : "password"}
                   placeholder="Create a new password (min 8 characters)"
-                  className="h-12 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 focus:border-indigo-500 focus:ring-indigo-500 pr-10"
+                  className="h-12 bg-muted border-border focus:border-primary focus:ring-primary pr-10"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   required
@@ -482,7 +482,7 @@ export default function Auth() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   data-testid="button-toggle-new-password"
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -491,14 +491,14 @@ export default function Auth() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirm-new-password" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <Label htmlFor="confirm-new-password" className="text-sm font-medium text-foreground">
                 Confirm New Password
               </Label>
               <Input
                 id="confirm-new-password"
                 type="password"
                 placeholder="Confirm your new password"
-                className="h-12 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 focus:border-indigo-500 focus:ring-indigo-500"
+                className="h-12 bg-muted border-border focus:border-primary focus:ring-primary"
                 value={confirmNewPassword}
                 onChange={(e) => setConfirmNewPassword(e.target.value)}
                 required
@@ -509,7 +509,7 @@ export default function Auth() {
 
             <Button
               type="submit"
-              className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg"
+              className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg"
               disabled={isLoading}
               data-testid="button-reset-password"
             >
@@ -595,7 +595,7 @@ export default function Auth() {
           <button
             type="button"
             onClick={handleCancel2FA}
-            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 mb-6"
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6"
             data-testid="button-cancel-2fa"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -603,10 +603,10 @@ export default function Auth() {
           </button>
 
           <div className="mb-8">
-            <h1 className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-white mb-3" style={{ fontFamily: "'Inter', sans-serif" }}>
+            <h1 className="text-4xl font-semibold tracking-tight text-foreground mb-3" style={{ fontFamily: "'Inter', sans-serif" }}>
               Two-Factor Authentication
             </h1>
-            <p className="text-gray-500 dark:text-gray-400">
+            <p className="text-muted-foreground">
               {getVerificationMessage()}
             </p>
           </div>
@@ -614,14 +614,14 @@ export default function Auth() {
           <form onSubmit={handle2FAVerify} className="space-y-5">
             {useBackupCode ? (
               <div className="space-y-2">
-                <Label htmlFor="backup-code" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <Label htmlFor="backup-code" className="text-sm font-medium text-foreground">
                   Backup Code
                 </Label>
                 <Input
                   id="backup-code"
                   type="text"
                   placeholder="Enter your backup code"
-                  className="h-12 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 focus:border-indigo-500 focus:ring-indigo-500 text-center font-mono text-lg tracking-wider"
+                  className="h-12 bg-muted border-border focus:border-primary focus:ring-primary text-center font-mono text-lg tracking-wider"
                   value={backupCode}
                   onChange={(e) => setBackupCode(e.target.value.toUpperCase())}
                   required
@@ -630,7 +630,7 @@ export default function Auth() {
               </div>
             ) : (
               <div className="space-y-2">
-                <Label htmlFor="totp-code" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <Label htmlFor="totp-code" className="text-sm font-medium text-foreground">
                   Verification Code
                 </Label>
                 <Input
@@ -640,7 +640,7 @@ export default function Auth() {
                   pattern="[0-9]*"
                   maxLength={6}
                   placeholder="000000"
-                  className="h-12 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 focus:border-indigo-500 focus:ring-indigo-500 text-center font-mono text-2xl tracking-[0.5em]"
+                  className="h-12 bg-muted border-border focus:border-primary focus:ring-primary text-center font-mono text-2xl tracking-[0.5em]"
                   value={twoFactorCode}
                   onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   required
@@ -651,7 +651,7 @@ export default function Auth() {
 
             <Button
               type="submit"
-              className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg"
+              className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg"
               disabled={isLoading || (!useBackupCode && twoFactorCode.length !== 6) || (useBackupCode && !backupCode)}
               data-testid="button-verify-2fa"
             >
@@ -667,7 +667,7 @@ export default function Auth() {
               <button
                 type="button"
                 onClick={handleResendSmsCode}
-                className="text-sm text-indigo-600 hover:text-indigo-500 font-medium disabled:opacity-50"
+                className="text-sm text-primary hover:text-primary/80 font-medium disabled:opacity-50"
                 disabled={resendingCode}
                 data-testid="button-resend-sms"
               >
@@ -683,7 +683,7 @@ export default function Auth() {
                   setBackupCode("");
                   setIsLoading(false);
                 }}
-                className="text-sm text-indigo-600 hover:text-indigo-500 font-medium"
+                className="text-sm text-primary hover:text-primary/80 font-medium"
                 data-testid="button-toggle-backup-code"
               >
                 {useBackupCode 
@@ -703,8 +703,8 @@ export default function Auth() {
           <div className="mx-auto w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
             <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Password Reset Successful</h2>
-          <p className="text-gray-500 dark:text-gray-400 mb-6">
+          <h2 className="text-xl font-semibold text-foreground mb-2">Password Reset Successful</h2>
+          <p className="text-muted-foreground mb-6">
             Your password has been successfully reset. You can now log in with your new password.
           </p>
           <Button
@@ -715,7 +715,7 @@ export default function Auth() {
               // Clear URL query params
               window.history.replaceState({}, document.title, '/auth');
             }}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
             data-testid="button-go-to-login"
           >
             Go to Login
@@ -728,10 +728,10 @@ export default function Auth() {
     return (
       <>
         <div className="mb-8">
-          <h1 className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-white mb-3" style={{ fontFamily: "'Inter', sans-serif" }}>
+          <h1 className="text-4xl font-semibold tracking-tight text-foreground mb-3" style={{ fontFamily: "'Inter', sans-serif" }}>
             {isLoginMode ? "Welcome Back" : "Get Started"}
           </h1>
-          <p className="text-gray-500 dark:text-gray-400">
+          <p className="text-muted-foreground">
             {isLoginMode 
               ? "Enter your email and password to access your account." 
               : "Create your account to start using AI voice agents."}
@@ -741,14 +741,14 @@ export default function Auth() {
         <form onSubmit={isLoginMode ? handleLogin : handleSignup} className="space-y-5">
           {isSignupMode && (
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <Label htmlFor="name" className="text-sm font-medium text-foreground">
                 Full Name
               </Label>
               <Input
                 id="name"
                 type="text"
                 placeholder="Your name"
-                className="h-12 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 focus:border-indigo-500 focus:ring-indigo-500"
+                className="h-12 bg-muted border-border focus:border-primary focus:ring-primary"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -758,14 +758,14 @@ export default function Auth() {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <Label htmlFor="email" className="text-sm font-medium text-foreground">
               Email
             </Label>
             <Input
               id="email"
               type="email"
               placeholder="you@restaurant.com"
-              className="h-12 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 focus:border-indigo-500 focus:ring-indigo-500"
+              className="h-12 bg-muted border-border focus:border-primary focus:ring-primary"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -774,7 +774,7 @@ export default function Auth() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <Label htmlFor="password" className="text-sm font-medium text-foreground">
               Password
             </Label>
             <div className="relative">
@@ -782,7 +782,7 @@ export default function Auth() {
                 id="password"
                 type={showPassword ? "text" : "password"}
                 placeholder={isLoginMode ? "Enter your password" : "Create a password (min 8 characters)"}
-                className="h-12 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 focus:border-indigo-500 focus:ring-indigo-500 pr-10"
+                className="h-12 bg-muted border-border focus:border-primary focus:ring-primary pr-10"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -792,7 +792,7 @@ export default function Auth() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 data-testid="button-toggle-password"
               >
                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -802,14 +802,14 @@ export default function Auth() {
 
           {isSignupMode && (
             <div className="space-y-2">
-              <Label htmlFor="confirm-password" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <Label htmlFor="confirm-password" className="text-sm font-medium text-foreground">
                 Confirm Password
               </Label>
               <Input
                 id="confirm-password"
                 type="password"
                 placeholder="Confirm your password"
-                className="h-12 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 focus:border-indigo-500 focus:ring-indigo-500"
+                className="h-12 bg-muted border-border focus:border-primary focus:ring-primary"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
@@ -828,7 +828,7 @@ export default function Auth() {
                   onCheckedChange={(checked) => setRememberMe(checked as boolean)}
                   data-testid="checkbox-remember"
                 />
-                <Label htmlFor="remember" className="text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
+                <Label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer">
                   Remember Me
                 </Label>
               </div>
@@ -838,7 +838,7 @@ export default function Auth() {
                   resetFormState();
                   setAuthView('forgot-password');
                 }}
-                className="text-sm text-indigo-600 hover:text-indigo-500 font-medium"
+                className="text-sm text-primary hover:text-primary/80 font-medium"
                 data-testid="link-forgot-password"
               >
                 Forgot Your Password?
@@ -848,7 +848,7 @@ export default function Auth() {
 
           <Button
             type="submit"
-            className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg"
+            className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg"
             disabled={isLoading}
             data-testid="button-submit"
           >
@@ -861,17 +861,17 @@ export default function Auth() {
 
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-gray-200 dark:border-gray-800" />
+            <span className="w-full border-t border-border" />
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="bg-white dark:bg-gray-950 px-4 text-gray-500">Or Login With</span>
+            <span className="bg-background px-4 text-muted-foreground">Or Login With</span>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3">
           <Button
             variant="outline"
-            className="h-12 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900"
+            className="h-12 border-border hover:bg-muted"
             onClick={handleGoogleLogin}
             disabled={isLoading}
             data-testid="button-google-auth"
@@ -881,7 +881,7 @@ export default function Auth() {
           </Button>
         </div>
 
-        <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
+        <p className="text-center text-sm text-muted-foreground mt-6">
           {isLoginMode ? "Don't Have An Account? " : "Already have an account? "}
           <button
             type="button"
@@ -889,7 +889,7 @@ export default function Auth() {
               resetFormState();
               setAuthView(isLoginMode ? 'signup' : 'login');
             }}
-            className="text-indigo-600 hover:text-indigo-500 font-medium"
+            className="text-primary hover:text-primary/80 font-medium"
             data-testid="button-toggle-mode"
           >
             {isLoginMode ? "Register Now." : "Sign In."}
@@ -904,7 +904,7 @@ export default function Auth() {
 
       {/* ── MOBILE: Landing view (calculator + CTAs) ── */}
       {mobileView === 'landing' && (
-        <div className="flex flex-col w-full lg:hidden bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 overflow-y-auto">
+        <div className="flex flex-col w-full lg:hidden bg-gradient-to-br from-[hsl(148_36%_30%)] via-[hsl(154_44%_20%)] to-[hsl(160_50%_12%)] overflow-y-auto">
           {/* Logo strip */}
           <div className="px-6 pt-8 pb-2 flex items-center gap-3">
             <img
@@ -934,7 +934,7 @@ export default function Auth() {
           {/* CTA buttons */}
           <div className="px-5 pb-10 pt-4 space-y-3">
             <Button
-              className="w-full h-12 bg-white text-indigo-700 font-semibold text-base rounded-xl"
+              className="w-full h-12 bg-[hsl(42_94%_58%)] hover:bg-[hsl(42_94%_63%)] text-[hsl(152_45%_14%)] font-semibold text-base rounded-xl"
               onClick={() => {
                 resetFormState();
                 setAuthView('signup');
@@ -962,12 +962,12 @@ export default function Auth() {
 
       {/* ── MOBILE: Form view ── */}
       {mobileView === 'form' && (
-        <div className="flex flex-col w-full lg:hidden bg-white dark:bg-gray-950 overflow-y-auto">
+        <div className="flex flex-col w-full lg:hidden bg-background overflow-y-auto">
           {/* Back button */}
           <button
             type="button"
             onClick={() => setMobileView('landing')}
-            className="flex items-center gap-1.5 text-sm text-indigo-600 font-medium px-5 pt-6 pb-2"
+            className="flex items-center gap-1.5 text-sm text-primary font-medium px-5 pt-6 pb-2"
             data-testid="button-mobile-back"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -987,7 +987,7 @@ export default function Auth() {
                   alt="Orderly AI"
                   className="h-9 w-9 rounded-lg object-cover"
                 />
-                <span className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">
+                <span className="text-lg font-semibold tracking-tight text-foreground">
                   Orderly AI
                 </span>
               </a>
@@ -998,7 +998,7 @@ export default function Auth() {
       )}
 
       {/* ── DESKTOP: Left side — Auth forms (lg+) ── */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center bg-white dark:bg-gray-950 p-10 overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center bg-background p-10 overflow-hidden">
         <div className="w-full max-w-md">
           <a
             href="https://getorderly.io/"
@@ -1013,7 +1013,7 @@ export default function Auth() {
               className="h-10 w-10 rounded-lg object-cover"
               data-testid="img-logo-auth"
             />
-            <span className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
+            <span className="text-xl font-semibold tracking-tight text-foreground">
               Orderly AI
             </span>
           </a>
@@ -1022,7 +1022,7 @@ export default function Auth() {
       </div>
 
       {/* ── DESKTOP: Right side — ROI Calculator (lg+) ── */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 overflow-y-auto">
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[hsl(148_36%_30%)] via-[hsl(154_44%_20%)] to-[hsl(160_50%_12%)] overflow-y-auto">
         <div className="flex flex-col min-h-full w-full px-8 py-10">
           <div className="mb-5">
             <h2 className="text-xl font-bold text-white mb-1">
@@ -1044,8 +1044,8 @@ export default function Auth() {
                 { stat: "24/7", label: "Availability" },
               ].map(({ stat, label }) => (
                 <div key={label}>
-                  <div className="text-lg font-bold text-white">{stat}</div>
-                  <div className="text-[11px] text-white/50">{label}</div>
+                  <div className="text-lg font-bold text-[hsl(42_94%_64%)]">{stat}</div>
+                  <div className="text-[11px] text-white/60">{label}</div>
                 </div>
               ))}
             </div>

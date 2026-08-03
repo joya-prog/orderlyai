@@ -477,8 +477,8 @@ export default function AdminRestaurantDetail() {
         <CardContent>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/40">
-                <PhoneCall className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <div className="p-2 rounded-lg bg-primary/10 dark:bg-primary/15">
+                <PhoneCall className="h-4 w-4 text-primary" />
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Total Calls</p>
@@ -504,8 +504,8 @@ export default function AdminRestaurantDetail() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-950/40">
-                <DollarSign className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+              <div className="p-2 rounded-lg bg-chart-5/10 dark:bg-chart-5/20">
+                <DollarSign className="h-4 w-4 text-chart-5" />
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Avg Cost/Min</p>

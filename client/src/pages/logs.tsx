@@ -244,13 +244,13 @@ export default function LogsPage() {
       case "order_placed":
         return <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">Order Placed</Badge>;
       case "reservation_made":
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800">Reservation</Badge>;
+        return <Badge variant="outline" className="bg-chart-3/15 text-foreground border-chart-3/40 dark:bg-chart-3/20">Reservation</Badge>;
       case "info_provided":
-        return <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-800">Info Provided</Badge>;
+        return <Badge variant="outline" className="bg-chart-4/15 text-foreground border-chart-4/40 dark:bg-chart-4/20">Info Provided</Badge>;
       case "transferred":
-        return <Badge variant="outline" className="bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/30 dark:text-cyan-400 dark:border-cyan-800">Transferred</Badge>;
+        return <Badge variant="outline" className="bg-chart-5/15 text-foreground border-chart-5/40 dark:bg-chart-5/20">Transferred</Badge>;
       case "callback_scheduled":
-        return <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-800">Callback</Badge>;
+        return <Badge variant="outline" className="bg-chart-2/15 text-foreground border-chart-2/40 dark:bg-chart-2/20">Callback</Badge>;
       case "no_resolution":
         return <Badge variant="outline">No Resolution</Badge>;
       default:
@@ -345,8 +345,8 @@ export default function LogsPage() {
                 <p className="text-sm text-muted-foreground">Total Minutes</p>
                 <p className="text-2xl font-bold" data-testid="text-total-minutes">{totalMinutes.toFixed(1)}</p>
               </div>
-              <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-950/30 flex items-center justify-center">
-                <Clock className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              <div className="h-12 w-12 rounded-full bg-primary/10 dark:bg-primary/15 flex items-center justify-center">
+                <Clock className="h-6 w-6 text-primary" />
               </div>
             </div>
           </CardContent>
@@ -499,7 +499,7 @@ export default function LogsPage() {
                             {log.direction === "inbound" ? (
                               <PhoneIncoming className="h-4 w-4 text-green-600" />
                             ) : (
-                              <PhoneOutgoing className="h-4 w-4 text-blue-600" />
+                              <PhoneOutgoing className="h-4 w-4 text-primary" />
                             )}
                             <span className="text-sm capitalize">{log.direction}</span>
                           </div>

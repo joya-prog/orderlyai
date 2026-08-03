@@ -108,8 +108,8 @@ export default function IntegrationsPage() {
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
-                  <SiSquare className="h-7 w-7 text-slate-900 dark:text-white" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted">
+                  <SiSquare className="h-7 w-7 text-foreground" />
                 </div>
                 <div>
                   <CardTitle className="text-lg">Square POS</CardTitle>
@@ -262,7 +262,7 @@ export default function IntegrationsPage() {
                   </CardDescription>
                 </div>
               </div>
-              <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-xs" data-testid="badge-twilio-status">Coming Soon</Badge>
+              <Badge variant="secondary" className="bg-muted text-xs" data-testid="badge-twilio-status">Coming Soon</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -290,7 +290,7 @@ export default function IntegrationsPage() {
                   </CardDescription>
                 </div>
               </div>
-              <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-xs" data-testid="badge-resy-status">Coming Soon</Badge>
+              <Badge variant="secondary" className="bg-muted text-xs" data-testid="badge-resy-status">Coming Soon</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -318,7 +318,7 @@ export default function IntegrationsPage() {
                   </CardDescription>
                 </div>
               </div>
-              <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-xs" data-testid="badge-tock-status">Coming Soon</Badge>
+              <Badge variant="secondary" className="bg-muted text-xs" data-testid="badge-tock-status">Coming Soon</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -346,7 +346,7 @@ export default function IntegrationsPage() {
                   </CardDescription>
                 </div>
               </div>
-              <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-xs" data-testid="badge-yelp-status">Coming Soon</Badge>
+              <Badge variant="secondary" className="bg-muted text-xs" data-testid="badge-yelp-status">Coming Soon</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">

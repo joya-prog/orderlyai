@@ -29,17 +29,22 @@ export interface FlowNodeRecord {
   config?: { transitions?: FlowTransition[] };
 }
 
+// Paints the edge label pills. Keys are persisted transition colors, so they
+// stay put — only the rendered hex is warm-remapped. Must stay in step with
+// nodeColors/transitionColors in flow-builder.tsx and agent-editor.tsx, or a
+// node badge and its edge pill will show different colors for one transition.
 export const transitionColorHex: Record<string, string> = {
-  emerald: '#10b981',
-  rose: '#f43f5e',
-  blue: '#3b82f6',
-  indigo: '#6366f1',
-  cyan: '#06b6d4',
-  orange: '#f59e0b',
-  teal: '#14b8a6',
-  purple: '#8b5cf6',
-  pink: '#ec4899',
-  gray: '#6b7280',
+  emerald: '#059669', // success — kept semantic
+  rose: '#e11d48',    // failure — kept semantic
+  amber: '#f59e0b',   // needs attention — kept semantic
+  blue: '#0d9488',    // neutral/alternate path -> deep teal
+  indigo: '#a16207',  // -> bronze
+  cyan: '#4d7c0f',    // -> sage/olive
+  orange: '#f59e0b',  // -> golden amber
+  teal: '#0d9488',    // -> deep teal
+  purple: '#be185d',  // -> plum
+  pink: '#e11d48',    // -> wine rose
+  gray: '#78716c',    // -> warm clay
 };
 
 export function LabeledEdge({

@@ -366,17 +366,17 @@ export default function AnalyticsPage() {
 
   function getHourColor(count: number) {
     const ratio = count / maxHourCount;
-    if (ratio < 0.25) return "hsl(217 91% 70%)";
-    if (ratio < 0.5) return "hsl(199 89% 58%)";
-    if (ratio < 0.75) return "hsl(43 96% 56%)";
-    return "hsl(25 95% 53%)";
+    if (ratio < 0.25) return "hsl(var(--chart-4) / 0.5)";
+    if (ratio < 0.5) return "hsl(var(--chart-4))";
+    if (ratio < 0.75) return "hsl(var(--chart-2))";
+    return "hsl(var(--chart-3))";
   }
 
   const recentCalls = useMemo(() => (callLogs ?? []).slice(0, 6), [callLogs]);
 
   const gaugeData = useMemo(() => {
     const score = Math.min(Math.round(processed.conversionRate), 100);
-    const color = score < 10 ? "hsl(0 84% 60%)" : score < 25 ? "hsl(43 96% 56%)" : "hsl(142 76% 36%)";
+    const color = score < 10 ? "hsl(0 84% 60%)" : score < 25 ? "hsl(var(--chart-3))" : "hsl(152 45% 38%)";
     return { score, color };
   }, [processed.conversionRate]);
 
@@ -406,7 +406,7 @@ export default function AnalyticsPage() {
             <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
             <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
             <Tooltip contentStyle={TOOLTIP_STYLE} />
-            <Bar dataKey="calls" name="Calls" fill="hsl(217 91% 60%)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="calls" name="Calls" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       );
@@ -425,15 +425,15 @@ export default function AnalyticsPage() {
           <AreaChart data={data}>
             <defs>
               <linearGradient id="minsGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="hsl(168 76% 42%)" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="hsl(168 76% 42%)" stopOpacity={0.03} />
+                <stop offset="0%" stopColor="hsl(var(--chart-4))" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="hsl(var(--chart-4))" stopOpacity={0.03} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
             <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
             <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
             <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`${v.toFixed(2)} min`, "Minutes"]} />
-            <Area type="monotone" dataKey="minutes" stroke="hsl(168 76% 42%)" strokeWidth={2} fill="url(#minsGrad)" dot={false} />
+            <Area type="monotone" dataKey="minutes" stroke="hsl(var(--chart-4))" strokeWidth={2} fill="url(#minsGrad)" dot={false} />
           </AreaChart>
         </ResponsiveContainer>
       );
@@ -452,15 +452,15 @@ export default function AnalyticsPage() {
           <AreaChart data={data}>
             <defs>
               <linearGradient id="costGradEx" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="hsl(142 76% 36%)" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="hsl(142 76% 36%)" stopOpacity={0.03} />
+                <stop offset="0%" stopColor="hsl(var(--chart-2))" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="hsl(var(--chart-2))" stopOpacity={0.03} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
             <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
             <YAxis tickFormatter={(v) => `$${v.toFixed(2)}`} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
             <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`$${v.toFixed(3)}`, "Cost"]} />
-            <Area type="monotone" dataKey="cost" stroke="hsl(142 76% 36%)" strokeWidth={2} fill="url(#costGradEx)" dot={false} />
+            <Area type="monotone" dataKey="cost" stroke="hsl(var(--chart-2))" strokeWidth={2} fill="url(#costGradEx)" dot={false} />
           </AreaChart>
         </ResponsiveContainer>
       );
@@ -479,15 +479,15 @@ export default function AnalyticsPage() {
           <AreaChart data={data}>
             <defs>
               <linearGradient id="durGradEx" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="hsl(43 96% 56%)" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="hsl(43 96% 56%)" stopOpacity={0.03} />
+                <stop offset="0%" stopColor="hsl(var(--chart-3))" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0.03} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
             <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
             <YAxis tickFormatter={(v) => `${Math.floor(v / 60)}m ${Math.round(v % 60)}s`} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} width={52} />
             <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [formatDuration(v), "Avg Duration"]} />
-            <Area type="monotone" dataKey="avgSeconds" name="Avg Duration" stroke="hsl(43 96% 56%)" strokeWidth={2} fill="url(#durGradEx)" dot={false} />
+            <Area type="monotone" dataKey="avgSeconds" name="Avg Duration" stroke="hsl(var(--chart-3))" strokeWidth={2} fill="url(#durGradEx)" dot={false} />
           </AreaChart>
         </ResponsiveContainer>
       );
@@ -541,9 +541,9 @@ export default function AnalyticsPage() {
             <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
             <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
             <Tooltip contentStyle={TOOLTIP_STYLE} />
-            <Bar dataKey="calls" name="Calls" fill="hsl(217 91% 60%)" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="orders" name="Orders" fill="hsl(168 76% 42%)" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="reservations" name="Reservations" fill="hsl(280 65% 60%)" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="calls" name="Calls" fill="hsl(var(--chart-1))" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="orders" name="Orders" fill="hsl(var(--chart-4))" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="reservations" name="Reservations" fill="hsl(var(--chart-5))" radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       );
@@ -557,15 +557,15 @@ export default function AnalyticsPage() {
           <AreaChart data={processed.revenueData}>
             <defs>
               <linearGradient id="revGradEx" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="hsl(142 76% 36%)" stopOpacity={0.4} />
-                <stop offset="100%" stopColor="hsl(142 76% 36%)" stopOpacity={0.05} />
+                <stop offset="0%" stopColor="hsl(var(--chart-2))" stopOpacity={0.4} />
+                <stop offset="100%" stopColor="hsl(var(--chart-2))" stopOpacity={0.05} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
             <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
             <YAxis tickFormatter={(v) => `$${v}`} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
             <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`$${v.toFixed(2)}`, "Revenue"]} />
-            <Area type="monotone" dataKey="revenue" stroke="hsl(142 76% 36%)" strokeWidth={2} fill="url(#revGradEx)" dot={false} />
+            <Area type="monotone" dataKey="revenue" stroke="hsl(var(--chart-2))" strokeWidth={2} fill="url(#revGradEx)" dot={false} />
           </AreaChart>
         </ResponsiveContainer>
       );
@@ -640,11 +640,11 @@ export default function AnalyticsPage() {
           <KpiCard
             label="Total Calls"
             icon={Phone}
-            iconColor="text-blue-600"
+            iconColor="text-primary"
             value={isLoading ? null : formatNumber(overview?.totalCalls ?? 0)}
             trend={isLoading ? null : trends.calls}
             sparkData={sparklines.calls}
-            sparkColor="hsl(217 91% 60%)"
+            sparkColor="hsl(var(--chart-1))"
             testId="card-kpi-calls"
             onExpand={() => setExpanded({ type: "kpi_calls", title: "Call Volume — Daily Breakdown" })}
           />
@@ -655,7 +655,7 @@ export default function AnalyticsPage() {
             value={isLoading ? null : `${formatNumber(usage?.current?.totalMinutes ?? 0)}m`}
             trend={isLoading ? null : trends.minutes}
             sparkData={sparklines.minutes}
-            sparkColor="hsl(168 76% 42%)"
+            sparkColor="hsl(var(--chart-4))"
             testId="card-kpi-minutes"
             onExpand={() => setExpanded({ type: "kpi_minutes", title: "Minutes Used — Daily Breakdown" })}
           />
@@ -666,7 +666,7 @@ export default function AnalyticsPage() {
             value={isLoading ? null : formatCents(usage?.current?.totalCostCents ?? 0)}
             trend={isLoading ? null : trends.cost}
             sparkData={sparklines.cost}
-            sparkColor="hsl(142 76% 36%)"
+            sparkColor="hsl(var(--chart-2))"
             testId="card-kpi-cost"
             onExpand={() => setExpanded({ type: "kpi_cost", title: "Estimated Cost — Daily Breakdown" })}
           />
@@ -677,7 +677,7 @@ export default function AnalyticsPage() {
             value={isLoading ? null : formatDuration(usage?.current?.avgDurationSeconds ?? overview?.avgDuration ?? 0)}
             trend={isLoading ? null : trends.duration}
             sparkData={durationSparkline}
-            sparkColor="hsl(43 96% 56%)"
+            sparkColor="hsl(var(--chart-3))"
             testId="card-kpi-duration"
             onExpand={() => setExpanded({ type: "kpi_duration", title: "Call Duration — Daily Activity" })}
           />
@@ -692,9 +692,9 @@ export default function AnalyticsPage() {
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-3">
                 {[
-                  { color: "hsl(217 91% 60%)", label: "Calls" },
-                  { color: "hsl(168 76% 42%)", label: "Orders" },
-                  { color: "hsl(280 65% 60%)", label: "Reservations" },
+                  { color: "hsl(var(--chart-1))", label: "Calls" },
+                  { color: "hsl(var(--chart-4))", label: "Orders" },
+                  { color: "hsl(var(--chart-5))", label: "Reservations" },
                 ].map(({ color, label }) => (
                   <div key={label} className="flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
@@ -722,9 +722,9 @@ export default function AnalyticsPage() {
                     <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} interval="preserveStartEnd" />
                     <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} width={28} />
                     <Tooltip contentStyle={TOOLTIP_STYLE} />
-                    <Bar dataKey="calls" name="Calls" fill="hsl(217 91% 60%)" radius={[3, 3, 0, 0]} barSize={14} />
-                    <Bar dataKey="orders" name="Orders" fill="hsl(168 76% 42%)" radius={[3, 3, 0, 0]} barSize={14} />
-                    <Bar dataKey="reservations" name="Reservations" fill="hsl(280 65% 60%)" radius={[3, 3, 0, 0]} barSize={14} />
+                    <Bar dataKey="calls" name="Calls" fill="hsl(var(--chart-1))" radius={[3, 3, 0, 0]} barSize={14} />
+                    <Bar dataKey="orders" name="Orders" fill="hsl(var(--chart-4))" radius={[3, 3, 0, 0]} barSize={14} />
+                    <Bar dataKey="reservations" name="Reservations" fill="hsl(var(--chart-5))" radius={[3, 3, 0, 0]} barSize={14} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -763,14 +763,14 @@ export default function AnalyticsPage() {
                     <AreaChart data={processed.revenueData}>
                       <defs>
                         <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="hsl(142 76% 36%)" stopOpacity={0.35} />
-                          <stop offset="100%" stopColor="hsl(142 76% 36%)" stopOpacity={0.03} />
+                          <stop offset="0%" stopColor="hsl(var(--chart-2))" stopOpacity={0.35} />
+                          <stop offset="100%" stopColor="hsl(var(--chart-2))" stopOpacity={0.03} />
                         </linearGradient>
                       </defs>
                       <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} interval="preserveStartEnd" />
                       <YAxis axisLine={false} tickLine={false} hide />
                       <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`$${v.toFixed(2)}`, "Revenue"]} />
-                      <Area type="monotone" dataKey="revenue" stroke="hsl(142 76% 36%)" strokeWidth={2} fill="url(#revGrad)" dot={false} />
+                      <Area type="monotone" dataKey="revenue" stroke="hsl(var(--chart-2))" strokeWidth={2} fill="url(#revGrad)" dot={false} />
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (

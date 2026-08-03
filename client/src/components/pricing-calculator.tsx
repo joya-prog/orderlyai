@@ -195,10 +195,10 @@ export function PricingCalculator({ variant = "default" }: PricingCalculatorProp
                       <TooltipTrigger asChild>
                         <Info className="h-3 w-3 text-white/50 hover:text-white/80 cursor-help" />
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-[200px] bg-gray-900 border-gray-700">
+                      <TooltipContent side="top" className="max-w-[200px] bg-stone-900 border-stone-700">
                         <p className="text-xs font-medium mb-1 text-white">{tier.label}</p>
-                        <p className="text-xs text-gray-300">{tier.description}</p>
-                        <p className="text-xs text-gray-400 mt-1">{tier.whyPriced}</p>
+                        <p className="text-xs text-stone-300">{tier.description}</p>
+                        <p className="text-xs text-stone-400 mt-1">{tier.whyPriced}</p>
                       </TooltipContent>
                     </Tooltip>
                   </div>

@@ -134,8 +134,8 @@ export default function AdminRestaurants() {
         <Card>
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/40">
-                <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <div className="p-2 rounded-lg bg-primary/10 dark:bg-primary/15">
+                <Users className="h-4 w-4 text-primary" />
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Total</p>

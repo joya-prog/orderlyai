@@ -1,5 +1,5 @@
 import { Switch, Route, useLocation, Redirect } from "wouter";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, lazy, Suspense } from "react";
 import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider, useQuery, useMutation } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -15,26 +15,38 @@ import { OnboardingCallLock } from "@/components/onboarding-call-lock";
 import { Button } from "@/components/ui/button";
 import { ShieldCheck } from "lucide-react";
 import { ErrorBoundary } from "@/components/error-boundary";
-import NotFound from "@/pages/not-found";
+// Auth is the first screen an unauthenticated visitor sees, so it stays in the
+// entry bundle. Every other route is split out — this keeps ReactFlow (agent
+// editor / workflows), Recharts (analytics) and driver.js off the login path.
 import Auth from "@/pages/auth";
-import Onboarding from "@/pages/onboarding";
-import Agents from "@/pages/agents";
-import AgentEditor from "@/pages/agent-editor";
-import Templates from "@/pages/templates";
-import KnowledgeBase from "@/pages/knowledge-base";
-import TestCenter from "@/pages/test-center";
-import Analytics from "@/pages/analytics";
-import Contacts from "@/pages/contacts";
-import PhoneNumbers from "@/pages/phone-numbers";
-import Integrations from "@/pages/integrations";
-import Logs from "@/pages/logs";
-import Settings from "@/pages/settings";
-import Billing from "@/pages/billing";
-import AdminSignups from "@/pages/admin-signups";
-import AdminRestaurants from "@/pages/admin/restaurants";
-import AdminRestaurantDetail from "@/pages/admin/restaurant-detail";
-import AdminSupport from "@/pages/admin/support";
-import ROIPage from "@/pages/roi";
+import NotFound from "@/pages/not-found";
+
+const Onboarding = lazy(() => import("@/pages/onboarding"));
+const Agents = lazy(() => import("@/pages/agents"));
+const AgentEditor = lazy(() => import("@/pages/agent-editor"));
+const Templates = lazy(() => import("@/pages/templates"));
+const KnowledgeBase = lazy(() => import("@/pages/knowledge-base"));
+const TestCenter = lazy(() => import("@/pages/test-center"));
+const Analytics = lazy(() => import("@/pages/analytics"));
+const Contacts = lazy(() => import("@/pages/contacts"));
+const PhoneNumbers = lazy(() => import("@/pages/phone-numbers"));
+const Integrations = lazy(() => import("@/pages/integrations"));
+const Logs = lazy(() => import("@/pages/logs"));
+const Settings = lazy(() => import("@/pages/settings"));
+const Billing = lazy(() => import("@/pages/billing"));
+const AdminSignups = lazy(() => import("@/pages/admin-signups"));
+const AdminRestaurants = lazy(() => import("@/pages/admin/restaurants"));
+const AdminRestaurantDetail = lazy(() => import("@/pages/admin/restaurant-detail"));
+const AdminSupport = lazy(() => import("@/pages/admin/support"));
+const ROIPage = lazy(() => import("@/pages/roi"));
+
+function RouteFallback() {
+  return (
+    <div className="flex h-full min-h-[60vh] w-full items-center justify-center" data-testid="route-loading">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted border-t-primary" />
+    </div>
+  );
+}
 
 function ImpersonationBanner() {
   const { data: adminSession } = useQuery<{ isImpersonating: boolean; originalAdminId: string | null }>({
@@ -83,27 +95,32 @@ function Router() {
   // Show auth page for unauthenticated users
   if (!isAuthenticated) {
     return (
-      <Switch>
-        <Route path="/roi" component={ROIPage} />
-        <Route path="/" component={Auth} />
-        <Route path="/auth" component={Auth} />
-        <Route component={Auth} />
-      </Switch>
+      <Suspense fallback={<RouteFallback />}>
+        <Switch>
+          <Route path="/roi" component={ROIPage} />
+          <Route path="/" component={Auth} />
+          <Route path="/auth" component={Auth} />
+          <Route component={Auth} />
+        </Switch>
+      </Suspense>
     );
   }
 
   // Show onboarding for authenticated users who haven't completed setup
   if (!user?.onboardingCompleted) {
     return (
-      <Switch>
-        <Route path="/" component={Onboarding} />
-        <Route component={Onboarding} />
-      </Switch>
+      <Suspense fallback={<RouteFallback />}>
+        <Switch>
+          <Route path="/" component={Onboarding} />
+          <Route component={Onboarding} />
+        </Switch>
+      </Suspense>
     );
   }
 
   // Main app for fully onboarded users
   return (
+    <Suspense fallback={<RouteFallback />}>
     <Switch>
       <Route path="/roi" component={ROIPage} />
       <Route path="/" component={Agents} />
@@ -119,7 +136,9 @@ function Router() {
       <Route path="/settings" component={Settings} />
       <Route path="/billing" component={Billing} />
       <Route path="/templates" component={Templates} />
-      <Route path="/admin/signups" component={AdminSignups} />
+      <Route path="/admin/signups" component={
+        user?.role === "admin" ? AdminSignups : () => <Redirect to="/" />
+      } />
       <Route path="/admin">
         {user?.role === "admin" ? <Redirect to="/admin/restaurants" /> : <Redirect to="/" />}
       </Route>
@@ -134,6 +153,7 @@ function Router() {
       } />
       <Route component={NotFound} />
     </Switch>
+    </Suspense>
   );
 }
 

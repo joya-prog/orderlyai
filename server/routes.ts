@@ -278,10 +278,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.id;
       const user = await storage.getUser(userId);
+      // getUser returns undefined for a missing row. Spreading that produced a
+      // 200 with an empty object, so the client saw a logged-in user with no
+      // fields rather than an error.
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
       // Include phoneNumber alias for frontend compatibility
       res.json({
         ...toPublicUser(user),
-        phoneNumber: user?.restaurantPhone || '',
+        phoneNumber: user.restaurantPhone || '',
       });
     } catch (error) {
       console.error("Error fetching user:", error);

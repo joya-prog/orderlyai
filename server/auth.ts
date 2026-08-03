@@ -922,6 +922,9 @@ export async function setupAuth(app: Express) {
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.user.id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
       res.json(toPublicUser(user));
     } catch (error) {
       console.error("Error fetching user:", error);

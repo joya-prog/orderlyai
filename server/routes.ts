@@ -1893,11 +1893,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Phone number routes
+  /**
+   * Retell decides which agent actually answers, so it is the source of truth
+   * for inbound routing. Our rows drifted from it whenever a Retell sync failed
+   * after the DB write (see PATCH below), leaving the dashboard confidently
+   * naming an agent that was not answering the phone.
+   *
+   * One list call covers every number. Only corrects a row when Retell names an
+   * agent we can resolve locally — a blank inbound agent on Retell's side is
+   * left alone rather than wiping a local assignment.
+   */
+  async function reconcilePhoneNumberAgents(userId: string, numbers: any[]): Promise<any[]> {
+    if (!(await retell.isRetellConfigured())) return numbers;
+
+    try {
+      const [remote, agents] = await Promise.all([
+        retell.listRetellPhoneNumbers(),
+        storage.getAgents(userId),
+      ]);
+
+      const byRetellAgentId = new Map(
+        agents.filter((a: any) => a.retellAgentId).map((a: any) => [a.retellAgentId, a]),
+      );
+      const digits = (s: string) => (s || '').replace(/\D/g, '');
+      const remoteByNumber = new Map(remote.map((r: any) => [digits(r.phoneNumber), r]));
+
+      return await Promise.all(numbers.map(async (n: any) => {
+        const match = remoteByNumber.get(digits(n.number));
+        const localAgent = match?.inboundAgentId
+          ? byRetellAgentId.get(match.inboundAgentId)
+          : undefined;
+        if (!localAgent || localAgent.id === n.agentId) return n;
+
+        console.warn(
+          `[Retell] Phone ${n.number} answers as agent ${localAgent.id} (${localAgent.name}) ` +
+          `but our record said ${n.agentId ?? 'none'} — correcting to match.`,
+        );
+        const updated = await storage.updatePhoneNumber(n.id, userId, { agentId: localAgent.id } as any);
+        return updated ?? { ...n, agentId: localAgent.id };
+      }));
+    } catch (err) {
+      console.error('[Retell] Could not reconcile phone number agents:', err);
+      return numbers;
+    }
+  }
+
   app.get("/api/phone-numbers", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
       const phoneNumbers = await storage.getPhoneNumbers(userId);
-      res.json(phoneNumbers);
+      res.json(await reconcilePhoneNumberAgents(userId, phoneNumbers));
     } catch (error) {
       console.error("Error fetching phone numbers:", error);
       res.status(500).json({ message: "Failed to fetch phone numbers" });
@@ -2233,7 +2278,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      res.json(routingWarning ? { ...phoneNumber, routingWarning } : phoneNumber);
+      // The DB write happens before the Retell sync, so a failed sync used to
+      // leave us claiming an assignment that was never made — the row said one
+      // agent while a different one answered the phone. Put the old value back
+      // so our record keeps describing who actually takes the call.
+      let responseNumber = phoneNumber;
+      if (routingWarning && 'agentId' in cleanedData && existingPhoneNumber) {
+        const revert = await storage.updatePhoneNumber(req.params.id, userId, {
+          agentId: existingPhoneNumber.agentId,
+        } as any);
+        if (revert) responseNumber = revert;
+        console.warn(
+          `[Retell] Reverted agent assignment for ${phoneNumber.number} to ` +
+          `${existingPhoneNumber.agentId ?? 'none'} — the voice provider did not accept the change.`,
+        );
+      }
+
+      res.json(routingWarning ? { ...responseNumber, routingWarning } : responseNumber);
     } catch (error: any) {
       console.error("Error updating phone number:", error);
       if (error.name === 'ZodError') {

@@ -9,6 +9,7 @@ import crypto from "crypto";
 import { authenticator } from "otplib";
 import { Resend } from "resend";
 import { storage } from "./storage";
+import { toPublicUser } from "./sanitize";
 import { sendSms2FACode, verifySms2FACode, sendSignupNotification } from "./twilioClient";
 import { getUncachableStripeClient } from "./stripeClient";
 import { DEFAULT_TRIAL_CREDIT_CENTS } from "../shared/pricing";
@@ -222,7 +223,13 @@ function clearPending2FASession(token: string) {
   }
 }
 
+let sessionMiddleware: RequestHandler | null = null;
+
 export function getSession() {
+  // Memoized so non-HTTP entry points (the WebSocket upgrade handler) can
+  // resolve a session against the same store rather than trusting query params.
+  if (sessionMiddleware) return sessionMiddleware;
+
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
@@ -231,7 +238,7 @@ export function getSession() {
     ttl: sessionTtl,
     tableName: "sessions",
   });
-  return session({
+  sessionMiddleware = session({
     secret: process.env.SESSION_SECRET!,
     store: sessionStore,
     resave: false,
@@ -242,6 +249,29 @@ export function getSession() {
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: sessionTtl,
     },
+  });
+  return sessionMiddleware;
+}
+
+/**
+ * Resolves the authenticated user id for a WebSocket upgrade request by
+ * replaying the session cookie through the same store the HTTP routes use.
+ * Returns null when the request carries no valid logged-in session.
+ */
+export function getUserIdFromUpgradeRequest(req: any): Promise<string | null> {
+  return new Promise((resolve) => {
+    try {
+      getSession()(req, {} as any, () => {
+        // Mirrors deserializeUser: current format is { id, email }, with the
+        // legacy Replit Auth shape { claims: { sub } } still in old sessions.
+        const data = req.session?.passport?.user;
+        const userId = data?.id ?? data?.claims?.sub ?? null;
+        resolve(typeof userId === "string" ? userId : null);
+      });
+    } catch (err) {
+      console.error("[Auth] Failed to resolve session for upgrade request:", err);
+      resolve(null);
+    }
   });
 }
 
@@ -892,7 +922,7 @@ export async function setupAuth(app: Express) {
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.user.id);
-      res.json(user);
+      res.json(toPublicUser(user));
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });

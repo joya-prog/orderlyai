@@ -65,18 +65,24 @@ import {
 // NODE TYPE DEFINITIONS - Retell AI Style Categories
 // ============================================================================
 
-// Color definitions for node badges
+// Color definitions for node badges.
+// Warm hospitality categorical palette. Keys are stable data values (persisted in
+// node configs) — only the rendered colors are warm-remapped.
+//   green  -> forest green   blue   -> terracotta    orange -> golden amber
+//   purple -> plum           red    -> brick red     cyan   -> sage/olive
+//   gray   -> warm clay      indigo -> bronze        pink   -> wine rose
+//   teal   -> deep teal
 const nodeColors = {
-  green: { bg: 'bg-emerald-500', light: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-800', hex: '#10b981' },
-  blue: { bg: 'bg-blue-500', light: 'bg-blue-50 dark:bg-blue-950/30', border: 'border-blue-200 dark:border-blue-800', hex: '#3b82f6' },
+  green: { bg: 'bg-emerald-600', light: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-800', hex: '#059669' },
+  blue: { bg: 'bg-orange-600', light: 'bg-orange-50 dark:bg-orange-950/30', border: 'border-orange-200 dark:border-orange-800', hex: '#ea580c' },
   orange: { bg: 'bg-amber-500', light: 'bg-amber-50 dark:bg-amber-950/30', border: 'border-amber-200 dark:border-amber-800', hex: '#f59e0b' },
-  purple: { bg: 'bg-violet-500', light: 'bg-violet-50 dark:bg-violet-950/30', border: 'border-violet-200 dark:border-violet-800', hex: '#8b5cf6' },
-  red: { bg: 'bg-rose-500', light: 'bg-rose-50 dark:bg-rose-950/30', border: 'border-rose-200 dark:border-rose-800', hex: '#f43f5e' },
-  cyan: { bg: 'bg-cyan-500', light: 'bg-cyan-50 dark:bg-cyan-950/30', border: 'border-cyan-200 dark:border-cyan-800', hex: '#06b6d4' },
-  gray: { bg: 'bg-gray-500', light: 'bg-gray-50 dark:bg-gray-950/30', border: 'border-gray-200 dark:border-gray-800', hex: '#6b7280' },
-  indigo: { bg: 'bg-indigo-500', light: 'bg-indigo-50 dark:bg-indigo-950/30', border: 'border-indigo-200 dark:border-indigo-800', hex: '#6366f1' },
-  pink: { bg: 'bg-pink-500', light: 'bg-pink-50 dark:bg-pink-950/30', border: 'border-pink-200 dark:border-pink-800', hex: '#ec4899' },
-  teal: { bg: 'bg-teal-500', light: 'bg-teal-50 dark:bg-teal-950/30', border: 'border-teal-200 dark:border-teal-800', hex: '#14b8a6' },
+  purple: { bg: 'bg-pink-700', light: 'bg-pink-50 dark:bg-pink-950/30', border: 'border-pink-200 dark:border-pink-800', hex: '#be185d' },
+  red: { bg: 'bg-red-700', light: 'bg-red-50 dark:bg-red-950/30', border: 'border-red-200 dark:border-red-800', hex: '#b91c1c' },
+  cyan: { bg: 'bg-lime-700', light: 'bg-lime-50 dark:bg-lime-950/30', border: 'border-lime-200 dark:border-lime-800', hex: '#4d7c0f' },
+  gray: { bg: 'bg-stone-500', light: 'bg-stone-50 dark:bg-stone-950/30', border: 'border-stone-200 dark:border-stone-800', hex: '#78716c' },
+  indigo: { bg: 'bg-yellow-700', light: 'bg-yellow-50 dark:bg-yellow-950/30', border: 'border-yellow-200 dark:border-yellow-800', hex: '#a16207' },
+  pink: { bg: 'bg-rose-600', light: 'bg-rose-50 dark:bg-rose-950/30', border: 'border-rose-200 dark:border-rose-800', hex: '#e11d48' },
+  teal: { bg: 'bg-teal-600', light: 'bg-teal-50 dark:bg-teal-950/30', border: 'border-teal-200 dark:border-teal-800', hex: '#0d9488' },
 };
 
 // Transition type definition
@@ -328,11 +334,13 @@ function getNodeConfig(type: string): NodeTypeConfig | undefined {
   return allNodeTypes.find(n => n.type === type);
 }
 
-// Transition color mapping
+// Transition color mapping.
+// emerald = success path, rose = failure path, amber = needs-attention (kept semantic).
+// blue is a neutral "alternate/continue" path — warmed to deep teal.
 const transitionColors: Record<string, { bg: string; text: string; handle: string }> = {
-  emerald: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400', handle: '!bg-emerald-500' },
+  emerald: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400', handle: '!bg-emerald-600' },
   rose: { bg: 'bg-rose-100 dark:bg-rose-900/30', text: 'text-rose-700 dark:text-rose-400', handle: '!bg-rose-500' },
-  blue: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-400', handle: '!bg-blue-500' },
+  blue: { bg: 'bg-teal-100 dark:bg-teal-900/30', text: 'text-teal-700 dark:text-teal-400', handle: '!bg-teal-600' },
   amber: { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-400', handle: '!bg-amber-500' },
 };
 
@@ -410,7 +418,7 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
         <Handle 
           type="target" 
           position={Position.Left} 
-          className="!w-5 !h-5 !bg-white !border-2 !border-indigo-400 dark:!border-indigo-500 !rounded-full flow-handle-target"
+          className="!w-5 !h-5 !bg-card !border-2 !border-primary !rounded-full flow-handle-target"
           id={`${id}-target`}
           isConnectable={true}
         />
@@ -420,9 +428,9 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
       <div 
         className={`
           w-[340px] rounded-xl transition-all duration-200
-          ${selected 
-            ? 'bg-gradient-to-b from-indigo-50/80 to-white dark:from-indigo-950/30 dark:to-gray-900 border-2 border-indigo-400 dark:border-indigo-600 shadow-lg shadow-indigo-100 dark:shadow-indigo-900/20' 
-            : 'bg-gradient-to-b from-rose-50/50 to-white dark:from-rose-950/20 dark:to-gray-900 border border-rose-100 dark:border-rose-900/30 shadow-sm hover:shadow-md'
+          ${selected
+            ? 'bg-gradient-to-b from-primary/10 to-card dark:from-primary/20 dark:to-card border-2 border-primary shadow-lg shadow-primary/10 dark:shadow-primary/20'
+            : 'bg-gradient-to-b from-muted/50 to-card dark:from-muted/40 dark:to-card border border-border shadow-sm hover:shadow-md'
           }
         `}
         data-testid={`flow-node-${data.type}`}
@@ -430,7 +438,7 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
         {/* Header */}
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Hash className="h-4 w-4 text-rose-400 dark:text-rose-500" />
+            <Hash className="h-4 w-4 text-muted-foreground" />
             {selected ? (
               <Input
                 value={data.label || 'Conversation'}
@@ -441,12 +449,12 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
                 data-testid="input-node-label"
               />
             ) : (
-              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+              <span className="text-sm font-medium text-foreground">
                 {data.label || 'Conversation'}
               </span>
             )}
             {selected && (
-              <span className="text-rose-400">
+              <span className="text-primary">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
@@ -459,14 +467,14 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
             {selected && !isStartNode && (
               <button
                 onClick={handleDelete}
-                className="w-5 h-5 rounded flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
+                className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors"
                 data-testid="button-delete-node"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             )}
             {selected && (
-              <button className="text-gray-400 hover:text-gray-600">
+              <button className="text-muted-foreground hover:text-foreground">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <circle cx="12" cy="6" r="2" />
                   <circle cx="12" cy="12" r="2" />
@@ -480,13 +488,13 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
         {/* Content Mode Tabs - Only when selected */}
         {selected && (
           <div className="px-4 pb-2">
-            <div className="flex gap-1 p-0.5 bg-gray-100 dark:bg-gray-800 rounded-lg w-fit">
+            <div className="flex gap-1 p-0.5 bg-muted rounded-lg w-fit">
               <button
                 onClick={(e) => { e.stopPropagation(); handleContentModeChange('prompt'); }}
                 className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
-                  contentMode === 'prompt' 
-                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' 
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  contentMode === 'prompt'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
                 data-testid="button-mode-prompt"
               >
@@ -495,9 +503,9 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
               <button
                 onClick={(e) => { e.stopPropagation(); handleContentModeChange('static'); }}
                 className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
-                  contentMode === 'static' 
-                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' 
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  contentMode === 'static'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
                 data-testid="button-mode-static"
               >
@@ -517,7 +525,7 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
               ? (nodeConfig?.configFields?.[0]?.placeholder || "Enter AI prompt instructions...") 
               : "Enter the exact sentence to say..."
             }
-            className={`min-h-[80px] resize-none text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg nodrag ${
+            className={`min-h-[80px] resize-none text-sm bg-card border border-border rounded-lg nodrag ${
               selected ? '' : 'pointer-events-none'
             }`}
             data-testid="input-node-content"
@@ -526,10 +534,10 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
         
         {/* Transitions Section */}
         {!isEndNode && (
-          <div className="border-t border-gray-100 dark:border-gray-800">
+          <div className="border-t border-border">
             {/* Transition Header */}
             <div className="px-4 py-2 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+              <div className="flex items-center gap-2 text-muted-foreground">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
                   <polyline points="15 3 21 3 21 9" />
@@ -539,7 +547,7 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
               </div>
               <button
                 onClick={handleAddTransition}
-                className="w-5 h-5 rounded flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
                 data-testid="button-add-transition"
               >
                 <Plus className="h-4 w-4" />
@@ -557,8 +565,8 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
                   >
                     drag →
                   </span>
-                  <div className="flex items-center gap-2 flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-1 px-3 py-2 bg-muted/50 rounded-lg border border-border">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted-foreground flex-shrink-0">
                       <circle cx="12" cy="12" r="1" />
                       <circle cx="19" cy="12" r="1" />
                       <circle cx="5" cy="12" r="1" />
@@ -568,13 +576,13 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
                       onChange={(e) => handleTransitionConditionChange(t.id, e.target.value)}
                       onClick={(e) => e.stopPropagation()}
                       placeholder="Describe the transition condition"
-                      className="h-5 text-xs flex-1 bg-transparent border-none focus-visible:ring-0 p-0 text-gray-600 dark:text-gray-300 placeholder:text-gray-400 nodrag"
+                      className="h-5 text-xs flex-1 bg-transparent border-none focus-visible:ring-0 p-0 text-foreground placeholder:text-muted-foreground nodrag"
                       data-testid={`input-transition-${t.id}`}
                     />
                     {transitions.length > 1 && (
                       <button
                         onClick={(e) => handleRemoveTransition(e, t.id)}
-                        className="opacity-0 group-hover/transition:opacity-100 text-gray-400 hover:text-red-500 transition-all"
+                        className="opacity-0 group-hover/transition:opacity-100 text-muted-foreground hover:text-destructive transition-all"
                         data-testid={`button-remove-transition-${t.id}`}
                       >
                         <X className="h-3 w-3" />
@@ -586,8 +594,8 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
                   <Handle 
                     type="source" 
                     position={Position.Right}
-                    className={`!w-5 !h-5 !border-2 !border-white !rounded-full flow-handle-source ${
-                      transitionColors[t.color || 'emerald']?.handle || '!bg-indigo-500'
+                    className={`!w-5 !h-5 !border-2 !border-card !rounded-full flow-handle-source ${
+                      transitionColors[t.color || 'emerald']?.handle || '!bg-primary'
                     }`}
                     id={`${id}-${t.id}`}
                     isConnectable={true}
@@ -599,7 +607,7 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
               {transitions.length === 0 && (
                 <button
                   onClick={handleAddTransition}
-                  className="w-full px-3 py-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-dashed border-gray-200 dark:border-gray-700 transition-colors"
+                  className="w-full px-3 py-2 text-xs text-muted-foreground hover:text-foreground bg-muted/50 rounded-lg border border-dashed border-border transition-colors"
                   data-testid="button-add-first-transition"
                 >
                   + Add transition condition
@@ -625,13 +633,13 @@ const edgeTypes: EdgeTypes = {
 const defaultEdgeOptions = {
   type: 'labeled',
   animated: false,
-  style: { 
-    stroke: '#6366f1', 
+  style: {
+    stroke: '#a8a29e',
     strokeWidth: 2.5,
   },
   markerEnd: {
     type: 'arrowclosed' as const,
-    color: '#6366f1',
+    color: '#a8a29e',
     width: 16,
     height: 16,
   },
@@ -941,7 +949,7 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
         <Card className="flex-1 flex flex-col overflow-hidden">
           <CardHeader className="pb-2 flex-shrink-0">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-indigo-500" />
+              <Sparkles className="h-4 w-4 text-primary" />
               Node Library
             </CardTitle>
           </CardHeader>
@@ -989,9 +997,9 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
                           key={nodeType.type}
                           draggable
                           onDragStart={(event) => onDragStart(event, nodeType.type)}
-                          className="flex items-center gap-2.5 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/50 
-                            hover:bg-gray-100 dark:hover:bg-gray-800 border border-transparent hover:border-gray-200 
-                            dark:hover:border-gray-700 cursor-grab active:cursor-grabbing transition-all duration-150
+                          className="flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/50
+                            hover:bg-muted border border-transparent hover:border-border
+                            cursor-grab active:cursor-grabbing transition-all duration-150
                             hover:shadow-sm"
                           data-testid={`draggable-node-${nodeType.type}`}
                         >
@@ -999,10 +1007,10 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
                             <Icon className="h-4 w-4 text-white" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">
+                            <p className="text-xs font-medium text-foreground truncate">
                               {nodeType.label}
                             </p>
-                            <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate">
+                            <p className="text-[10px] text-muted-foreground truncate">
                               {nodeType.subtitle}
                             </p>
                           </div>
@@ -1018,9 +1026,9 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
       </div>
 
       {/* Center - Flow Canvas */}
-      <div ref={reactFlowWrapper} className="flex-1 relative rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800">
+      <div ref={reactFlowWrapper} className="flex-1 relative rounded-xl overflow-hidden border border-border">
         {/* Gradient Background Layer */}
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-indigo-50/20 to-slate-100 dark:from-gray-950 dark:via-indigo-950/10 dark:to-gray-900" />
+        <div className="absolute inset-0 bg-gradient-to-br from-background via-primary/5 to-muted dark:from-background dark:via-primary/10 dark:to-muted" />
         
         <ReactFlow
           nodes={nodes.map(n => ({ ...n, selected: n.id === selectedNodeId }))}
@@ -1036,13 +1044,13 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
           edgeTypes={edgeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
           connectionRadius={40}
-          connectionLineStyle={{ stroke: '#6366f1', strokeWidth: 2.5, strokeDasharray: '8 4' }}
+          connectionLineStyle={{ stroke: '#3f8163', strokeWidth: 2.5, strokeDasharray: '8 4' }}
           fitView
           className="bg-transparent"
           data-testid="flow-canvas"
         >
           {/* Top Toolbar */}
-          <Panel position="top-left" className="flex items-center gap-1 bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-1">
+          <Panel position="top-left" className="flex items-center gap-1 bg-card rounded-lg shadow-sm border border-border p-1">
             <Button 
               variant="ghost" 
               size="icon" 
@@ -1063,7 +1071,7 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
             >
               <Redo2 className="h-3.5 w-3.5" />
             </Button>
-            <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-0.5" />
+            <div className="w-px h-5 bg-border mx-0.5" />
             <Button 
               variant="ghost" 
               size="icon" 
@@ -1091,7 +1099,7 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
             >
               <Maximize className="h-3.5 w-3.5" />
             </Button>
-            <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-0.5" />
+            <div className="w-px h-5 bg-border mx-0.5" />
             <Button 
               onClick={handleSave} 
               size="sm"
@@ -1110,7 +1118,7 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
 
           {/* Save Status */}
           {lastSaved && (
-            <Panel position="top-right" className="flex items-center gap-1.5 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-lg px-2 py-1 text-xs text-muted-foreground">
+            <Panel position="top-right" className="flex items-center gap-1.5 bg-card/80 backdrop-blur-sm rounded-lg px-2 py-1 text-xs text-muted-foreground">
               <CheckCircle2 className="h-3 w-3 text-emerald-500" />
               Saved {lastSaved.toLocaleTimeString()}
             </Panel>
@@ -1120,7 +1128,7 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
             variant={BackgroundVariant.Dots} 
             gap={20} 
             size={1} 
-            color="#cbd5e1"
+            color="#d8cfc0"
             className="dark:opacity-20"
           />
           
@@ -1128,10 +1136,10 @@ function FlowBuilderInner({ agentId, initialNodes = [], initialEdges = [], onSav
           <MiniMap 
             nodeColor={(node) => {
               const nodeConfig = getNodeConfig(node.data?.type as string);
-              return nodeConfig ? nodeColors[nodeConfig.color].hex : '#6b7280';
+              return nodeConfig ? nodeColors[nodeConfig.color].hex : '#78716c';
             }}
-            maskColor="rgba(0, 0, 0, 0.08)"
-            className="!bg-white/90 dark:!bg-gray-900/90 !rounded-lg !border !border-gray-200 dark:!border-gray-700 !shadow-sm"
+            maskColor="rgba(41, 32, 24, 0.08)"
+            className="!bg-card/90 !rounded-lg !border !border-border !shadow-sm"
             style={{ width: 120, height: 80 }}
             pannable
             zoomable

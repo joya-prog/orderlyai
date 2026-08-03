@@ -81,53 +81,6 @@ const mainItems = [
   },
 ];
 
-function MiniUsageGraph({ minutesUsed }: { minutesUsed: number }) {
-  const points = [0, 0.15, 0.3, 0.25, 0.5, 0.45, 0.7, 0.65, 0.85, 1.0];
-  const scaledPoints = points.map(p => Math.round(p * minutesUsed));
-
-  const width = 180;
-  const height = 32;
-  const padding = 2;
-  const graphWidth = width - padding * 2;
-  const graphHeight = height - padding * 2;
-  const maxVal = Math.max(...scaledPoints, 1);
-
-  const linePoints = scaledPoints.map((val, i) => {
-    const x = padding + (i / (scaledPoints.length - 1)) * graphWidth;
-    const y = padding + graphHeight - (val / maxVal) * graphHeight;
-    return `${x},${y}`;
-  }).join(" ");
-
-  const areaPoints = `${padding},${height - padding} ${linePoints} ${width - padding},${height - padding}`;
-
-  return (
-    <div className="w-full" data-testid="usage-mini-graph">
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-5" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="usageFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0.05" />
-          </linearGradient>
-        </defs>
-        <polygon
-          points={areaPoints}
-          fill="url(#usageFill)"
-          className="text-blue-500 dark:text-blue-400"
-        />
-        <polyline
-          points={linePoints}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="text-blue-500 dark:text-blue-400"
-        />
-      </svg>
-    </div>
-  );
-}
-
 export function AppSidebar() {
   const [location] = useLocation();
   const { user } = useAuth();
@@ -274,22 +227,21 @@ export function AppSidebar() {
 
         {/* Usage Indicator */}
         <SidebarGroup className="mt-auto">
-          <div className="mx-3 px-3 py-3 rounded-2xl bg-blue-50/80 dark:bg-blue-950/30" data-testid="usage-indicator">
+          <div className="mx-3 px-3 py-3 rounded-2xl bg-primary/10 dark:bg-primary/15" data-testid="usage-indicator">
             {subscription?.stripeSubscriptionId ? (
               <Link href="/billing">
-                <div className="flex flex-col gap-1 cursor-pointer hover-elevate rounded-xl p-1 -m-1 transition-colors" data-testid="link-billing-usage">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <CheckCircle2 className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                      <span className="text-xs font-bold text-blue-900 dark:text-blue-100" data-testid="plan-name">
+                <div className="flex flex-col cursor-pointer hover-elevate rounded-xl p-1 -m-1 transition-colors" data-testid="link-billing-usage">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
+                      <span className="text-xs font-bold text-foreground truncate" data-testid="plan-name">
                         Pay As You Go
                       </span>
                     </div>
-                    <span className="text-xs font-medium text-blue-600/80 dark:text-blue-400/80" data-testid="usage-text">
+                    <span className="text-xs font-medium text-muted-foreground flex-shrink-0" data-testid="usage-text">
                       {minutesUsed} min
                     </span>
                   </div>
-                  <MiniUsageGraph minutesUsed={minutesUsed} />
                 </div>
               </Link>
             ) : (
@@ -300,15 +252,15 @@ export function AppSidebar() {
                     data-testid="credit-widget-trigger"
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <Wallet className={`h-4 w-4 flex-shrink-0 ${isExhausted ? "text-amber-500" : isLowCredit ? "text-amber-500" : "text-blue-600 dark:text-blue-400"}`} />
+                      <Wallet className={`h-4 w-4 flex-shrink-0 ${isExhausted ? "text-amber-500" : isLowCredit ? "text-amber-500" : "text-primary"}`} />
                       <span
-                        className={`text-xs font-bold truncate ${isExhausted ? "text-amber-700 dark:text-amber-400" : "text-blue-900 dark:text-blue-100"}`}
+                        className={`text-xs font-bold truncate ${isExhausted ? "text-amber-700 dark:text-amber-400" : "text-foreground"}`}
                         data-testid="credit-remaining-text"
                       >
                         {isExhausted ? "Credit exhausted" : `$${creditRemainingDollars} remaining`}
                       </span>
                     </div>
-                    <ChevronRight className="h-3 w-3 flex-shrink-0 text-blue-400/60 dark:text-blue-500/60" />
+                    <ChevronRight className="h-3 w-3 flex-shrink-0 text-muted-foreground/70" />
                   </div>
                 </HoverCardTrigger>
                 <HoverCardContent
@@ -318,12 +270,12 @@ export function AppSidebar() {
                   className="w-72 p-0 overflow-hidden"
                   data-testid="credit-widget-popover"
                 >
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/60 dark:to-blue-900/30 px-4 pt-4 pb-3 border-b border-blue-100 dark:border-blue-800/50">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-blue-500 dark:text-blue-400 mb-1">Trial Credit</p>
-                    <p className="text-2xl font-bold text-blue-900 dark:text-blue-100" data-testid="credit-amount-large">
+                  <div className="bg-gradient-to-br from-primary/15 to-primary/5 dark:from-primary/20 dark:to-primary/10 px-4 pt-4 pb-3 border-b border-primary/15 dark:border-primary/25">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-primary mb-1">Trial Credit</p>
+                    <p className="text-2xl font-bold text-foreground" data-testid="credit-amount-large">
                       ${creditRemainingDollars}
                     </p>
-                    <p className="text-xs text-blue-600/70 dark:text-blue-400/70">
+                    <p className="text-xs text-muted-foreground">
                       of ${creditGrantedDollars} trial credit
                     </p>
                   </div>
@@ -335,7 +287,7 @@ export function AppSidebar() {
                       </div>
                       <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all duration-500 ${isExhausted ? "bg-amber-500" : isLowCredit ? "bg-amber-400" : "bg-blue-500"}`}
+                          className={`h-full rounded-full transition-all duration-500 ${isExhausted ? "bg-amber-500" : isLowCredit ? "bg-amber-400" : "bg-primary"}`}
                           style={{ width: `${creditUsedPct}%` }}
                           data-testid="credit-progress-bar"
                         />
@@ -384,7 +336,7 @@ export function AppSidebar() {
             <div className="flex items-center gap-3 px-2 py-3">
               <Avatar className="h-9 w-9 ring-2 ring-border/50">
                 <AvatarImage src={user?.profileImageUrl || undefined} />
-                <AvatarFallback className="text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
+                <AvatarFallback className="text-xs font-medium bg-primary/15 text-primary dark:bg-primary/20">
                   {getInitials(user?.firstName, user?.lastName)}
                 </AvatarFallback>
               </Avatar>

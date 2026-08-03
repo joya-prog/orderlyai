@@ -7,6 +7,8 @@ import { Agent, FlowNode, FlowConnection } from '@shared/schema';
 import { WorkflowExecutor, WorkflowState, createWorkflowExecutor } from './workflowExecutor';
 import { calculateCallCostCents } from '../shared/pricing';
 import { getUncachableStripeClient } from './stripeClient';
+import { createStreamToken, verifyStreamToken } from './streamToken';
+import { billCallOnce, upsertCallLogBySid } from './callBilling';
 
 const MULAW_RATE = 8000;
 const CHUNK_SIZE = 320;
@@ -548,19 +550,22 @@ export async function handleTwilioWebSocket(ws: WebSocket, req: any): Promise<vo
           
         case 'start':
           const { callSid, streamSid, customParameters } = message.start;
-          const agentId = customParameters?.agentId;
-          const phoneNumberId = customParameters?.phoneNumberId;
           const fromNumber = customParameters?.from || message.start.from;
           const toNumber = customParameters?.to || message.start.to;
-          
-          console.log(`[Voice] Call started: ${callSid}, Agent: ${agentId}`);
-          
-          if (!agentId) {
-            console.error('[Voice] No agentId in call parameters');
+
+          // The agent is taken from a token this server signed in generateTwiML,
+          // never from a caller-supplied parameter — this socket triggers billing.
+          const claims = verifyStreamToken(customParameters?.token);
+          if (!claims) {
+            console.error('[Voice] Rejecting stream: missing or invalid token');
             ws.close();
             return;
           }
-          
+          const agentId = claims.agentId;
+          const phoneNumberId = claims.phoneNumberId;
+
+          console.log(`[Voice] Call started: ${callSid}, Agent: ${agentId}`);
+
           const agent = await storage.getAgent(agentId);
           if (!agent) {
             console.error('[Voice] Agent not found:', agentId);
@@ -675,65 +680,48 @@ export async function handleTwilioWebSocket(ws: WebSocket, req: any): Promise<vo
             // Analyze conversation for sentiment and outcome
             const analysis = analyzeConversation(session.conversationHistory);
             
-            // Calculate cost based on the agent's actual AI model and voice provider
             const costCents = calculateCallCostCents(
               callDuration,
               session.agent.aiModel,
               session.agent.voiceProvider,
             );
-            
-            const callLog = await storage.createCallLog({
-              userId: session.userId,
-              agentId: session.agent.id,
-              phoneNumberId: session.phoneNumberId,
-              callSid: session.callSid,
-              direction: 'inbound',
-              fromNumber: session.fromNumber,
-              toNumber: session.toNumber,
-              durationSeconds: callDuration.toString(),
-              durationMinutes,
-              status: 'completed',
-              transcript: session.conversationHistory.map(m => `${m.role}: ${m.content}`).join('\n'),
-              sentiment: analysis.sentiment,
-              endReason: 'customer_hangup',
-              callOutcome: analysis.outcome,
-              costCents: costCents.toString(),
-              metadata: { provider: 'orderly', aiModel: session.agent.aiModel, voiceProvider: session.agent.voiceProvider },
-            });
 
-            // Record usage in ledger with model/voice details
-            const now = new Date();
-            const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-            const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-            await storage.createUsageLedgerEntry({
+            // The Twilio status webhook may have already logged this call —
+            // reuse that row rather than inserting a second one.
+            const { callLog } = await upsertCallLogBySid(
+              session.callSid,
+              {
+                userId: session.userId,
+                agentId: session.agent.id,
+                phoneNumberId: session.phoneNumberId,
+                direction: 'inbound',
+                fromNumber: session.fromNumber,
+                toNumber: session.toNumber,
+                status: 'completed',
+              },
+              {
+                durationSeconds: callDuration.toString(),
+                durationMinutes,
+                transcript: session.conversationHistory.map(m => `${m.role}: ${m.content}`).join('\n'),
+                sentiment: analysis.sentiment,
+                endReason: 'customer_hangup',
+                callOutcome: analysis.outcome,
+                costCents: costCents.toString(),
+                metadata: { provider: 'orderly', aiModel: session.agent.aiModel, voiceProvider: session.agent.voiceProvider },
+              },
+            );
+
+            // Charges only if no ledger entry exists for this call yet.
+            await billCallOnce({
               userId: session.userId,
               agentId: session.agent.id,
               callLogId: callLog.id,
-              periodStart,
-              periodEnd,
-              minutesUsed: durationMinutes,
+              callSid: session.callSid,
+              durationSeconds: callDuration,
               aiModel: session.agent.aiModel,
               voiceProvider: session.agent.voiceProvider,
-              costCents: costCents.toString(),
             });
 
-            // Deduct call cost from Stripe customer balance (trial credit)
-            try {
-              const subscription = await storage.getSubscription(session.userId);
-              if (subscription?.stripeCustomerId && costCents > 0) {
-                const stripe = await getUncachableStripeClient();
-                if (stripe) {
-                  await stripe.customers.createBalanceTransaction(subscription.stripeCustomerId, {
-                    amount: costCents,
-                    currency: 'usd',
-                    description: `Call: ${durationMinutes}min × ${session.agent.aiModel} + ${session.agent.voiceProvider}`,
-                  });
-                }
-              }
-            } catch (stripeErr) {
-              console.error('[Billing] Failed to deduct call cost from Stripe balance:', stripeErr);
-            }
-            
             await storage.createAnalyticsEvent({
               userId: session.userId,
               agentId: session.agent.id,
@@ -774,12 +762,13 @@ export function getActiveCalls(): Map<string, CallSession> {
 export function generateTwiML(agentId: string, phoneNumberId: string | null, baseUrl: string): string {
   const wsUrl = baseUrl.replace('https://', 'wss://').replace('http://', 'ws://');
   
+  const token = createStreamToken(agentId, phoneNumberId);
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
     <Stream url="${wsUrl}/voice-stream">
-      <Parameter name="agentId" value="${agentId}" />
-      <Parameter name="phoneNumberId" value="${phoneNumberId || ''}" />
+      <Parameter name="token" value="${token}" />
     </Stream>
   </Connect>
 </Response>`;

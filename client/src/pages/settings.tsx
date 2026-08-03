@@ -1462,7 +1462,7 @@ function BillingTab({
               {callLogs.slice(0, 5).map((call) => (
                 <div key={call.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-full ${call.direction === 'inbound' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                    <div className={`p-2 rounded-full ${call.direction === 'inbound' ? 'bg-green-100 text-green-600' : 'bg-primary/15 text-primary'}`}>
                       <Phone className="h-4 w-4" />
                     </div>
                     <div>

@@ -607,7 +607,7 @@ function SourceRow({
             <span className="text-[9px] font-bold text-red-600 dark:text-red-400 leading-none">PDF</span>
           </div>
         )}
-        {source.type === "url" && <Link className="w-5 h-5 text-blue-500" />}
+        {source.type === "url" && <Link className="w-5 h-5 text-primary" />}
         {source.type === "text" && <AlignLeft className="w-5 h-5 text-muted-foreground" />}
       </div>
       <div className="flex-1 min-w-0">

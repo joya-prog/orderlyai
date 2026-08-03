@@ -235,7 +235,7 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
               <div className="text-[10px] text-white/50 uppercase tracking-wide mb-0.5">Revenue Recovered</div>
-              <div className="text-lg font-bold text-emerald-300" data-testid="roi-compact-recovered">
+              <div className="text-lg font-bold text-[hsl(42_94%_64%)]" data-testid="roi-compact-recovered">
                 {formatDollar(animRevenue)}/mo
               </div>
               <div className="text-[10px] text-white/40 mt-0.5">Missed calls answered × avg order</div>
@@ -257,7 +257,7 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
             </div>
             <div className="text-right">
               <div className="text-[10px] text-white/50 uppercase tracking-wide mb-0.5">ROI</div>
-              <div className="text-xl font-bold text-emerald-300" data-testid="roi-compact-roi-pct">
+              <div className="text-xl font-bold text-[hsl(42_94%_64%)]" data-testid="roi-compact-roi-pct">
                 {formatNumber(animRoi)}%
               </div>
             </div>
@@ -462,12 +462,12 @@ export function ROICalculator({ variant = "default", onSignupClick }: ROICalcula
           {/* Labor saved */}
           <div className="rounded-xl border bg-card p-4">
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <div className="w-8 h-8 rounded-lg bg-primary/10 dark:bg-primary/20 flex items-center justify-center">
+                <Clock className="h-4 w-4 text-primary" />
               </div>
               <span className="text-xs font-medium text-muted-foreground">Labor Saved</span>
             </div>
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400" data-testid="roi-labor-saved">
+            <div className="text-2xl font-bold text-primary" data-testid="roi-labor-saved">
               {formatDollar(animLabor)}
             </div>
             <div className="text-xs text-muted-foreground mt-1">

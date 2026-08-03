@@ -37,13 +37,13 @@ function getInitials(name: string): string {
 
 function getAvatarColor(name: string): string {
   const colors = [
-    "bg-blue-100 text-blue-600",
+    "bg-orange-100 text-orange-700",
     "bg-green-100 text-green-600",
-    "bg-purple-100 text-purple-600",
+    "bg-stone-200 text-stone-700",
     "bg-amber-100 text-amber-600",
     "bg-rose-100 text-rose-600",
-    "bg-cyan-100 text-cyan-600",
-    "bg-indigo-100 text-indigo-600",
+    "bg-primary/15 text-primary",
+    "bg-yellow-100 text-yellow-700",
     "bg-emerald-100 text-emerald-600",
   ];
   const index = name.charCodeAt(0) % colors.length;
@@ -243,7 +243,7 @@ export function VoiceSelector({ open, onOpenChange, provider: initialProvider, s
           </div>
 
           {/* Filter Row */}
-          <div className="px-6 py-4 flex items-center gap-3 border-b bg-gray-50/50 dark:bg-gray-900/50">
+          <div className="px-6 py-4 flex items-center gap-3 border-b bg-muted/50">
             <Select value={genderFilter} onValueChange={setGenderFilter}>
               <SelectTrigger className="w-32" data-testid="filter-gender">
                 <SelectValue placeholder="Gender" />
@@ -341,7 +341,7 @@ export function VoiceSelector({ open, onOpenChange, provider: initialProvider, s
                         <div
                           key={voiceId}
                           onClick={() => handleSelectVoice(voiceId, voice.name)}
-                          className={`flex-shrink-0 w-64 p-4 rounded-xl border bg-white dark:bg-gray-900 cursor-pointer transition-all hover:shadow-md ${
+                          className={`flex-shrink-0 w-64 p-4 rounded-xl border bg-card cursor-pointer transition-all hover:shadow-md ${
                             selectedVoiceId === voiceId ? "ring-2 ring-primary" : ""
                           }`}
                           data-testid={`recommended-voice-${voiceId}`}
@@ -386,7 +386,7 @@ export function VoiceSelector({ open, onOpenChange, provider: initialProvider, s
               {/* Voice List Table */}
               <div className="flex-1 min-h-0 flex flex-col">
                 {/* Table Header */}
-                <div className="px-6 py-3 grid grid-cols-[40px_1fr_1fr_1fr] gap-4 text-xs font-medium text-muted-foreground uppercase tracking-wider border-b bg-gray-50/50 dark:bg-gray-900/50 shrink-0">
+                <div className="px-6 py-3 grid grid-cols-[40px_1fr_1fr_1fr] gap-4 text-xs font-medium text-muted-foreground uppercase tracking-wider border-b bg-muted/50 shrink-0">
                   <div></div>
                   <div>Voice</div>
                   <div>Trait</div>
@@ -407,7 +407,7 @@ export function VoiceSelector({ open, onOpenChange, provider: initialProvider, s
                           <div
                             key={voiceId}
                             onClick={() => handleSelectVoice(voiceId, voice.name)}
-                            className={`px-6 py-3 grid grid-cols-[40px_1fr_1fr_1fr] gap-4 items-center cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-900/50 ${
+                            className={`px-6 py-3 grid grid-cols-[40px_1fr_1fr_1fr] gap-4 items-center cursor-pointer transition-colors hover:bg-muted/50 ${
                               selectedVoiceId === voiceId ? "bg-primary/5" : ""
                             }`}
                             data-testid={`voice-row-${voiceId}`}

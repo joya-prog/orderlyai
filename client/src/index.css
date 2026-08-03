@@ -2,51 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
-/* LIGHT MODE - Polished Modern Dashboard Design */
+/* LIGHT MODE - Warm hospitality: parchment ground, forest green, golden accent */
 :root {
-  --button-outline: rgba(37, 99, 235, .12);
-  --badge-outline: rgba(37, 99, 235, .08);
+  --button-outline: rgba(40, 93, 68, .14);
+  --badge-outline: rgba(40, 93, 68, .10);
   --opaque-button-border-intensity: -8;
-  --elevate-1: rgba(37, 99, 235, .04);
-  --elevate-2: rgba(37, 99, 235, .08);
-  --background: 220 14% 97%;
-  --foreground: 222 47% 11%;
-  --border: 220 13% 91%;
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-  --card-border: 220 13% 91%;
-  --sidebar: 220 14% 98%;
-  --sidebar-foreground: 222 47% 11%;
-  --sidebar-border: 220 13% 91%;
-  --sidebar-primary: 217 91% 60%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 220 14% 96%;
-  --sidebar-accent-foreground: 222 47% 11%;
-  --sidebar-ring: 217 91% 60%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222 47% 11%;
-  --popover-border: 220 13% 91%;
-  --primary: 217 91% 60%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 220 14% 96%;
-  --secondary-foreground: 222 47% 11%;
-  --muted: 220 14% 96%;
-  --muted-foreground: 215 16% 47%;
-  --accent: 168 76% 42%;
-  --accent-foreground: 0 0% 100%;
-  --destructive: 0 72% 51%;
-  --destructive-foreground: 0 0% 100%;
-  --input: 220 14% 96%;
-  --ring: 217 91% 60%;
-  --chart-1: 217 91% 60%;
-  --chart-2: 168 76% 42%;
-  --chart-3: 84 85% 43%;
-  --chart-4: 43 96% 56%;
-  --chart-5: 0 72% 51%;
+  --elevate-1: rgba(40, 93, 68, .04);
+  --elevate-2: rgba(40, 93, 68, .08);
+  --background: 38 38% 97%;
+  --foreground: 25 25% 14%;
+  --border: 34 24% 88%;
+  --card: 40 50% 99%;
+  --card-foreground: 25 25% 14%;
+  --card-border: 34 24% 89%;
+  --sidebar: 36 34% 95%;
+  --sidebar-foreground: 25 25% 14%;
+  --sidebar-border: 34 24% 88%;
+  --sidebar-primary: 152 40% 26%;
+  --sidebar-primary-foreground: 40 40% 98%;
+  --sidebar-accent: 36 32% 91%;
+  --sidebar-accent-foreground: 152 40% 22%;
+  --sidebar-ring: 152 40% 30%;
+  --popover: 40 50% 99%;
+  --popover-foreground: 25 25% 14%;
+  --popover-border: 34 24% 89%;
+  --primary: 152 40% 26%;
+  --primary-foreground: 40 40% 98%;
+  --secondary: 36 32% 92%;
+  --secondary-foreground: 25 25% 18%;
+  --muted: 36 30% 93%;
+  --muted-foreground: 28 12% 42%;
+  --accent: 40 88% 52%;
+  --accent-foreground: 28 40% 14%;
+  --destructive: 4 62% 47%;
+  --destructive-foreground: 40 40% 98%;
+  --input: 36 30% 93%;
+  --ring: 152 40% 30%;
+  --chart-1: 152 40% 30%;
+  --chart-2: 40 88% 52%;
+  --chart-3: 18 62% 52%;
+  --chart-4: 92 22% 44%;
+  --chart-5: 340 32% 46%;
   --font-sans: 'General Sans', sans-serif;
   --font-serif: 'General Sans', sans-serif;
   --font-mono: 'Fira Code', monospace;
-  --radius: 1rem;
+  --radius: 1.5rem;
   --shadow-2xs: 0px 1px 2px 0px rgba(0,0,0,0.03);
   --shadow-xs: 0px 1px 3px 0px rgba(0,0,0,0.04);
   --shadow-sm: 0px 2px 4px -1px rgba(0,0,0,0.04), 0px 1px 2px -1px rgba(0,0,0,0.02);
@@ -88,45 +88,45 @@
 }
 
 .dark {
-  --button-outline: rgba(96, 165, 250, .15);
-  --badge-outline: rgba(96, 165, 250, .10);
+  --button-outline: rgba(73, 162, 120, .18);
+  --badge-outline: rgba(73, 162, 120, .12);
   --opaque-button-border-intensity: 9;
-  --elevate-1: rgba(96, 165, 250, .06);
-  --elevate-2: rgba(96, 165, 250, .12);
-  --background: 224 20% 10%;
-  --foreground: 220 14% 90%;
-  --border: 224 18% 18%;
-  --card: 224 18% 14%;
-  --card-foreground: 220 14% 90%;
-  --card-border: 224 18% 20%;
-  --sidebar: 224 20% 12%;
-  --sidebar-foreground: 220 14% 90%;
-  --sidebar-border: 224 18% 18%;
-  --sidebar-primary: 217 91% 65%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 224 18% 18%;
-  --sidebar-accent-foreground: 220 14% 85%;
-  --sidebar-ring: 217 91% 65%;
-  --popover: 224 18% 16%;
-  --popover-foreground: 220 14% 90%;
-  --popover-border: 224 18% 22%;
-  --primary: 217 91% 65%;
-  --primary-foreground: 0 0% 100%;
-  --muted: 224 18% 18%;
-  --muted-foreground: 220 14% 60%;
-  --secondary: 224 18% 20%;
-  --secondary-foreground: 220 14% 85%;
-  --accent: 168 76% 50%;
-  --accent-foreground: 0 0% 100%;
-  --destructive: 0 72% 55%;
-  --destructive-foreground: 0 0% 100%;
-  --input: 224 18% 22%;
-  --ring: 217 91% 65%;
-  --chart-1: 217 91% 65%;
-  --chart-2: 168 76% 50%;
-  --chart-3: 84 85% 50%;
-  --chart-4: 43 96% 60%;
-  --chart-5: 0 72% 55%;
+  --elevate-1: rgba(73, 162, 120, .07);
+  --elevate-2: rgba(73, 162, 120, .13);
+  --background: 26 16% 10%;
+  --foreground: 38 24% 90%;
+  --border: 28 14% 20%;
+  --card: 26 15% 14%;
+  --card-foreground: 38 24% 90%;
+  --card-border: 28 14% 22%;
+  --sidebar: 26 16% 12%;
+  --sidebar-foreground: 38 24% 90%;
+  --sidebar-border: 28 14% 20%;
+  --sidebar-primary: 152 38% 46%;
+  --sidebar-primary-foreground: 26 20% 10%;
+  --sidebar-accent: 28 14% 20%;
+  --sidebar-accent-foreground: 38 24% 88%;
+  --sidebar-ring: 152 38% 50%;
+  --popover: 26 15% 16%;
+  --popover-foreground: 38 24% 90%;
+  --popover-border: 28 14% 24%;
+  --primary: 152 38% 46%;
+  --primary-foreground: 26 20% 10%;
+  --muted: 28 14% 20%;
+  --muted-foreground: 34 12% 62%;
+  --secondary: 28 14% 22%;
+  --secondary-foreground: 38 24% 88%;
+  --accent: 40 88% 58%;
+  --accent-foreground: 28 40% 12%;
+  --destructive: 4 62% 52%;
+  --destructive-foreground: 38 24% 95%;
+  --input: 28 14% 24%;
+  --ring: 152 38% 50%;
+  --chart-1: 152 38% 50%;
+  --chart-2: 40 88% 58%;
+  --chart-3: 18 62% 58%;
+  --chart-4: 92 24% 52%;
+  --chart-5: 340 34% 56%;
   --shadow-2xs: 0px 1px 2px 0px rgba(0,0,0,0.20);
   --shadow-xs: 0px 1px 3px 0px rgba(0,0,0,0.25);
   --shadow-sm: 0px 2px 4px -1px rgba(0,0,0,0.25), 0px 1px 2px -1px rgba(0,0,0,0.15);
@@ -289,51 +289,51 @@
 
 /* ─── Orderly AI — Driver.js Tour Custom Theme ─── */
 .driver-overlay {
-  background: rgba(15, 23, 42, 0.65) !important;
+  background: rgba(41, 30, 20, 0.62) !important;
 }
 
 .orderly-tour-popover.driver-popover {
-  background: #ffffff !important;
-  border: 1px solid hsl(220 13% 91%) !important;
+  background: hsl(var(--card)) !important;
+  border: 1px solid hsl(var(--card-border)) !important;
   border-radius: 16px !important;
-  box-shadow: 0 20px 60px -10px rgba(15, 23, 42, 0.25), 0 4px 16px -4px rgba(15, 23, 42, 0.12) !important;
+  box-shadow: 0 20px 60px -10px rgba(41, 30, 20, 0.22), 0 4px 16px -4px rgba(41, 30, 20, 0.10) !important;
   padding: 28px !important;
   max-width: 360px !important;
   font-family: 'General Sans', sans-serif !important;
 }
 
 .dark .orderly-tour-popover.driver-popover {
-  background: hsl(222 47% 11%) !important;
-  border-color: hsl(220 13% 22%) !important;
+  background: hsl(var(--card)) !important;
+  border-color: hsl(var(--card-border)) !important;
 }
 
 .orderly-tour-popover .driver-popover-title {
   font-size: 1.0625rem !important;
   font-weight: 700 !important;
-  color: hsl(222 47% 11%) !important;
+  color: hsl(var(--foreground)) !important;
   margin-bottom: 8px !important;
   line-height: 1.3 !important;
   font-family: 'General Sans', sans-serif !important;
 }
 
 .dark .orderly-tour-popover .driver-popover-title {
-  color: hsl(220 14% 97%) !important;
+  color: hsl(var(--foreground)) !important;
 }
 
 .orderly-tour-popover .driver-popover-description {
   font-size: 0.875rem !important;
-  color: hsl(215 16% 47%) !important;
+  color: hsl(var(--muted-foreground)) !important;
   line-height: 1.6 !important;
   margin-bottom: 0 !important;
 }
 
 .dark .orderly-tour-popover .driver-popover-description {
-  color: hsl(215 16% 65%) !important;
+  color: hsl(var(--muted-foreground)) !important;
 }
 
 .orderly-tour-popover .driver-popover-progress-text {
   font-size: 0.75rem !important;
-  color: hsl(215 16% 60%) !important;
+  color: hsl(var(--muted-foreground)) !important;
   font-weight: 500 !important;
 }
 
@@ -359,7 +359,7 @@
 /* Close (X) button */
 .orderly-tour-popover .driver-popover-close-btn {
   background: transparent !important;
-  color: hsl(215 16% 55%) !important;
+  color: hsl(var(--muted-foreground)) !important;
   padding: 2px 6px !important;
   font-size: 1.2rem !important;
   line-height: 1 !important;
@@ -368,46 +368,46 @@
 }
 
 .orderly-tour-popover .driver-popover-close-btn:hover {
-  background: hsl(220 14% 94%) !important;
-  color: hsl(222 47% 11%) !important;
+  background: hsl(var(--muted)) !important;
+  color: hsl(var(--foreground)) !important;
 }
 
 /* Prev button — first in navigation-btns */
 .orderly-tour-popover .driver-popover-navigation-btns button:first-child {
-  background: hsl(220 14% 95%) !important;
-  color: hsl(222 47% 20%) !important;
-  border-color: hsl(220 13% 88%) !important;
+  background: hsl(var(--muted)) !important;
+  color: hsl(var(--foreground)) !important;
+  border-color: hsl(var(--border)) !important;
 }
 
 .orderly-tour-popover .driver-popover-navigation-btns button:first-child:hover {
-  background: hsl(220 14% 90%) !important;
+  background: hsl(var(--secondary)) !important;
 }
 
 /* Next / Done button — last in navigation-btns */
 .orderly-tour-popover .driver-popover-navigation-btns button:last-child {
-  background: hsl(217 91% 60%) !important;
-  color: #ffffff !important;
-  border-color: hsl(217 91% 55%) !important;
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border-color: hsl(var(--primary)) !important;
 }
 
 .orderly-tour-popover .driver-popover-navigation-btns button:last-child:hover {
-  background: hsl(217 91% 53%) !important;
+  background: hsl(152 40% 21%) !important;
 }
 
 /* When only one button (first step has no Prev) */
 .orderly-tour-popover .driver-popover-navigation-btns button:only-child {
-  background: hsl(217 91% 60%) !important;
-  color: #ffffff !important;
-  border-color: hsl(217 91% 55%) !important;
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border-color: hsl(var(--primary)) !important;
 }
 
 .driver-popover-arrow {
-  border-color: #ffffff !important;
+  border-color: hsl(var(--card)) !important;
 }
 
 .driver-active-element {
   border-radius: 8px !important;
-  outline: 3px solid hsl(217 91% 60%) !important;
+  outline: 3px solid hsl(var(--primary)) !important;
   outline-offset: 4px !important;
 }
 
@@ -421,13 +421,13 @@
 
 .react-flow__handle-left:hover {
   transform: translate(-50%, -50%) scale(1.35) !important;
-  box-shadow: 0 0 0 5px rgba(99, 102, 241, 0.22) !important;
+  box-shadow: 0 0 0 5px rgba(40, 93, 68, 0.24) !important;
   z-index: 10;
 }
 
 .react-flow__handle-right:hover {
   transform: translate(50%, -50%) scale(1.35) !important;
-  box-shadow: 0 0 0 5px rgba(99, 102, 241, 0.22) !important;
+  box-shadow: 0 0 0 5px rgba(40, 93, 68, 0.24) !important;
   z-index: 10;
 }
 

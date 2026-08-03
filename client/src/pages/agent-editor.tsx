@@ -102,17 +102,23 @@ import { ThemeToggle } from "@/components/theme-toggle";
 // NODE TYPE DEFINITIONS - Restaurant Industry Focused
 // ============================================================================
 
+// Warm hospitality categorical palette. Keys are stable data values (persisted in
+// node configs) — only the rendered colors are warm-remapped.
+//   green  -> forest green   blue   -> terracotta    orange -> golden amber
+//   purple -> plum           red    -> brick red     cyan   -> sage/olive
+//   gray   -> warm clay      indigo -> bronze        pink   -> wine rose
+//   teal   -> deep teal
 const nodeColors = {
-  green: { bg: 'bg-emerald-500', light: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-800', hex: '#10b981' },
-  blue: { bg: 'bg-blue-500', light: 'bg-blue-50 dark:bg-blue-950/30', border: 'border-blue-200 dark:border-blue-800', hex: '#3b82f6' },
+  green: { bg: 'bg-emerald-600', light: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-800', hex: '#059669' },
+  blue: { bg: 'bg-orange-600', light: 'bg-orange-50 dark:bg-orange-950/30', border: 'border-orange-200 dark:border-orange-800', hex: '#ea580c' },
   orange: { bg: 'bg-amber-500', light: 'bg-amber-50 dark:bg-amber-950/30', border: 'border-amber-200 dark:border-amber-800', hex: '#f59e0b' },
-  purple: { bg: 'bg-violet-500', light: 'bg-violet-50 dark:bg-violet-950/30', border: 'border-violet-200 dark:border-violet-800', hex: '#8b5cf6' },
-  red: { bg: 'bg-rose-500', light: 'bg-rose-50 dark:bg-rose-950/30', border: 'border-rose-200 dark:border-rose-800', hex: '#f43f5e' },
-  cyan: { bg: 'bg-cyan-500', light: 'bg-cyan-50 dark:bg-cyan-950/30', border: 'border-cyan-200 dark:border-cyan-800', hex: '#06b6d4' },
-  gray: { bg: 'bg-gray-500', light: 'bg-gray-50 dark:bg-gray-950/30', border: 'border-gray-200 dark:border-gray-800', hex: '#6b7280' },
-  indigo: { bg: 'bg-indigo-500', light: 'bg-indigo-50 dark:bg-indigo-950/30', border: 'border-indigo-200 dark:border-indigo-800', hex: '#6366f1' },
-  pink: { bg: 'bg-pink-500', light: 'bg-pink-50 dark:bg-pink-950/30', border: 'border-pink-200 dark:border-pink-800', hex: '#ec4899' },
-  teal: { bg: 'bg-teal-500', light: 'bg-teal-50 dark:bg-teal-950/30', border: 'border-teal-200 dark:border-teal-800', hex: '#14b8a6' },
+  purple: { bg: 'bg-pink-700', light: 'bg-pink-50 dark:bg-pink-950/30', border: 'border-pink-200 dark:border-pink-800', hex: '#be185d' },
+  red: { bg: 'bg-red-700', light: 'bg-red-50 dark:bg-red-950/30', border: 'border-red-200 dark:border-red-800', hex: '#b91c1c' },
+  cyan: { bg: 'bg-lime-700', light: 'bg-lime-50 dark:bg-lime-950/30', border: 'border-lime-200 dark:border-lime-800', hex: '#4d7c0f' },
+  gray: { bg: 'bg-stone-500', light: 'bg-stone-50 dark:bg-stone-950/30', border: 'border-stone-200 dark:border-stone-800', hex: '#78716c' },
+  indigo: { bg: 'bg-yellow-700', light: 'bg-yellow-50 dark:bg-yellow-950/30', border: 'border-yellow-200 dark:border-yellow-800', hex: '#a16207' },
+  pink: { bg: 'bg-rose-600', light: 'bg-rose-50 dark:bg-rose-950/30', border: 'border-rose-200 dark:border-rose-800', hex: '#e11d48' },
+  teal: { bg: 'bg-teal-600', light: 'bg-teal-50 dark:bg-teal-950/30', border: 'border-teal-200 dark:border-teal-800', hex: '#0d9488' },
 };
 
 interface Transition {
@@ -328,10 +334,13 @@ function getNodeConfig(type: string): NodeTypeConfig | undefined {
   return allNodeTypes.find(n => n.type === type);
 }
 
+// emerald = success path, rose = failure path, amber = needs-attention (kept semantic).
+// blue is a neutral "alternate/continue" path — warmed to deep teal.
 const transitionColors: Record<string, { bg: string; text: string; handle: string }> = {
-  emerald: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400', handle: '!bg-emerald-500' },
+  emerald: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400', handle: '!bg-emerald-600' },
   rose: { bg: 'bg-rose-100 dark:bg-rose-900/30', text: 'text-rose-700 dark:text-rose-400', handle: '!bg-rose-500' },
-  blue: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-400', handle: '!bg-blue-500' },
+  blue: { bg: 'bg-teal-100 dark:bg-teal-900/30', text: 'text-teal-700 dark:text-teal-400', handle: '!bg-teal-600' },
+  amber: { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-400', handle: '!bg-amber-500' },
 };
 
 // ============================================================================
@@ -385,22 +394,22 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
         <Handle 
           type="target" 
           position={Position.Left} 
-          className="!w-3 !h-3 !bg-white !border-2 !border-gray-300 dark:!border-gray-600 !-left-1.5 !rounded-full"
+          className="!w-3 !h-3 !bg-card !border-2 !border-border !-left-1.5 !rounded-full"
           id={`${id}-target`}
           isConnectable={true}
         />
       )}
       
       <div 
-        className={`w-[300px] rounded-xl transition-all duration-200 ${selected 
-          ? 'bg-gradient-to-b from-indigo-50/80 to-white dark:from-indigo-950/30 dark:to-gray-900 border-2 border-indigo-400 dark:border-indigo-600 shadow-lg' 
-          : 'bg-gradient-to-b from-rose-50/50 to-white dark:from-rose-950/20 dark:to-gray-900 border border-rose-100 dark:border-rose-900/30 shadow-sm hover:shadow-md'
+        className={`w-[300px] rounded-xl transition-all duration-200 ${selected
+          ? 'bg-gradient-to-b from-primary/10 to-card dark:from-primary/20 dark:to-card border-2 border-primary shadow-lg'
+          : 'bg-gradient-to-b from-muted/50 to-card dark:from-muted/40 dark:to-card border border-border shadow-sm hover:shadow-md'
         }`}
         data-testid={`flow-node-${data.type}`}
       >
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Hash className="h-4 w-4 text-rose-400" />
+            <Hash className="h-4 w-4 text-muted-foreground" />
             {selected ? (
               <Input
                 value={data.label || nodeConfig?.label || 'Node'}
@@ -410,15 +419,15 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
                 data-testid="input-node-label"
               />
             ) : (
-              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+              <span className="text-sm font-medium text-foreground">
                 {data.label || nodeConfig?.label || 'Node'}
               </span>
             )}
-            {selected && <Pencil className="h-3 w-3 text-rose-400" />}
+            {selected && <Pencil className="h-3 w-3 text-primary" />}
           </div>
-          
+
           {selected && !isStartNode && (
-            <button onClick={handleDelete} className="w-5 h-5 text-gray-400 hover:text-red-500" data-testid="button-delete-node">
+            <button onClick={handleDelete} className="w-5 h-5 text-muted-foreground hover:text-destructive" data-testid="button-delete-node">
               <X className="h-3.5 w-3.5" />
             </button>
           )}
@@ -426,16 +435,16 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
 
         {selected && (
           <div className="px-4 pb-2">
-            <div className="flex gap-1 p-0.5 bg-gray-100 dark:bg-gray-800 rounded-lg w-fit">
+            <div className="flex gap-1 p-0.5 bg-muted rounded-lg w-fit">
               <button
                 onClick={(e) => { e.stopPropagation(); handleContentModeChange('prompt'); }}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${contentMode === 'prompt' ? 'bg-white dark:bg-gray-700 shadow-sm' : 'text-gray-500'}`}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${contentMode === 'prompt' ? 'bg-card shadow-sm' : 'text-muted-foreground'}`}
               >
                 Prompt
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); handleContentModeChange('static'); }}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${contentMode === 'static' ? 'bg-white dark:bg-gray-700 shadow-sm' : 'text-gray-500'}`}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${contentMode === 'static' ? 'bg-card shadow-sm' : 'text-muted-foreground'}`}
               >
                 Static
               </button>
@@ -449,7 +458,7 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
             onChange={(e) => handleFieldChange('content', e.target.value)}
             onClick={(e) => e.stopPropagation()}
             placeholder={contentMode === 'prompt' ? "Enter AI prompt..." : "Enter exact sentence..."}
-            className={`min-h-[60px] resize-none text-sm bg-white dark:bg-gray-800 border rounded-lg nodrag ${selected ? '' : 'pointer-events-none'}`}
+            className={`min-h-[60px] resize-none text-sm bg-card border rounded-lg nodrag ${selected ? '' : 'pointer-events-none'}`}
             data-testid="input-node-content"
           />
         </div>
@@ -457,12 +466,12 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
         {!isEndNode && (
           <div className="px-4 pb-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-gray-500 flex items-center gap-1">
+              <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                 <ChevronRight className="h-3 w-3" />
                 Transition
               </span>
               {selected && transitions.length > 0 && (
-                <button onClick={handleAddTransition} className="text-xs text-indigo-500 hover:text-indigo-600 flex items-center gap-0.5">
+                <button onClick={handleAddTransition} className="text-xs text-primary hover:text-primary/80 flex items-center gap-0.5">
                   <Plus className="h-3 w-3" /> Add
                 </button>
               )}
@@ -486,14 +495,14 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
                       <span className={`text-xs ${colors.text} flex-1`}>{t.condition || t.label}</span>
                     )}
                     {selected && transitions.length > 1 && (
-                      <button onClick={(e) => handleRemoveTransition(e, t.id)} className="text-gray-400 hover:text-red-500">
+                      <button onClick={(e) => handleRemoveTransition(e, t.id)} className="text-muted-foreground hover:text-destructive">
                         <X className="h-3 w-3" />
                       </button>
                     )}
                     <Handle 
                       type="source" 
                       position={Position.Right}
-                      className="!w-3 !h-3 !bg-white !border-2 !border-gray-300 !rounded-full !relative !right-0 !top-0 !transform-none"
+                      className="!w-3 !h-3 !bg-card !border-2 !border-border !rounded-full !relative !right-0 !top-0 !transform-none"
                       id={`${id}-${t.id}`}
                       isConnectable={true}
                       style={{ position: 'relative', right: 'auto', top: 'auto', transform: 'none' }}
@@ -503,7 +512,7 @@ const CustomNode = memo(function CustomNode({ data, selected, id }: { data: any;
               })}
               
               {transitions.length === 0 && (
-                <button onClick={handleAddTransition} className="w-full px-3 py-2 text-xs text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-dashed">
+                <button onClick={handleAddTransition} className="w-full px-3 py-2 text-xs text-muted-foreground bg-muted/50 rounded-lg border border-dashed">
                   + Add transition
                 </button>
               )}
@@ -521,8 +530,8 @@ const edgeTypes: EdgeTypes = { labeled: LabeledEdge };
 
 const defaultEdgeOptions = {
   type: 'labeled',
-  style: { stroke: '#94a3b8', strokeWidth: 2 },
-  markerEnd: { type: 'arrowclosed' as const, color: '#94a3b8', width: 20, height: 20 },
+  style: { stroke: '#a8a29e', strokeWidth: 2 },
+  markerEnd: { type: 'arrowclosed' as const, color: '#a8a29e', width: 20, height: 20 },
 };
 
 // ============================================================================
@@ -540,13 +549,13 @@ function SettingsSection({ title, icon: Icon, children, defaultOpen = false }: S
   const [isOpen, setIsOpen] = useState(defaultOpen);
   
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="border-b border-gray-100 dark:border-gray-800">
-      <CollapsibleTrigger className="w-full flex items-center justify-between py-4 px-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="border-b border-border">
+      <CollapsibleTrigger className="w-full flex items-center justify-between py-4 px-4 hover:bg-muted/50 transition-colors">
         <div className="flex items-center gap-3">
-          <Icon className="h-4 w-4 text-gray-500" />
+          <Icon className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium">{title}</span>
         </div>
-        <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </CollapsibleTrigger>
       <CollapsibleContent className="px-4 pb-6 pt-2">
         {children}
@@ -1782,7 +1791,7 @@ function AgentEditorInner() {
   return (
     <div className="absolute inset-0 flex flex-col bg-background overflow-hidden" data-testid="agent-editor">
       {/* Header Bar */}
-      <div className="h-14 border-b flex items-center justify-between px-4 bg-white dark:bg-gray-900 flex-shrink-0">
+      <div className="h-14 border-b flex items-center justify-between px-4 bg-card flex-shrink-0">
         <div className="flex items-center gap-4">
           <SidebarTrigger data-testid="button-sidebar-toggle" className="h-9 w-9" />
           
@@ -1798,24 +1807,24 @@ function AgentEditorInner() {
                 data-testid="input-agent-name"
               />
             ) : (
-              <button onClick={() => setIsEditingName(true)} className="flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-gray-800 px-2 py-1 rounded">
+              <button onClick={() => setIsEditingName(true)} className="flex items-center gap-2 hover:bg-muted px-2 py-1 rounded">
                 <span className="text-base font-medium">{agentName}</span>
-                <Pencil className="h-3.5 w-3.5 text-gray-400" />
+                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
               </button>
             )}
           </div>
 
-          <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+          <div className="flex bg-muted rounded-lg p-1">
             <button
               onClick={() => setActiveTab("create")}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === "create" ? "bg-white dark:bg-gray-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === "create" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
               data-testid="tab-create"
             >
               Create
             </button>
             <button
               onClick={() => setActiveTab("test")}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === "test" ? "bg-white dark:bg-gray-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === "test" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
               data-testid="tab-test"
             >
               Test
@@ -1854,7 +1863,7 @@ function AgentEditorInner() {
         <div 
           ref={settingsPanelRef}
           data-testid="agent-settings-panel"
-          className="absolute z-10 bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-xl shadow-lg border transition-all"
+          className="absolute z-10 bg-card flex flex-col overflow-hidden rounded-xl shadow-lg border transition-all"
           style={{
             left: settingsPanelPos.x,
             top: settingsPanelPos.y,
@@ -1868,7 +1877,7 @@ function AgentEditorInner() {
             onMouseDown={(e) => handlePanelDragStart('settings', e)}
           >
             <div className="flex items-center gap-2">
-              <GripVertical className="h-4 w-4 text-gray-400" />
+              <GripVertical className="h-4 w-4 text-muted-foreground" />
               <span className="font-semibold text-sm">Global Settings</span>
             </div>
             <div className="flex items-center gap-1">
@@ -1890,7 +1899,7 @@ function AgentEditorInner() {
               <SettingsSection title="Agent Settings" icon={Settings} defaultOpen={true}>
                 <div className="space-y-4">
                   <div>
-                    <label className="text-xs font-medium text-gray-500 mb-2 block">Voice & Language</label>
+                    <label className="text-xs font-medium text-muted-foreground mb-2 block">Voice & Language</label>
                     <div className="flex gap-2">
                       <Select value={language} onValueChange={setLanguage}>
                         <SelectTrigger className="flex-1 h-9">
@@ -1944,7 +1953,7 @@ function AgentEditorInner() {
                   </div>
                   
                   <div>
-                    <label className="text-xs font-medium text-gray-500 mb-2 block">Global Prompt</label>
+                    <label className="text-xs font-medium text-muted-foreground mb-2 block">Global Prompt</label>
                     <div className="flex items-center gap-2 mb-2">
                       <Select value={aiModel} onValueChange={setAiModel}>
                         <SelectTrigger className="h-8">
@@ -2078,7 +2087,7 @@ function AgentEditorInner() {
               <SettingsSection title="Speech Settings" icon={Headphones}>
                 <div className="space-y-4">
                   <div>
-                    <label className="text-xs font-medium text-gray-500 mb-2 block">Background Sound</label>
+                    <label className="text-xs font-medium text-muted-foreground mb-2 block">Background Sound</label>
                     <Select value={backgroundSound} onValueChange={setBackgroundSound}>
                       <SelectTrigger>
                         <SelectValue />
@@ -2093,7 +2102,7 @@ function AgentEditorInner() {
                   </div>
                   <div>
                     <div className="flex justify-between mb-2">
-                      <label className="text-xs font-medium text-gray-500">Responsiveness</label>
+                      <label className="text-xs font-medium text-muted-foreground">Responsiveness</label>
                       <span className="text-xs text-muted-foreground">{responsiveness[0]}</span>
                     </div>
                     <Slider value={responsiveness} onValueChange={setResponsiveness} min={0} max={1} step={0.1} />
@@ -2101,7 +2110,7 @@ function AgentEditorInner() {
                   </div>
                   <div>
                     <div className="flex justify-between mb-2">
-                      <label className="text-xs font-medium text-gray-500">Interruption Sensitivity</label>
+                      <label className="text-xs font-medium text-muted-foreground">Interruption Sensitivity</label>
                       <span className="text-xs text-muted-foreground">{interruptionSensitivity[0]}</span>
                     </div>
                     <Slider value={interruptionSensitivity} onValueChange={setInterruptionSensitivity} min={0} max={1} step={0.1} />
@@ -2114,7 +2123,7 @@ function AgentEditorInner() {
                 <div className="space-y-4">
                   <div>
                     <div className="flex justify-between mb-1">
-                      <label className="text-xs font-medium text-gray-500">Begin Message Delay</label>
+                      <label className="text-xs font-medium text-muted-foreground">Begin Message Delay</label>
                       <span className="text-xs text-muted-foreground">{(beginMessageDelay[0] / 1000).toFixed(1)}s</span>
                     </div>
                     <p className="text-xs text-muted-foreground mb-2">How long to wait before the agent starts speaking after the call connects</p>
@@ -2122,7 +2131,7 @@ function AgentEditorInner() {
                   </div>
                   <div>
                     <div className="flex justify-between mb-1">
-                      <label className="text-xs font-medium text-gray-500">Max Call Duration</label>
+                      <label className="text-xs font-medium text-muted-foreground">Max Call Duration</label>
                       <span className="text-xs text-muted-foreground">{Math.round(maxCallDuration[0] / 60000)} min</span>
                     </div>
                     <p className="text-xs text-muted-foreground mb-2">Maximum length of a single call before automatic disconnect</p>
@@ -2130,7 +2139,7 @@ function AgentEditorInner() {
                   </div>
                   <div>
                     <div className="flex justify-between mb-1">
-                      <label className="text-xs font-medium text-gray-500">Inactivity Timeout</label>
+                      <label className="text-xs font-medium text-muted-foreground">Inactivity Timeout</label>
                       <span className="text-xs text-muted-foreground">{Math.round(inactivityTimeout[0] / 1000)}s</span>
                     </div>
                     <p className="text-xs text-muted-foreground mb-2">How long to wait for caller response before ending the call</p>
@@ -2143,7 +2152,7 @@ function AgentEditorInner() {
                 <div className="space-y-4">
                   <div>
                     <div className="flex justify-between mb-2">
-                      <label className="text-xs font-medium text-gray-500">Voice Speed</label>
+                      <label className="text-xs font-medium text-muted-foreground">Voice Speed</label>
                       <span className="text-xs text-muted-foreground">{voiceSpeed[0].toFixed(1)}x</span>
                     </div>
                     <Slider value={voiceSpeed} onValueChange={setVoiceSpeed} min={0.5} max={2} step={0.1} />
@@ -2151,7 +2160,7 @@ function AgentEditorInner() {
                   </div>
                   <div>
                     <div className="flex justify-between mb-2">
-                      <label className="text-xs font-medium text-gray-500">Voice Temperature</label>
+                      <label className="text-xs font-medium text-muted-foreground">Voice Temperature</label>
                       <span className="text-xs text-muted-foreground">{voiceTemperature[0].toFixed(1)}</span>
                     </div>
                     <Slider value={voiceTemperature} onValueChange={setVoiceTemperature} min={0} max={2} step={0.1} />
@@ -2159,7 +2168,7 @@ function AgentEditorInner() {
                   </div>
                   <div>
                     <div className="flex justify-between mb-2">
-                      <label className="text-xs font-medium text-gray-500">Voice Volume</label>
+                      <label className="text-xs font-medium text-muted-foreground">Voice Volume</label>
                       <span className="text-xs text-muted-foreground">{voiceVolume[0].toFixed(1)}</span>
                     </div>
                     <Slider value={voiceVolume} onValueChange={setVoiceVolume} min={0} max={2} step={0.1} />
@@ -2216,7 +2225,7 @@ function AgentEditorInner() {
                       </div>
 
                       <div>
-                        <label className="text-xs font-medium text-gray-500 mb-1 block">Timezone</label>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Timezone</label>
                         <Select value={hoursTimezone} onValueChange={setHoursTimezone}>
                           <SelectTrigger data-testid="select-hours-timezone">
                             <SelectValue />
@@ -2237,7 +2246,7 @@ function AgentEditorInner() {
 
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <label className="text-xs font-medium text-gray-500">Weekly Schedule</label>
+                          <label className="text-xs font-medium text-muted-foreground">Weekly Schedule</label>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -2312,7 +2321,7 @@ function AgentEditorInner() {
                       </div>
 
                       <div>
-                        <label className="text-xs font-medium text-gray-500 mb-1 block">After-Hours Mode</label>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">After-Hours Mode</label>
                         <Select value={afterHoursMode} onValueChange={setAfterHoursMode}>
                           <SelectTrigger data-testid="select-after-hours-mode">
                             <SelectValue />
@@ -2334,7 +2343,7 @@ function AgentEditorInner() {
 
                       {afterHoursMode !== '24_7' && (
                         <div>
-                          <label className="text-xs font-medium text-gray-500 mb-1 block">
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">
                             {afterHoursMode === 'custom' ? 'Custom After-Hours Instructions' : 'Additional After-Hours Message (Optional)'}
                           </label>
                           <Textarea
@@ -2364,7 +2373,7 @@ function AgentEditorInner() {
               className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
               onMouseDown={(e) => handlePanelResizeStart('settings', e)}
             >
-              <div className="absolute bottom-1 right-1 w-2 h-2 border-r-2 border-b-2 border-gray-400" />
+              <div className="absolute bottom-1 right-1 w-2 h-2 border-r-2 border-b-2 border-muted-foreground" />
             </div>
           )}
         </div>
@@ -2375,7 +2384,7 @@ function AgentEditorInner() {
           <>
             {/* Flow Canvas - Full Area */}
             <div ref={reactFlowWrapper} className="absolute inset-0 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-indigo-50/20 to-slate-100 dark:from-gray-950 dark:via-indigo-950/10 dark:to-gray-900" />
+              <div className="absolute inset-0 bg-gradient-to-br from-background via-primary/5 to-muted dark:from-background dark:via-primary/10 dark:to-muted" />
               
               <ReactFlow
                 nodes={nodes.map(n => ({ ...n, selected: n.id === selectedNodeId }))}
@@ -2395,12 +2404,12 @@ function AgentEditorInner() {
                 proOptions={{ hideAttribution: true }}
                 data-testid="flow-canvas"
               >
-                <Panel position="bottom-center" className="flex items-center gap-2 bg-white dark:bg-gray-900 rounded-lg shadow-sm border p-1 px-2">
+                <Panel position="bottom-center" className="flex items-center gap-2 bg-card rounded-lg shadow-sm border p-1 px-2">
                   {/* Auto-save indicator */}
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-[90px]">
                     {autoSaveStatus === 'saving' && (
                       <>
-                        <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
+                        <Loader2 className="h-3 w-3 animate-spin text-primary" />
                         <span>Saving...</span>
                       </>
                     )}
@@ -2422,14 +2431,14 @@ function AgentEditorInner() {
                       </span>
                     )}
                   </div>
-                  <div className="w-px h-5 bg-gray-200 dark:bg-gray-700" />
+                  <div className="w-px h-5 bg-border" />
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleUndo} disabled={!canUndo}>
                     <Undo2 className="h-4 w-4" />
                   </Button>
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleRedo} disabled={!canRedo}>
                     <Redo2 className="h-4 w-4" />
                   </Button>
-                  <div className="w-px h-5 bg-gray-200 dark:bg-gray-700" />
+                  <div className="w-px h-5 bg-border" />
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => zoomOut()}>
                     <ZoomOut className="h-4 w-4" />
                   </Button>
@@ -2441,7 +2450,7 @@ function AgentEditorInner() {
                   </Button>
                 </Panel>
 
-                <Background variant={BackgroundVariant.Dots} gap={20} size={0.5} color="#e2e8f0" />
+                <Background variant={BackgroundVariant.Dots} gap={20} size={0.5} color="#d8cfc0" />
               </ReactFlow>
             </div>
 
@@ -2449,7 +2458,7 @@ function AgentEditorInner() {
             <div 
               ref={nodesPanelRef}
               data-testid="nodes-library-panel"
-              className="absolute z-10 bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-xl shadow-lg border transition-all"
+              className="absolute z-10 bg-card flex flex-col overflow-hidden rounded-xl shadow-lg border transition-all"
               style={{
                 right: nodesPanelPos.x === -1 ? 16 : 'auto',
                 left: nodesPanelPos.x === -1 ? 'auto' : nodesPanelPos.x,
@@ -2474,7 +2483,7 @@ function AgentEditorInner() {
                 }}
               >
                 <div className="flex items-center gap-2">
-                  <GripVertical className="h-4 w-4 text-gray-400" />
+                  <GripVertical className="h-4 w-4 text-muted-foreground" />
                   <span className="font-semibold text-sm">Nodes</span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -2512,8 +2521,8 @@ function AgentEditorInner() {
                 return (
                   <div key={category.id}>
                     <div className="flex items-center gap-2 mb-2">
-                      <CategoryIcon className="h-4 w-4 text-gray-400" />
-                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{category.label}</span>
+                      <CategoryIcon className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{category.label}</span>
                     </div>
                     <div className="space-y-1.5">
                       {category.nodes.map((nodeType) => {
@@ -2524,15 +2533,15 @@ function AgentEditorInner() {
                             key={nodeType.type}
                             draggable
                             onDragStart={(event) => onDragStart(event, nodeType.type)}
-                            className="flex items-center gap-2.5 p-2 rounded-lg bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-grab active:cursor-grabbing transition-all hover:shadow-sm"
+                            className="flex items-center gap-2.5 p-2 rounded-lg bg-muted/50 hover:bg-muted cursor-grab active:cursor-grabbing transition-all hover:shadow-sm"
                             data-testid={`draggable-node-${nodeType.type}`}
                           >
                             <div className={`w-7 h-7 rounded-lg ${colors.bg} flex items-center justify-center shadow-sm`}>
                               <Icon className="h-3.5 w-3.5 text-white" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">{nodeType.label}</p>
-                              <p className="text-[10px] text-gray-400 truncate">{nodeType.subtitle}</p>
+                              <p className="text-xs font-medium text-foreground truncate">{nodeType.label}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">{nodeType.subtitle}</p>
                             </div>
                           </div>
                         );
@@ -2552,17 +2561,17 @@ function AgentEditorInner() {
                   className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
                   onMouseDown={(e) => handlePanelResizeStart('nodes', e)}
                 >
-                  <div className="absolute bottom-1 right-1 w-2 h-2 border-r-2 border-b-2 border-gray-400" />
+                  <div className="absolute bottom-1 right-1 w-2 h-2 border-r-2 border-b-2 border-muted-foreground" />
                 </div>
               )}
             </div>
           </>
         ) : (
           /* Test Tab - Chat & Voice Testing Interface - Side by Side (responsive) */
-          <div className="flex-1 flex flex-col lg:flex-row bg-gray-50 dark:bg-gray-950 p-6 gap-6 overflow-auto">
+          <div className="flex-1 flex flex-col lg:flex-row bg-background p-6 gap-6 overflow-auto">
             {/* Chat Testing Panel */}
             <div className="flex-1 flex flex-col min-h-[400px]">
-              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border overflow-hidden flex flex-col h-full">
+              <div className="bg-card rounded-2xl shadow-lg border overflow-hidden flex flex-col h-full">
                 {/* Chat Header */}
                 <div className="p-4 border-b bg-gradient-to-r from-primary/10 to-primary/5">
                   <div className="flex items-center gap-3">
@@ -2597,9 +2606,9 @@ function AgentEditorInner() {
                   {testMessages.length === 0 ? (
                     <div className="h-full flex items-center justify-center text-center">
                       <div className="space-y-2">
-                        <MessageSquare className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto" />
+                        <MessageSquare className="h-12 w-12 text-muted-foreground/40 mx-auto" />
                         <p className="text-muted-foreground">Start a conversation to test your agent</p>
-                        <p className="text-xs text-gray-400">Type a message below to begin</p>
+                        <p className="text-xs text-muted-foreground">Type a message below to begin</p>
                       </div>
                     </div>
                   ) : (
@@ -2608,7 +2617,7 @@ function AgentEditorInner() {
                         <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
                           msg.role === 'user' 
                             ? 'bg-primary text-primary-foreground rounded-br-md' 
-                            : 'bg-gray-100 dark:bg-gray-800 rounded-bl-md'
+                            : 'bg-muted rounded-bl-md'
                         }`}>
                           <p className="text-sm">{msg.content}</p>
                         </div>
@@ -2617,11 +2626,11 @@ function AgentEditorInner() {
                   )}
                   {isTestLoading && (
                     <div className="flex justify-start">
-                      <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-bl-md px-4 py-2.5">
+                      <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-2.5">
                         <div className="flex gap-1">
-                          <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                          <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                          <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                          <div className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <div className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <div className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '300ms' }} />
                         </div>
                       </div>
                     </div>
@@ -2629,7 +2638,7 @@ function AgentEditorInner() {
                 </div>
 
                 {/* Chat Input */}
-                <div className="p-4 border-t bg-gray-50 dark:bg-gray-900/50">
+                <div className="p-4 border-t bg-muted/40">
                   <div className="flex gap-2">
                     <Input
                       placeholder="Type a message to test your agent..."
@@ -2653,24 +2662,24 @@ function AgentEditorInner() {
 
             {/* Voice Call Panel */}
             <div className="w-full lg:w-80 flex flex-col flex-shrink-0 min-h-[300px] lg:min-h-0">
-              <div className={`bg-white dark:bg-gray-900 rounded-2xl shadow-lg border overflow-hidden flex flex-col h-full transition-colors ${
-                isInVoiceCall 
-                  ? 'border-emerald-300 dark:border-emerald-700' 
+              <div className={`bg-card rounded-2xl shadow-lg border overflow-hidden flex flex-col h-full transition-colors ${
+                isInVoiceCall
+                  ? 'border-primary/50'
                   : ''
               }`}>
                 {/* Call Controls */}
                 <div className="flex flex-col items-center justify-center text-center p-6">
                   <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 transition-all ${
-                    isInVoiceCall 
+                    isInVoiceCall
                       ? isAgentSpeaking
-                        ? 'bg-blue-500 animate-pulse shadow-lg shadow-blue-500/30'
-                        : 'bg-emerald-500 shadow-lg shadow-emerald-500/30' 
-                      : 'bg-emerald-100 dark:bg-emerald-900/30'
+                        ? 'bg-amber-500 animate-pulse shadow-lg shadow-amber-500/30'
+                        : 'bg-primary shadow-lg shadow-primary/30'
+                      : 'bg-primary/10 dark:bg-primary/20'
                   }`}>
                     {isAgentSpeaking ? (
                       <Volume2 className="h-8 w-8 text-white animate-pulse" />
                     ) : (
-                      <Mic className={`h-8 w-8 ${isInVoiceCall ? 'text-white' : 'text-emerald-600'}`} />
+                      <Mic className={`h-8 w-8 ${isInVoiceCall ? 'text-primary-foreground' : 'text-primary'}`} />
                     )}
                   </div>
                   <h3 className="text-lg font-semibold mb-1">
@@ -2785,7 +2794,7 @@ function AgentEditorInner() {
                 {/* Voice Transcript - shown during/after call */}
                 {(isInVoiceCall || voiceTranscript.length > 0) && (
                   <div className="border-t flex-1 overflow-hidden flex flex-col">
-                    <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border-b flex items-center justify-between">
+                    <div className="px-4 py-2 bg-muted/50 border-b flex items-center justify-between">
                       <span className="text-xs font-medium text-muted-foreground">Live Transcript</span>
                       {voiceTranscript.length > 0 && !isInVoiceCall && (
                         <Button 
@@ -2804,9 +2813,9 @@ function AgentEditorInner() {
                           <div 
                             key={idx}
                             className={`text-sm p-2 rounded-lg ${
-                              msg.role === 'user' 
-                                ? 'bg-emerald-100 dark:bg-emerald-900/30 ml-4' 
-                                : 'bg-gray-100 dark:bg-gray-800 mr-4'
+                              msg.role === 'user'
+                                ? 'bg-primary/10 dark:bg-primary/20 ml-4'
+                                : 'bg-muted mr-4'
                             }`}
                           >
                             <span className="text-xs font-medium text-muted-foreground block mb-1">

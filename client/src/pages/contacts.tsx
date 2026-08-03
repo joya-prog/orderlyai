@@ -208,8 +208,8 @@ export default function ContactsPage() {
         ) : contacts.length === 0 ? (
           <Card className="border-dashed shadow-sm">
             <CardContent className="flex flex-col items-center justify-center py-20">
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-500/10 mb-6">
-                <Users className="h-10 w-10 text-blue-600 dark:text-blue-400" />
+              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/10 dark:bg-primary/15 mb-6">
+                <Users className="h-10 w-10 text-primary" />
               </div>
               <h3 className="text-xl font-semibold mb-3">No contacts found</h3>
               <p className="text-muted-foreground text-center mb-8 max-w-md text-sm">
@@ -263,7 +263,7 @@ export default function ContactsPage() {
                       {contact.tags && contact.tags.length > 0 ? (
                         <div className="flex flex-wrap gap-1.5">
                           {contact.tags.map((tag) => (
-                            <Badge key={tag} variant="secondary" className="text-xs bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                            <Badge key={tag} variant="secondary" className="text-xs bg-muted text-muted-foreground">
                               {tag}
                             </Badge>
                           ))}

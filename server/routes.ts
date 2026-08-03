@@ -1875,11 +1875,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             label: conn.label || undefined,
           }));
 
+          // Must carry the knowledge base: this sync rewrites global_prompt, and
+          // the editor always fires it right after PATCH. Passing the raw system
+          // prompt here silently stripped the KB from the live agent on every save.
+          const workflowKbContent = await getKbContentForAgent(agent.id, agent.userId);
+          const workflowEnrichedPrompt = appendKbBlock(agent.systemPrompt || '', workflowKbContent);
+
           await retell.syncWorkflowToRetell(
             agent.retellLlmId,
             orderlyNodes,
             orderlyConnections,
-            agent.systemPrompt || '',
+            workflowEnrichedPrompt,
             agent.aiModel || 'gpt-4o-mini',
             agent
           );
@@ -2233,29 +2239,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // If agentId changed and the phone number has a Retell number ID, sync with Retell
+      let routingWarning: string | null = null;
       if ('agentId' in cleanedData && existingPhoneNumber && cleanedData.agentId !== existingPhoneNumber.agentId) {
         try {
           if (await retell.isRetellConfigured()) {
             const retellNumberId = phoneNumber.retellPhoneNumberId || phoneNumber.number;
             if (cleanedData.agentId) {
               const targetAgent = await storage.getAgent(cleanedData.agentId);
-              if (targetAgent?.retellAgentId) {
-                await retell.updateRetellPhoneNumber(retellNumberId, targetAgent.retellAgentId);
-                console.log(`[Retell] Linked phone ${retellNumberId} -> agent ${targetAgent.retellAgentId}`);
+              if (!targetAgent?.retellAgentId) {
+                routingWarning = 'Agent is not synced to the voice provider yet, so calls will not reach it. Open the agent and save it to sync.';
+              } else {
+                // updateRetellPhoneNumber returns false on failure rather than
+                // throwing. Ignoring it previously logged success and returned
+                // 200 while no call routing existed at all.
+                const linked = await retell.updateRetellPhoneNumber(retellNumberId, targetAgent.retellAgentId);
+                if (linked) {
+                  console.log(`[Retell] Linked phone ${retellNumberId} -> agent ${targetAgent.retellAgentId}`);
+                } else {
+                  console.error(`[Retell] FAILED to link phone ${retellNumberId} -> agent ${targetAgent.retellAgentId}`);
+                  routingWarning = 'Saved, but the number could not be linked to the voice provider, so inbound calls will not reach this agent yet.';
+                }
               }
             } else {
               // agentId cleared — remove inbound agent from Retell
-              await retell.updateRetellPhoneNumber(retellNumberId, undefined);
-              console.log(`[Retell] Cleared inbound agent for phone ${retellNumberId}`);
+              const cleared = await retell.updateRetellPhoneNumber(retellNumberId, undefined);
+              console.log(`[Retell] Cleared inbound agent for phone ${retellNumberId}: ${cleared ? 'ok' : 'FAILED'}`);
             }
+          } else {
+            routingWarning = 'Voice provider is not configured, so inbound calls will not reach this agent.';
           }
         } catch (retellErr) {
           console.error('[Retell] Error syncing phone number assignment:', retellErr);
-          // Don't block the response — DB update already succeeded
+          routingWarning = 'Saved, but linking the number to the voice provider failed. Inbound calls will not reach this agent yet.';
         }
       }
 
-      res.json(phoneNumber);
+      res.json(routingWarning ? { ...phoneNumber, routingWarning } : phoneNumber);
     } catch (error: any) {
       console.error("Error updating phone number:", error);
       if (error.name === 'ZodError') {

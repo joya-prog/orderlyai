@@ -7,6 +7,10 @@ import { toPublicUser } from "./sanitize";
 import { billCallOnce, upsertCallLogBySid } from "./callBilling";
 import { getSquareMenuContext, appendSquareMenuBlock } from "./squareMenu";
 import { provisionNumberForRetell } from "./phoneProvisioning";
+
+// Twilio sends inbound trunk calls here so they reach the voice provider.
+// Retell's documented origination URI: https://docs.retellai.com/deploy/twilio
+const RETELL_ORIGINATION_URI = "sip:sip.retellai.com";
 import { setupAuth, isAuthenticated, isAdmin, isSuperAdmin, sendCreditExhaustedAlert, getUserIdFromUpgradeRequest } from "./auth";
 import { generateAgentResponse, transcribeAudio, synthesizeSpeech, VoiceConfig, buildFlowContext, analyzeCallTranscript } from "./openai";
 import { handleTwilioWebSocket, generateTwiML, getActiveCalls, handleBrowserTestWebSocket } from "./voiceCallHandler";
@@ -2020,16 +2024,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           finalSipDomain = `${trunkName}.sip.twilio.com`;
         }
 
-        // Configure origination URI (where incoming calls are sent)
-        const originationUrl = `https://${process.env.REPL_SLUG || 'orderly'}.repl.co/api/voice/incoming`;
-        
-        // Add origination URI to trunk
+        // Origination = where Twilio sends INBOUND calls. This must point at
+        // the voice provider. It previously pointed at
+        // sip:<number>@<trunk>.sip.twilio.com — back at Twilio itself — so
+        // inbound calls reached the trunk and then went nowhere. (A repl.co
+        // URL was also computed here and never sent to Twilio at all; it was
+        // only written to our own DB, which made the trunk look configured.)
         try {
           await twilioClient.trunking.v1.trunks(trunk.sid)
             .originationUrls
             .create({
-              friendlyName: `Origination for ${cleanNumber}`,
-              sipUrl: `sip:${cleanNumber}@${finalSipDomain}`,
+              friendlyName: `Retell origination for ${cleanNumber}`,
+              sipUrl: RETELL_ORIGINATION_URI,
               weight: 1,
               priority: 1,
               enabled: true,
@@ -2108,11 +2114,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sipUri: `sip:${cleanNumber}@${finalSipDomain}`,
         sipAuthType,
         trunkSid,
-        originationUrl: `https://${process.env.REPL_SLUG || 'orderly'}.repl.co/api/voice/incoming`,
+        originationUrl: RETELL_ORIGINATION_URI,
       };
 
       const created = await storage.createPhoneNumber(phoneNumberData);
-      res.json(created);
+
+      // The trunk alone doesn't route anything: Retell also has to know the
+      // number exists. Without this the trunk is configured and calls still
+      // fail. providerId is null here, so provisioning skips the trunk-attach
+      // step (the number is already on the trunk) and only imports.
+      const provisioned = await provisionNumberForRetell(twilioClient, {
+        phoneNumberRecordId: created.id,
+        userId,
+        number: created.number,
+        providerSid: null,
+      });
+
+      res.json(provisioned.ok ? created : { ...created, routingWarning: provisioned.warning });
     } catch (error: any) {
       console.error("Error creating SIP trunk connection:", error);
       res.status(500).json({ message: error.message || "Failed to connect SIP trunk" });

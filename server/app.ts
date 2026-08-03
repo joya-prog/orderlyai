@@ -320,7 +320,12 @@ export default async function runApp(
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
-    const domain = process.env.REPLIT_DOMAINS?.split(',')[0] || `localhost:${port}`;
-    log(`[Retell webhook URL] https://${domain}/api/webhooks/retell`, 'retell');
+    // Printed so the exact URL to paste into Retell is never guessed. Prefer
+    // APP_BASE_URL so this stays correct once the app is off Replit.
+    const base = process.env.APP_BASE_URL
+      || (process.env.REPLIT_DOMAINS?.split(',')[0] && `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`)
+      || `http://localhost:${port}`;
+    log(`serving on ${base}`);
+    log(`[Retell webhook URL] ${base}/api/webhooks/retell`, 'retell');
   });
 }

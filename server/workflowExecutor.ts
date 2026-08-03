@@ -1,7 +1,20 @@
 import type { FlowNode, FlowConnection, Agent } from "@shared/schema";
 import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Lazy, for the same reason as server/getOpenAI().ts: the SDK constructor throws
+// without a key, and building it at module scope took the whole server down at
+// import time rather than disabling just this feature.
+let openaiClient: OpenAI | null = null;
+
+function getOpenAI(): OpenAI {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error(
+      "OPENAI_API_KEY is not configured, so this feature is unavailable.",
+    );
+  }
+  openaiClient ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return openaiClient;
+}
 
 export interface Transition {
   id: string;
@@ -133,7 +146,7 @@ Think about what the user is asking for:
 Reply with ONLY the number (e.g., "1" or "2"). If none clearly match, reply with "1" for the default path.`;
 
     try {
-      const response = await openai.chat.completions.create({
+      const response = await getOpenAI().chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: classificationPrompt }],
         max_tokens: 10,
@@ -364,7 +377,7 @@ Keep your response concise and natural.`;
         { role: "user", content: userInput }
       ];
 
-      const response = await openai.chat.completions.create({
+      const response = await getOpenAI().chat.completions.create({
         model: "gpt-4o-mini",
         messages,
         max_tokens: 150,

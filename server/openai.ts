@@ -4,7 +4,29 @@ import { Readable } from "stream";
 import type { FlowNode, FlowConnection } from "@shared/schema";
 
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Constructed lazily. The OpenAI SDK throws from its constructor when no key is
+// present, and building it at module scope meant a missing OPENAI_API_KEY took
+// the entire server down at import time — no port bound, no health check, no
+// log beyond the stack trace. Every other integration degrades instead
+// (Retell logs "disabled" and carries on), so this one now does too: the
+// process starts, and only the features that actually need OpenAI fail.
+let openaiClient: OpenAI | null = null;
+
+function getOpenAI(): OpenAI {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error(
+      "OPENAI_API_KEY is not configured, so this feature is unavailable.",
+    );
+  }
+  openaiClient ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return openaiClient;
+}
+
+/** Whether OpenAI-backed features can run. */
+export function isOpenAIConfigured(): boolean {
+  return Boolean(process.env.OPENAI_API_KEY);
+}
 
 // Build flow context from nodes and connections for AI understanding
 export function buildFlowContext(nodes: FlowNode[], connections: FlowConnection[]): string {
@@ -196,7 +218,7 @@ You are a helpful restaurant AI assistant. Use the knowledge base to answer ques
     // Add current user message
     messages.push({ role: "user", content: userMessage });
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: "gpt-5",
       messages,
       max_completion_tokens: 500,
@@ -226,7 +248,7 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
   try {
     const file = new File([audioBuffer], "audio.webm", { type: "audio/webm" });
     
-    const response = await openai.audio.transcriptions.create({
+    const response = await getOpenAI().audio.transcriptions.create({
       file: file,
       model: "whisper-1",
     });
@@ -260,7 +282,7 @@ export async function synthesizeSpeech(text: string, config?: VoiceConfig): Prom
     const voiceId = config?.voiceId || "nova";
     const speed = config?.speed ? parseFloat(config.speed) : 1.0;
     
-    const response = await openai.audio.speech.create({
+    const response = await getOpenAI().audio.speech.create({
       model: "tts-1",
       voice: voiceId as any,
       input: text,
@@ -302,7 +324,7 @@ export interface CallAnalysis {
 
 export async function analyzeCallTranscript(transcript: string): Promise<CallAnalysis> {
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0,
       response_format: { type: "json_object" },

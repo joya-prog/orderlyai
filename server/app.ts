@@ -305,6 +305,14 @@ export default async function runApp(
     throw err;
   });
 
+  // Unmatched /api/* must not reach the SPA catch-all below. Without this an
+  // unknown or removed API path returns 200 with index.html, so clients get
+  // HTML that fails to parse as JSON, and a host healthcheck pointed at a
+  // route that does not exist reports the deploy healthy.
+  app.use("/api", (_req: Request, res: Response) => {
+    res.status(404).json({ message: "Not found" });
+  });
+
   // importantly run the final setup after setting up all the other routes so
   // the catch-all route doesn't interfere with the other routes
   await setup(app, server);
@@ -317,7 +325,10 @@ export default async function runApp(
   server.listen({
     port,
     host: "0.0.0.0",
-    reusePort: true,
+    // reusePort is a Linux socket option. macOS rejects it with ENOTSUP, which
+    // made the server unstartable locally while working fine on Replit and
+    // other Linux hosts.
+    reusePort: process.platform === "linux",
   }, () => {
     log(`serving on port ${port}`);
     const domain = process.env.REPLIT_DOMAINS?.split(',')[0] || `localhost:${port}`;

@@ -9,8 +9,14 @@ import { getSquareMenuContext, appendSquareMenuBlock } from "./squareMenu";
 import { provisionNumberForRetell } from "./phoneProvisioning";
 
 // Twilio sends inbound trunk calls here so they reach the voice provider.
-// Retell's documented origination URI: https://docs.retellai.com/deploy/twilio
-const RETELL_ORIGINATION_URI = "sip:sip.retellai.com";
+// Retell issues an ACCOUNT-SPECIFIC origination URI (e.g. a
+// sip:<id>.sip.livekit.cloud host shown on their phone-number page), so this
+// must not be hardcoded — overwriting a working trunk with the generic host
+// would break inbound routing. Read the account's value from config and fall
+// back to Retell's documented default only when nothing is set.
+// https://docs.retellai.com/deploy/twilio
+const RETELL_ORIGINATION_URI =
+  process.env.RETELL_ORIGINATION_URI || "sip:sip.retellai.com";
 import { setupAuth, isAuthenticated, isAdmin, isSuperAdmin, sendCreditExhaustedAlert, getUserIdFromUpgradeRequest } from "./auth";
 import { generateAgentResponse, transcribeAudio, synthesizeSpeech, VoiceConfig, buildFlowContext, analyzeCallTranscript } from "./openai";
 import { handleTwilioWebSocket, generateTwiML, getActiveCalls, handleBrowserTestWebSocket } from "./voiceCallHandler";

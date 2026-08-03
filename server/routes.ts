@@ -5,6 +5,8 @@ import { WebSocketServer } from "ws";
 import { storage } from "./storage";
 import { toPublicUser } from "./sanitize";
 import { billCallOnce, upsertCallLogBySid } from "./callBilling";
+import { getSquareMenuContext, appendSquareMenuBlock } from "./squareMenu";
+import { provisionNumberForRetell } from "./phoneProvisioning";
 import { setupAuth, isAuthenticated, isAdmin, isSuperAdmin, sendCreditExhaustedAlert, getUserIdFromUpgradeRequest } from "./auth";
 import { generateAgentResponse, transcribeAudio, synthesizeSpeech, VoiceConfig, buildFlowContext, analyzeCallTranscript } from "./openai";
 import { handleTwilioWebSocket, generateTwiML, getActiveCalls, handleBrowserTestWebSocket } from "./voiceCallHandler";
@@ -201,6 +203,29 @@ function appendKbBlock(prompt: string, kbContent: string): string {
   return prompt + kbSection;
 }
 
+/**
+ * Single source of truth for what an agent knows on a live call: its system
+ * prompt plus knowledge base plus the live Square menu.
+ *
+ * Every path that writes a prompt to Retell must go through this. Building the
+ * prompt ad hoc is what caused the knowledge base to be stripped on save, and
+ * why the Square menu never reached a real call at all.
+ */
+async function buildAgentPrompt(
+  basePrompt: string,
+  agentId: string | null,
+  userId: string,
+): Promise<string> {
+  const kbContent = agentId
+    ? await getKbContentForAgent(agentId, userId)
+    : await getKbContentForUser(userId);
+  const withKb = appendKbBlock(basePrompt || '', kbContent);
+
+  // Square is optional; getSquareMenuContext returns '' when not connected.
+  const menu = await getSquareMenuContext(userId);
+  return appendSquareMenuBlock(withKb, menu);
+}
+
 // Debounce map: prevents duplicate Retell syncs when multiple KB sources change at once
 const kbSyncDebounceMap = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -211,12 +236,11 @@ function scheduleKbSync(userId: string): void {
     kbSyncDebounceMap.delete(userId);
     try {
       if (!await retell.isRetellConfigured()) return;
-      const kbContent = await getKbContentForUser(userId);
       const userAgents = await storage.getAgents(userId);
       for (const agent of userAgents) {
         if (!agent.retellAgentId || !agent.retellLlmId) continue;
         try {
-          const enrichedPrompt = appendKbBlock(agent.systemPrompt || '', kbContent);
+          const enrichedPrompt = await buildAgentPrompt(agent.systemPrompt || '', agent.id, userId);
           await retell.updateRetellConversationFlow(agent.retellLlmId, {
             generalPrompt: enrichedPrompt,
             beginMessage: agent.greetingMessage || '',
@@ -658,8 +682,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Sync with Retell AI if configured
       if (await retell.isRetellConfigured()) {
         try {
-          const kbContent = await getKbContentForAgent(agent.id, userId);
-          const enrichedPrompt = appendKbBlock(data.systemPrompt || '', kbContent);
+          const enrichedPrompt = await buildAgentPrompt(data.systemPrompt || '', agent.id, userId);
           // Create Conversation Flow in Retell (conversation-flow type agent)
           const flowId = await retell.createRetellConversationFlow({
             generalPrompt: enrichedPrompt,
@@ -745,9 +768,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Update Conversation Flow if prompt/model/hours changed
           if (data.systemPrompt || data.greetingMessage || data.aiModel || data.businessHours || data.afterHoursMode || data.afterHoursMessage !== undefined || data.timezone) {
             const mergedAgent = { ...agent, ...data };
-            const kbContent = await getKbContentForAgent(agent.id, agent.userId);
             const basePrompt = data.systemPrompt || agent.systemPrompt || '';
-            const enrichedPrompt = appendKbBlock(basePrompt, kbContent);
+            const enrichedPrompt = await buildAgentPrompt(basePrompt, agent.id, agent.userId);
             await retell.updateRetellConversationFlow(agent.retellLlmId, {
               generalPrompt: enrichedPrompt,
               beginMessage: data.greetingMessage || agent.greetingMessage,
@@ -853,8 +875,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Retell AI is not configured" });
       }
 
-      const kbContent = await getKbContentForAgent(agent.id, agent.userId);
-      const enrichedPrompt = appendKbBlock(agent.systemPrompt || '', kbContent);
+      const enrichedPrompt = await buildAgentPrompt(agent.systemPrompt || '', agent.id, agent.userId);
 
       // If already synced, push current config as an update instead of creating new resources
       if (agent.retellAgentId && agent.retellLlmId) {
@@ -969,9 +990,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let flowId = agent.retellLlmId;
 
       // Build enriched prompt: base + business hours block + KB content
-      const webCallKbContent = await getKbContentForAgent(agent.id, agent.userId);
       const webCallBasePrompt = agent.systemPrompt || "You are a helpful restaurant assistant.";
-      const webCallEnrichedPrompt = appendKbBlock(webCallBasePrompt, webCallKbContent);
+      const webCallEnrichedPrompt = await buildAgentPrompt(webCallBasePrompt, agent.id, agent.userId);
       
       if (!retellAgentId) {
         console.log(`[Retell] Agent ${agent.id} not synced, syncing now for web call...`);
@@ -1204,120 +1224,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Helper function to format Square catalog for AI context
-  async function getSquareMenuContext(userId: string): Promise<string> {
-    try {
-      const tokenInfo = await getSquareAccessToken(userId);
-      if (!tokenInfo) {
-        return ""; // Square not connected
-      }
-
-      const response = await fetch('https://connect.squareup.com/v2/catalog/list?types=ITEM,CATEGORY,MODIFIER_LIST', {
-        headers: {
-          'Authorization': `Bearer ${tokenInfo.accessToken}`,
-          'Square-Version': '2024-01-18',
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const status = response.status;
-        if (status === 401 || status === 403) {
-          console.error('Square token expired or invalid - user should reconnect Square');
-        } else {
-          console.error('Failed to fetch Square catalog for AI context, status:', status);
-        }
-        return "";
-      }
-
-      const data = await response.json();
-      const objects = data.objects || [];
-      
-      // Build category map
-      const categories: Record<string, string> = {};
-      objects.filter((obj: any) => obj.type === 'CATEGORY').forEach((cat: any) => {
-        categories[cat.id] = cat.category_data?.name || 'Uncategorized';
-      });
-
-      // Build modifier map
-      const modifiers: Record<string, string[]> = {};
-      objects.filter((obj: any) => obj.type === 'MODIFIER_LIST').forEach((mod: any) => {
-        const modData = mod.modifier_list_data;
-        if (modData?.modifiers) {
-          modifiers[mod.id] = modData.modifiers.map((m: any) => {
-            const modName = m.modifier_data?.name || '';
-            const modPrice = m.modifier_data?.price_money;
-            if (modPrice) {
-              return `${modName} (+$${(modPrice.amount / 100).toFixed(2)})`;
-            }
-            return modName;
-          });
-        }
-      });
-
-      // Format menu items with all variations and modifiers
-      const menuItems = objects.filter((obj: any) => obj.type === 'ITEM').map((item: any) => {
-        const itemData = item.item_data;
-        const name = itemData?.name || 'Unknown Item';
-        const description = itemData?.description || '';
-        const category = itemData?.category_id ? categories[itemData.category_id] : 'Menu';
-        
-        // Get all variations with sizes/prices
-        const variations = itemData?.variations || [];
-        let priceInfo: string[] = [];
-        let hasVariablePricing = false;
-        
-        variations.forEach((v: any) => {
-          const varData = v.item_variation_data;
-          const varName = varData?.name || '';
-          const priceMoney = varData?.price_money;
-          
-          if (priceMoney) {
-            const price = `$${(priceMoney.amount / 100).toFixed(2)}`;
-            if (variations.length > 1 && varName) {
-              priceInfo.push(`${varName}: ${price}`);
-            } else {
-              priceInfo.push(price);
-            }
-          } else if (varData?.pricing_type === 'VARIABLE') {
-            hasVariablePricing = true;
-          }
-        });
-        
-        let priceStr = '';
-        if (priceInfo.length > 0) {
-          priceStr = priceInfo.length > 1 ? ` (${priceInfo.join(', ')})` : ` - ${priceInfo[0]}`;
-        } else if (hasVariablePricing) {
-          priceStr = ' - Price varies';
-        }
-
-        // Check for modifiers/customizations
-        const itemModifierIds = itemData?.modifier_list_info?.map((m: any) => m.modifier_list_id) || [];
-        let modifierNote = '';
-        if (itemModifierIds.length > 0) {
-          const allMods: string[] = [];
-          itemModifierIds.forEach((modId: string) => {
-            if (modifiers[modId]) {
-              allMods.push(...modifiers[modId]);
-            }
-          });
-          if (allMods.length > 0) {
-            modifierNote = ` | Customizations: ${allMods.slice(0, 5).join(', ')}${allMods.length > 5 ? '...' : ''}`;
-          }
-        }
-        
-        return `- ${name}${priceStr}${description ? ` - ${description}` : ''}${modifierNote} [${category}]`;
-      });
-
-      if (menuItems.length === 0) {
-        return "";
-      }
-
-      return `\n\nLIVE MENU FROM SQUARE POS:\n${menuItems.join('\n')}\n\nNote: Prices and availability are real-time from the restaurant's POS system. Ask about customizations and modifications.`;
-    } catch (error) {
-      console.error('Error fetching Square menu for AI:', error);
-      return "";
-    }
-  }
+  // getSquareMenuContext now lives in ./squareMenu at module scope, so the
+  // Retell prompt builders can reach it too. The old nested copy here also
+  // ignored Square's catalog pagination cursor and truncated large menus.
 
   // Agent testing route - uses workflow executor when workflow exists
   app.post("/api/agents/:id/test", isAuthenticated, async (req: any, res) => {
@@ -1878,8 +1787,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Must carry the knowledge base: this sync rewrites global_prompt, and
           // the editor always fires it right after PATCH. Passing the raw system
           // prompt here silently stripped the KB from the live agent on every save.
-          const workflowKbContent = await getKbContentForAgent(agent.id, agent.userId);
-          const workflowEnrichedPrompt = appendKbBlock(agent.systemPrompt || '', workflowKbContent);
+          const workflowEnrichedPrompt = await buildAgentPrompt(agent.systemPrompt || '', agent.id, agent.userId);
 
           await retell.syncWorkflowToRetell(
             agent.retellLlmId,
@@ -2039,7 +1947,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       const created = await storage.createPhoneNumber(phoneNumberData);
-      res.json(created);
+
+      // Connect the number to the voice provider. Without this the number is
+      // bought and shown in the dashboard but no inbound call ever reaches an
+      // agent — previously the silent default.
+      const provisioned = await provisionNumberForRetell(twilioClient, {
+        phoneNumberRecordId: created.id,
+        userId,
+        number: created.number,
+        providerSid: created.providerId,
+      });
+
+      res.json(provisioned.ok ? created : { ...created, routingWarning: provisioned.warning });
     } catch (error: any) {
       console.error("Error purchasing phone number:", error);
       res.status(500).json({ message: error.message || "Failed to purchase phone number" });
@@ -2248,6 +2167,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const targetAgent = await storage.getAgent(cleanedData.agentId);
               if (!targetAgent?.retellAgentId) {
                 routingWarning = 'Agent is not synced to the voice provider yet, so calls will not reach it. Open the agent and save it to sync.';
+              } else if (!phoneNumber.retellPhoneNumberId) {
+                // Number was never registered with the voice provider (numbers
+                // bought before provisioning existed). Do it now, binding the
+                // agent in the same step.
+                const provisioned = await provisionNumberForRetell(twilioClient, {
+                  phoneNumberRecordId: phoneNumber.id,
+                  userId,
+                  number: phoneNumber.number,
+                  providerSid: phoneNumber.providerId,
+                  inboundAgentId: targetAgent.retellAgentId,
+                });
+                if (provisioned.ok) {
+                  console.log(`[Retell] Provisioned + linked ${phoneNumber.number} -> agent ${targetAgent.retellAgentId}`);
+                } else {
+                  routingWarning = provisioned.warning ?? null;
+                }
               } else {
                 // updateRetellPhoneNumber returns false on failure rather than
                 // throwing. Ignoring it previously logged success and returned

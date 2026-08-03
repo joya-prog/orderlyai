@@ -1944,6 +1944,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  // Unauthenticated liveness probe. Hosts (Railway, Render, Fly) poll this to
+  // decide whether a deploy came up; without it a healthy app can be marked
+  // failed and rolled back. Deliberately leaks nothing about the environment.
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", uptime: Math.round(process.uptime()) });
+  });
+
   app.get("/api/phone-numbers", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;

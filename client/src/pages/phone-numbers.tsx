@@ -166,8 +166,18 @@ export default function PhoneNumbersPage() {
   const assignMutation = useMutation({
     mutationFn: ({ id, agentId }: { id: string; agentId: string | null }) =>
       apiRequest("PATCH", `/api/phone-numbers/${id}`, { agentId }),
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/phone-numbers"] });
+      // The row saves even when call routing could not be established; say so
+      // rather than reporting a success the caller experience won't match.
+      if (data?.routingWarning) {
+        toast({
+          variant: "destructive",
+          title: "Assigned, but calls won't route yet",
+          description: data.routingWarning,
+        });
+        return;
+      }
       toast({ title: "Agent assigned", description: "Phone number assignment updated." });
     },
     onError: (error: Error) => {

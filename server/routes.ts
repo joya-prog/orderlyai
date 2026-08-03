@@ -3,7 +3,9 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer } from "ws";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated, isAdmin, isSuperAdmin, sendCreditExhaustedAlert } from "./auth";
+import { toPublicUser } from "./sanitize";
+import { billCallOnce, upsertCallLogBySid } from "./callBilling";
+import { setupAuth, isAuthenticated, isAdmin, isSuperAdmin, sendCreditExhaustedAlert, getUserIdFromUpgradeRequest } from "./auth";
 import { generateAgentResponse, transcribeAudio, synthesizeSpeech, VoiceConfig, buildFlowContext, analyzeCallTranscript } from "./openai";
 import { handleTwilioWebSocket, generateTwiML, getActiveCalls, handleBrowserTestWebSocket } from "./voiceCallHandler";
 import { createWorkflowExecutor, WorkflowState } from "./workflowExecutor";
@@ -244,7 +246,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(userId);
       // Include phoneNumber alias for frontend compatibility
       res.json({
-        ...user,
+        ...toPublicUser(user),
         phoneNumber: user?.restaurantPhone || '',
       });
     } catch (error) {
@@ -282,8 +284,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         restaurantType: restaurantType || undefined,
         restaurantPhone: restaurantPhone || undefined,
       }).catch(console.error);
-      
-      res.json(user);
+
+      res.json(toPublicUser(user));
     } catch (error) {
       console.error("Error completing onboarding:", error);
       res.status(500).json({ message: "Failed to complete onboarding" });
@@ -428,7 +430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const [user] = await db.select().from(users).where(eq(users.id, id));
       if (!user) return res.status(404).json({ message: "Not found" });
-      res.json(user);
+      res.json(toPublicUser(user));
     } catch (error) {
       console.error("Error fetching restaurant:", error);
       res.status(500).json({ message: "Failed to fetch restaurant" });
@@ -2212,6 +2214,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "At least one field must be provided for update" });
       }
 
+      // Calls are billed to the *agent's* owner, so assigning another tenant's
+      // agent to your number would charge them for your traffic and expose
+      // their prompt and knowledge base to your callers.
+      if (cleanedData.agentId) {
+        const targetAgent = await storage.getAgent(cleanedData.agentId);
+        if (!targetAgent || targetAgent.userId !== userId) {
+          return res.status(404).json({ message: "Agent not found" });
+        }
+      }
+
       // Capture old agentId before update to detect changes
       const existingPhoneNumber = await storage.getPhoneNumber(req.params.id);
 
@@ -3188,14 +3200,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/subscription", isAuthenticated, async (req: any, res) => {
+  // Admin-only: plan limits are entitlements, so a user must not be able to
+  // grant themselves a tier. Billing is usage-based and settled through Stripe;
+  // the dashboard only ever reads this resource.
+  app.put("/api/subscription", isAdmin, async (req: any, res) => {
     try {
-      const userId = req.user.id;
-      
+      const targetUserId = req.body.userId;
+      const userId = typeof targetUserId === 'string' && targetUserId ? targetUserId : req.user.id;
+
       // Validate plan type
       const validPlans = ['trial', 'starter', 'professional', 'business', 'enterprise'];
       const { planType } = req.body;
-      
+
       if (planType && !validPlans.includes(planType)) {
         return res.status(400).json({ message: "Invalid plan type" });
       }
@@ -4165,15 +4181,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User not found" });
       }
       
-      // Verify password before disabling 2FA
-      if (user.passwordHash && password) {
+      // Verify password before disabling 2FA. Accounts that have a password
+      // must supply it — omitting the field previously skipped the check.
+      if (user.passwordHash) {
+        if (!password) {
+          return res.status(400).json({ message: "Password is required to disable two-factor authentication" });
+        }
         const bcrypt = await import("bcryptjs");
         const isValid = await bcrypt.compare(password, user.passwordHash);
         if (!isValid) {
           return res.status(401).json({ message: "Password is incorrect" });
         }
       }
-      
+
       await storage.deleteTwoFactorAuth(userId);
       
       res.json({ message: "Two-factor authentication disabled" });
@@ -4490,83 +4510,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Calculate exact cost in cents using pricing function
-      const costCents = calculateCallCostCents(durationSeconds, aiModel, voiceProvider);
+      // Reuse the row the media stream may already have created for this call.
+      const { callLog } = await upsertCallLogBySid(
+        CallSid,
+        {
+          userId,
+          phoneNumberId: phoneNumber.id,
+          agentId: phoneNumber.agent_id,
+          direction: Direction?.toLowerCase() || 'inbound',
+          fromNumber: From,
+          toNumber: To,
+          status: CallStatus,
+          billingStatus: 'pending',
+        },
+        {
+          duration: durationSeconds.toString(),
+          durationSeconds: durationSeconds.toString(),
+          durationMinutes: durationMinutes.toString(),
+        },
+      );
 
-      // Create call log entry and capture DB primary key
-      const callLog = await storage.createCallLog({
-        userId,
-        callSid: CallSid,
-        phoneNumberId: phoneNumber.id,
-        agentId: phoneNumber.agent_id,
-        direction: Direction?.toLowerCase() || 'inbound',
-        fromNumber: From,
-        toNumber: To,
-        duration: durationSeconds.toString(),
-        durationSeconds: durationSeconds.toString(),
-        durationMinutes: durationMinutes.toString(),
-        status: CallStatus,
-        billingStatus: 'pending',
-      });
-
-      // Create usage ledger entry for this call with full cost details
-      const now = new Date();
-      const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
-      await storage.createUsageLedgerEntry({
+      // No-op if the media-stream handler already charged this call.
+      await billCallOnce({
         userId,
         agentId: phoneNumber.agent_id || null,
         callLogId: callLog.id,
-        periodStart,
-        periodEnd,
-        minutesUsed: durationMinutes.toString(),
+        callSid: CallSid,
+        durationSeconds,
         aiModel,
         voiceProvider,
-        costCents: costCents.toString(),
       });
-
-      // Unified billing: trial credit OR metered subscription
-      const subscription = await storage.getSubscription(userId);
-      const stripe = await getUncachableStripeClient();
-
-      if (stripe && subscription?.stripeCustomerId && costCents > 0) {
-        const hasSubscription = !!subscription.stripeSubscriptionId;
-
-        if (hasSubscription) {
-          // Subscription users: report exact cost in cents to Stripe meter
-          try {
-            const eventTimestamp = Math.floor(Date.now() / 1000);
-            await stripe.billing.meterEvents.create({
-              event_name: ORDERLY_METER_EVENT_NAME,
-              payload: {
-                stripe_customer_id: subscription.stripeCustomerId,
-                value: String(costCents),
-              },
-              timestamp: eventTimestamp,
-              identifier: `call_${CallSid}_${eventTimestamp}`,
-            });
-            console.log(`[Billing] Reported ${costCents}¢ to Stripe meter for user ${userId}`);
-          } catch (stripeError: any) {
-            console.error('[Billing] Error reporting to Stripe meter:', stripeError.message);
-          }
-        } else {
-          // Trial users: deduct from Stripe customer balance (positive = debit)
-          try {
-            await stripe.customers.createBalanceTransaction(
-              subscription.stripeCustomerId,
-              {
-                amount: costCents,
-                currency: 'usd',
-                description: `Call: ${durationMinutes}min (${aiModel} + ${voiceProvider})`,
-              }
-            );
-            console.log(`[Billing] Deducted ${costCents}¢ from trial credit for user ${userId}`);
-          } catch (stripeError: any) {
-            console.error('[Billing] Error deducting trial credit:', stripeError.message);
-          }
-        }
-      }
 
       res.status(200).send('OK');
     } catch (error: any) {
@@ -4662,6 +4635,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
           callLog = await storage.getCallLogByCallSid(payloadCallSid);
         }
 
+        // Calls routed natively by Retell never pass through the Twilio webhook
+        // or the media-stream handler, so no log exists yet. Without this the
+        // event was dropped entirely — the call was never billed or recorded.
+        if (!callLog && retellCallId) {
+          const retellAgentId: string | undefined = callData.agent_id;
+          const ownerAgent = retellAgentId
+            ? await storage.getAgentByRetellAgentId(retellAgentId)
+            : undefined;
+
+          if (!ownerAgent) {
+            console.warn(`[Retell webhook] No local agent for retell agent_id ${retellAgentId} — cannot attribute call ${retellCallId}`);
+            return;
+          }
+
+          const direction = callData.direction === 'outbound' ? 'outbound' : 'inbound';
+          callLog = await storage.createCallLog({
+            userId: ownerAgent.userId,
+            agentId: ownerAgent.id,
+            callSid: retellCallId,
+            direction,
+            fromNumber: callData.from_number || null,
+            toNumber: callData.to_number || null,
+            status: 'completed',
+            billingStatus: 'pending',
+          } as any);
+          console.log(`[Retell webhook] Created call log ${callLog.id} for Retell-routed call ${retellCallId}`);
+        }
+
         if (callLog) {
           // Update call log with transcript and analytics
           const durationMinutes = Math.ceil(durationSeconds / 60);
@@ -4675,96 +4676,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
             updatePayload.duration = durationSeconds.toString();
           }
           if (sentiment) updatePayload.sentiment = sentiment;
-          if (summary) updatePayload.callOutcome = summary;
+          // callOutcome is an enum the logs page filters and badges on — a
+          // free-text summary here silently breaks conversion analytics.
+          if (summary) {
+            updatePayload.metadata = { ...(callLog.metadata as any || {}), retellSummary: summary };
+          }
 
           await storage.updateCallLog(callLog.id, updatePayload);
           console.log(`[Retell webhook] Updated call log ${callLog.id} with transcript and analytics`);
 
-          // Check if a usage_ledger entry already exists for this call
-          const existingLedger = await db
-            .select()
-            .from(usageLedger)
-            .where(eq(usageLedger.callLogId, callLog.id))
-            .limit(1);
-
-          if (existingLedger.length === 0 && durationSeconds > 0) {
-            // No ledger entry — this is a Retell-only call (not routed through Twilio billing)
-            const userId = callLog.userId;
-
-            // Get agent info for accurate cost calculation
-            let aiModel = 'gpt-4o-mini';
-            let voiceProvider = 'elevenlabs';
-            if (callLog.agentId) {
-              try {
-                const agent = await storage.getAgent(callLog.agentId);
-                if (agent) {
-                  aiModel = agent.aiModel || aiModel;
-                  voiceProvider = agent.voiceProvider || voiceProvider;
-                }
-              } catch {
-                console.warn('[Retell billing] Could not fetch agent, using defaults');
-              }
+          // Charges only if this call has no ledger entry yet, so a webhook
+          // retry (or a Twilio-side charge) cannot bill the caller twice.
+          let aiModel: string | null | undefined;
+          let voiceProvider: string | null | undefined;
+          if (callLog.agentId) {
+            try {
+              const agent = await storage.getAgent(callLog.agentId);
+              aiModel = agent?.aiModel;
+              voiceProvider = agent?.voiceProvider;
+            } catch {
+              console.warn('[Retell billing] Could not fetch agent, using defaults');
             }
-
-            const costCents = calculateCallCostCents(durationSeconds, aiModel, voiceProvider);
-            const durationMinutesCeil = Math.ceil(durationSeconds / 60);
-            const now = new Date();
-            const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-            const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
-            await storage.createUsageLedgerEntry({
-              userId,
-              agentId: callLog.agentId || null,
-              callLogId: callLog.id,
-              periodStart,
-              periodEnd,
-              minutesUsed: durationMinutesCeil.toString(),
-              aiModel,
-              voiceProvider,
-              costCents: costCents.toString(),
-            });
-
-            // Bill via Stripe (trial deduction or metered subscription)
-            const subscription = await storage.getSubscription(userId);
-            const stripe = await getUncachableStripeClient();
-
-            if (stripe && subscription?.stripeCustomerId && costCents > 0) {
-              const hasSubscription = !!subscription.stripeSubscriptionId;
-              if (hasSubscription) {
-                try {
-                  const eventTimestamp = Math.floor(Date.now() / 1000);
-                  await stripe.billing.meterEvents.create({
-                    event_name: 'orderly_call_minutes',
-                    payload: {
-                      stripe_customer_id: subscription.stripeCustomerId,
-                      value: String(costCents),
-                    },
-                    timestamp: eventTimestamp,
-                    identifier: `retell_${retellCallId}_${eventTimestamp}`,
-                  });
-                  console.log(`[Retell billing] Reported ${costCents}¢ to Stripe meter for user ${userId}`);
-                } catch (stripeErr: any) {
-                  console.error('[Retell billing] Error reporting to Stripe meter:', stripeErr.message);
-                }
-              } else {
-                try {
-                  await stripe.customers.createBalanceTransaction(
-                    subscription.stripeCustomerId,
-                    {
-                      amount: costCents,
-                      currency: 'usd',
-                      description: `Retell call: ${durationMinutesCeil}min (${aiModel} + ${voiceProvider})`,
-                    }
-                  );
-                  console.log(`[Retell billing] Deducted ${costCents}¢ from trial credit for user ${userId}`);
-                } catch (stripeErr: any) {
-                  console.error('[Retell billing] Error deducting trial credit:', stripeErr.message);
-                }
-              }
-            }
-          } else if (existingLedger.length > 0) {
-            console.log(`[Retell webhook] Usage ledger entry already exists for call ${callLog.id} — skipping billing`);
           }
+
+          await billCallOnce({
+            userId: callLog.userId,
+            agentId: callLog.agentId || null,
+            callLogId: callLog.id,
+            callSid: retellCallId || callLog.callSid || callLog.id,
+            durationSeconds,
+            aiModel,
+            voiceProvider: voiceProvider || 'elevenlabs',
+          });
         } else {
           console.warn(`[Retell webhook] No call log found for retell call_id: ${retellCallId}`);
         }
@@ -4887,21 +4830,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error('[Voice] WebSocket server error:', error);
   });
 
-  testWss.on('connection', (ws, req) => {
+  testWss.on('connection', (ws, req: any) => {
     console.log('[TestCall] WebSocket connection established');
-    
-    // Parse URL to get agentId and userId from query parameters
+
+    // agentId comes from the URL, but the user identity comes from the session
+    // resolved during the upgrade — a client must not assert its own userId.
     const url = new URL(req.url || '', `http://${req.headers.host}`);
     const agentId = url.searchParams.get('agentId');
-    const userId = url.searchParams.get('userId');
-    
-    if (!agentId || !userId) {
-      console.error('[TestCall] Missing agentId or userId');
-      ws.send(JSON.stringify({ type: 'error', message: 'Missing agentId or userId' }));
+    const userId: string | undefined = req.authenticatedUserId;
+
+    if (!agentId) {
+      console.error('[TestCall] Missing agentId');
+      ws.send(JSON.stringify({ type: 'error', message: 'Missing agentId' }));
       ws.close();
       return;
     }
-    
+
+    if (!userId) {
+      console.error('[TestCall] Unauthenticated test-call connection rejected');
+      ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
+      ws.close();
+      return;
+    }
+
     handleBrowserTestWebSocket(ws, agentId, userId);
   });
 
@@ -4911,16 +4862,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Handle upgrade requests manually to ensure our WebSocket paths are handled
   // before Vite's HMR WebSocket can intercept them
-  httpServer.on('upgrade', (request, socket, head) => {
+  httpServer.on('upgrade', (request: any, socket, head) => {
     const pathname = new URL(request.url || '', `http://${request.headers.host}`).pathname;
-    
+
     if (pathname === '/voice-stream') {
+      // Authenticated by the signed token in the Twilio `start` frame — a
+      // session cookie is not available on a carrier-originated socket.
       wss.handleUpgrade(request, socket, head, (ws) => {
         wss.emit('connection', ws, request);
       });
     } else if (pathname === '/test-call') {
-      testWss.handleUpgrade(request, socket, head, (ws) => {
-        testWss.emit('connection', ws, request);
+      getUserIdFromUpgradeRequest(request).then((userId) => {
+        if (!userId) {
+          console.warn('[TestCall] Rejecting unauthenticated upgrade');
+          socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+        request.authenticatedUserId = userId;
+        testWss.handleUpgrade(request, socket, head, (ws) => {
+          testWss.emit('connection', ws, request);
+        });
+      }).catch((err) => {
+        console.error('[TestCall] Upgrade authentication failed:', err);
+        socket.destroy();
       });
     }
     // For other paths (like Vite HMR), let them fall through to other handlers
@@ -5080,7 +5045,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const callRows = await db.select({ id: callLogs.id }).from(callLogs).where(eq(callLogs.userId, userId));
 
       res.json({
-        user,
+        user: toPublicUser(user),
         messages,
         stats: { totalCalls: callRows.length, totalMinutes: Math.round(totalMinutes * 100) / 100, totalCostCents, agentsCount: userAgents.length },
       });

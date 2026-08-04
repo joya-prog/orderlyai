@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CreateAgentDialog } from "@/components/create-agent-dialog";
+import { SetupChecklist } from "@/components/setup-checklist";
 
 export default function Agents() {
   const { toast } = useToast();
@@ -138,6 +139,8 @@ export default function Agents() {
             Create Agent
           </Button>
         </div>
+
+        <SetupChecklist />
 
       {!agents || agents.length === 0 ? (
         <Card className="border-dashed shadow-sm">

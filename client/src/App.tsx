@@ -10,7 +10,6 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/useAuth";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { OnboardingTour } from "@/components/onboarding-tour";
 import { OnboardingCallLock } from "@/components/onboarding-call-lock";
 import { Button } from "@/components/ui/button";
 import { ShieldCheck } from "lucide-react";
@@ -200,7 +199,6 @@ function SidebarResponsiveWrapper() {
           <Router />
         </main>
       </div>
-      <OnboardingTour autoStart={tourShouldAutoStart} />
     </div>
   );
 }

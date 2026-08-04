@@ -8,6 +8,7 @@ import {
   Phone,
   BookOpen,
   Plug,
+  CalendarDays,
   Check,
   ChevronDown,
   ChevronRight,
@@ -26,6 +27,8 @@ import {
 
 const DISMISS_KEY = "setupChecklistDismissed";
 
+const CALENDLY_URL = "https://calendly.com/hello-getorderly/30min";
+
 interface ChecklistItem {
   id: string;
   title: string;
@@ -34,6 +37,9 @@ interface ChecklistItem {
   cta: string;
   icon: typeof Bot;
   done: boolean;
+  /** Opens in a new tab and never blocks completion. */
+  optional?: boolean;
+  external?: boolean;
 }
 
 export function SetupChecklist() {
@@ -92,15 +98,29 @@ export function SetupChecklist() {
       icon: Plug,
       done: hasIntegration,
     },
+    {
+      id: "call",
+      title: "Book a setup call",
+      why: "Optional — 30 minutes with our team to configure your agent together.",
+      href: CALENDLY_URL,
+      cta: "Book a call",
+      icon: CalendarDays,
+      done: false,
+      optional: true,
+      external: true,
+    },
   ];
 
-  const completed = items.filter((i) => i.done).length;
-  const allDone = completed === items.length;
+  // Optional items are offered, never required — they must not hold the
+  // checklist open or count against progress.
+  const required = items.filter((i) => !i.optional);
+  const completed = required.filter((i) => i.done).length;
+  const allDone = completed === required.length;
 
   // Nothing left to nag about, or explicitly dismissed.
   if (dismissed || allDone) return null;
 
-  const next = items.find((i) => !i.done);
+  const next = required.find((i) => !i.done);
 
   return (
     <Card className="mb-6 overflow-hidden border-primary/20">
@@ -119,14 +139,14 @@ export function SetupChecklist() {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Finish setting up</p>
             <p className="truncate text-xs text-muted-foreground">
-              {completed} of {items.length} done
+              {completed} of {required.length} done
               {next ? ` · next: ${next.title.toLowerCase()}` : ""}
             </p>
           </div>
         </button>
 
         <div className="hidden items-center gap-1.5 sm:flex" aria-hidden>
-          {items.map((i) => (
+          {required.map((i) => (
             <span
               key={i.id}
               className={`h-1.5 w-8 rounded-full transition-colors ${
@@ -177,6 +197,11 @@ export function SetupChecklist() {
                     }`}
                   >
                     {item.title}
+                    {item.optional && (
+                      <span className="ml-2 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
+                        optional
+                      </span>
+                    )}
                   </p>
                   {!item.done && (
                     <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
@@ -190,7 +215,11 @@ export function SetupChecklist() {
                     size="sm"
                     variant="outline"
                     className="shrink-0"
-                    onClick={() => setLocation(item.href)}
+                    onClick={() =>
+                      item.external
+                        ? window.open(item.href, "_blank", "noopener,noreferrer")
+                        : setLocation(item.href)
+                    }
                     data-testid={`button-checklist-${item.id}`}
                   >
                     {item.cta}

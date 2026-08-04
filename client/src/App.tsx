@@ -10,7 +10,6 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/useAuth";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { OnboardingCallLock } from "@/components/onboarding-call-lock";
 import { Button } from "@/components/ui/button";
 import { ShieldCheck } from "lucide-react";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -224,17 +223,16 @@ function AppContent() {
     );
   }
 
-  const isLocked = !user.onboardingCallUnlocked && user.role !== "admin";
-
-  // Render the full dashboard always (blurred when locked), with lock overlay on top
+  // The dashboard used to be blurred and pointer-events-disabled until an
+  // account manager manually flipped onboardingCallUnlocked in the database —
+  // so a new account could sign up, hand over its details, and then be unable
+  // to touch anything until a human intervened. The setup call is now an
+  // optional item on the setup checklist instead of a gate.
   return (
     <>
-      <div className={isLocked ? "blur-md pointer-events-none select-none" : ""}>
-        <SidebarProvider style={sidebarStyle} defaultOpen={isDesktop}>
-          <SidebarResponsiveWrapper />
-        </SidebarProvider>
-      </div>
-      {isLocked && <OnboardingCallLock user={user} />}
+      <SidebarProvider style={sidebarStyle} defaultOpen={isDesktop}>
+        <SidebarResponsiveWrapper />
+      </SidebarProvider>
       <Toaster />
     </>
   );

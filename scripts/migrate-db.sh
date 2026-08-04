@@ -50,7 +50,21 @@ pg_restore \
 
 echo "==> Comparing row counts"
 
-TABLES="users tenants agents phone_numbers call_logs kb_collections kb_sources integration_configs flow_nodes flow_connections"
+# Enumerated from the source rather than hardcoded. A fixed list silently skips
+# whatever it does not name — an earlier version checked 10 tables out of 30 and
+# would have reported success without ever looking at orders, invoices,
+# subscriptions or usage_ledger.
+TABLES=$(psql "${SOURCE_DATABASE_URL}" -tAc \
+  "SELECT table_name FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+    ORDER BY table_name")
+
+if [ -z "$TABLES" ]; then
+  echo "FAILED: could not list tables on the source. Check SOURCE_DATABASE_URL."
+  exit 1
+fi
+
+echo "    checking $(echo "$TABLES" | wc -w | tr -d ' ') tables"
 
 printf '\n%-24s %12s %12s   %s\n' "TABLE" "SOURCE" "TARGET" "RESULT"
 printf '%s\n' "-------------------------------------------------------------------"
@@ -62,8 +76,11 @@ for t in $TABLES; do
   tgt=$(psql "${TARGET_DATABASE_URL}" -tAc \
         "SELECT count(*) FROM \"$t\"" 2>/dev/null || echo "n/a")
 
-  if [ "$src" = "n/a" ] && [ "$tgt" = "n/a" ]; then
-    result="skip (no such table)"
+  if [ "$tgt" = "n/a" ]; then
+    # Present on the source but unreadable on the target — the restore did not
+    # create it. Previously this was reported as a harmless skip.
+    result="MISSING ON TARGET"
+    FAILED=1
   elif [ "$src" = "$tgt" ]; then
     result="ok"
   else
